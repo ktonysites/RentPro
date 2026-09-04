@@ -240,7 +240,7 @@
                 <td>${status}</td>
                 <td class="text-end">
                     <button class="btn btn-sm btn-outline-success me-1" onclick="event.stopPropagation(); openPayModal('${uniqueId}', '${t.Name}')"><i class="fa-solid fa-hand-holding-dollar"></i> Pay</button>
-                    <button class="btn btn-sm btn-outline-danger" onclick="event.stopPropagation(); deleteTenant('${uniqueId}')"><i class="fa-solid fa-trash"></i></button>
+                    <button class="btn btn-sm btn-outline-danger delete-tenant-btn" onclick="event.stopPropagation(); deleteTenant('${uniqueId}', this)"><i class="fa-solid fa-trash"></i></button>
                 </td>
             </tr>`;
         });
@@ -261,10 +261,31 @@
         new bootstrap.Modal(document.getElementById('payModal')).show();
     };
 
-    window.deleteTenant = async (id) => {
-        if(!confirm("Archive this tenant?")) return;
-        await fetch(WEB_APP_URL, { method: 'POST', body: JSON.stringify({ action: "deleteTenant", id: id }) });
-        loadData();
+    window.deleteTenant = async (id, button) => {
+      if(!confirm("Archive this tenant?")) return;
+      if (button) {
+        button.disabled = true;
+        button.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
+      }
+
+      try {
+        const response = await fetch(WEB_APP_URL, {
+          method: 'POST',
+          body: JSON.stringify({ action: "deleteTenant", id: decodeURIComponent(id) })
+        });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+        const result = await response.json();
+        if (!result.success) throw new Error(result.message || "The tenant was not archived.");
+        await loadData();
+      } catch (error) {
+        console.error("Delete tenant failed:", error);
+        alert("Unable to archive this tenant. Please try again.");
+        if (button) {
+          button.disabled = false;
+          button.innerHTML = '<i class="fa-solid fa-trash"></i>';
+        }
+      }
     };
 
     // FORM SUBMIT
