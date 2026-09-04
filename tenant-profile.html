@@ -197,6 +197,27 @@
     </div>
   </div>
 
+    <div class="modal fade" id="editModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered">
+            <form id="editForm" class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title fw-bold">Edit Tenant</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3"><label class="form-label small fw-bold">Full Name</label><input id="editName" class="form-control" required></div>
+                    <div class="row g-3">
+                        <div class="col-6"><label class="form-label small fw-bold">Phone</label><input id="editPhone" class="form-control" required></div>
+                        <div class="col-6"><label class="form-label small fw-bold">National ID</label><input id="editNatID" class="form-control" required></div>
+                        <div class="col-6"><label class="form-label small fw-bold">House</label><input id="editHouse" class="form-control" required></div>
+                        <div class="col-6"><label class="form-label small fw-bold">Monthly Rent</label><input id="editRent" type="number" class="form-control" required></div>
+                    </div>
+                </div>
+                <div class="modal-footer"><button type="submit" id="editSaveBtn" class="btn btn-primary w-100">Save Changes</button></div>
+            </form>
+        </div>
+    </div>
+
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
     <script src="global.js"></script>
     <script src="js/dev-auth.js"></script>
@@ -252,6 +273,12 @@
             document.getElementById('pdfDate').innerText = new Date().toLocaleDateString();
             document.getElementById('pdfRef').innerText = "RP-" + Math.floor(Math.random()*10000);
 
+            document.getElementById('editName').value = tenant.Name || '';
+            document.getElementById('editPhone').value = tenant.Phone || '';
+            document.getElementById('editNatID').value = tenant.NationalID || '';
+            document.getElementById('editHouse').value = tenant.House || '';
+            document.getElementById('editRent').value = tenant.Rent || 0;
+
             // Show the profile as soon as the tenant record is available.
             document.getElementById('loadingState').style.display = 'none';
             document.getElementById('profileContent').style.display = 'flex';
@@ -306,6 +333,38 @@
             document.getElementById('loadingState').innerText = "Unable to load tenant profile. Please try again.";
         }
     }
+
+    document.getElementById('editForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const btn = document.getElementById('editSaveBtn');
+        btn.disabled = true;
+        btn.innerText = 'Saving...';
+
+        const payload = {
+            action: 'editTenant',
+            id: tenantData.ID,
+            name: document.getElementById('editName').value.trim(),
+            phone: document.getElementById('editPhone').value.trim(),
+            natID: document.getElementById('editNatID').value.trim(),
+            house: document.getElementById('editHouse').value.trim(),
+            rent: document.getElementById('editRent').value
+        };
+
+        try {
+            const response = await fetch(WEB_APP_URL, { method: 'POST', body: JSON.stringify(payload) });
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            const result = await response.json();
+            if (!result.success) throw new Error(result.message || 'Tenant update failed.');
+            bootstrap.Modal.getInstance(document.getElementById('editModal')).hide();
+            await loadProfile();
+        } catch (error) {
+            console.error('Edit tenant failed:', error);
+            alert('Unable to save tenant changes. Please try again.');
+        } finally {
+            btn.disabled = false;
+            btn.innerText = 'Save Changes';
+        }
+    });
 
     // 🔥 5. GENERATE PDF FUNCTION
     window.downloadPDF = () => {
