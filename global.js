@@ -3,7 +3,7 @@
    ============================================================ */
 
 // 🔗 Your NEW deployed Google Apps Script URL
-const API_URL = "https://script.google.com/macros/s/AKfycbzsWx1USYqSBOGLttP8GibfJdSfRLu9bDGSGiuOGj1TuI88gH7nTXJTZqy0Iwd3oMg2_w/exec";
+const API_URL = "https://script.google.com/macros/s/AKfycbwBly-iQTvSU8iPkCQyD0wi-5tSA64ECeKMb1_1Lkuu5vnmptkkWacIAqSqH6l1eaXvtw/exec";
 
 // Local storage keys
 const KEY_TENANTS = "rentpro_tenants_v1";
