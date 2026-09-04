@@ -242,9 +242,10 @@
     }
   </script>
 
-  <script type="module">
+    <script src="js/dev-auth.js"></script>
+    <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-    import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+    import { getAuth, onAuthStateChanged as firebaseOnAuthStateChanged, signOut as firebaseSignOut } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 
     const firebaseConfig = {
         apiKey: "AIzaSyBwJEOW3jVBHLizWiJjT4a_Tay-2yUCZwk",
@@ -264,14 +265,14 @@
     // 🔴 YOUR WEB APP URL 🔴
     const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbzsWx1USYqSBOGLttP8GibfJdSfRLu9bDGSGiuOGj1TuI88gH7nTXJTZqy0Iwd3oMg2_w/exec"; 
 
-    onAuthStateChanged(auth, (user) => {
+    RentProDevAuth.onAuthStateChanged(auth, (user) => {
         if (user) {
             currentUserUID = user.uid;
             loadPayments();
         } else {
             window.location.href = "index.html";
         }
-    });
+    }, firebaseOnAuthStateChanged);
 
     const money = (amount) => {
         return new Intl.NumberFormat('en-KE', { 
@@ -377,7 +378,7 @@
     };
 
     if(document.getElementById('logoutBtn')) {
-        document.getElementById('logoutBtn').addEventListener('click', () => signOut(auth));
+        document.getElementById('logoutBtn').addEventListener('click', () => RentProDevAuth.signOut(auth, firebaseSignOut));
     }
   </script>
 </body>

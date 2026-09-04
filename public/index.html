@@ -257,7 +257,8 @@
     </div>
   </div>
 
-  <script type="module">
+    <script src="js/dev-auth.js"></script>
+    <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
     import { 
         getAuth, 
@@ -308,6 +309,8 @@
         const email = document.getElementById('email').value;
         const pass = document.getElementById('password').value;
         const btn = document.querySelector('button[type="submit"]');
+
+        if (window.RentProDevAuth.signIn(email, pass)) return;
 
         btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i> Signing in...';
         

@@ -202,9 +202,10 @@
     }
 </script>
 
+<script src="js/dev-auth.js"></script>
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-    import { getAuth, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+    import { getAuth, signOut as firebaseSignOut, onAuthStateChanged as firebaseOnAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 
     const firebaseConfig = {
         apiKey: "AIzaSyBwJEOW3jVBHLizWiJjT4a_Tay-2yUCZwk", 
@@ -225,7 +226,7 @@
     // 🔴 REPLACE WITH YOUR NEW WEB APP URL
     const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbxdjSlhuGhBMK7hrt9hndBFNBc037aW_k0wo0Q3m5Mhf5M00N5cVmJ0hQqH3oyZ06d3/exec"; 
 
-    onAuthStateChanged(auth, (user) => {
+    RentProDevAuth.onAuthStateChanged(auth, (user) => {
         if (!user) { window.location.href = "index.html"; } 
         else {
             currentUserUID = user.uid;
@@ -235,7 +236,7 @@
             document.getElementById('currentDate').innerText = new Date().toLocaleDateString('en-GB', { dateStyle: 'full' });
             loadDashboard();
         }
-    });
+    }, firebaseOnAuthStateChanged);
 
     const $ = (id) => document.getElementById(id);
     const money = (val) => new Intl.NumberFormat('en-KE', { style: 'currency', currency: 'KES', minimumFractionDigits: 0 }).format(Number(val)||0).replace('KES','').trim();
@@ -463,7 +464,7 @@
         });
     }
 
-    if($('logoutBtn')) $('logoutBtn').addEventListener('click', () => signOut(auth));
+    if($('logoutBtn')) $('logoutBtn').addEventListener('click', () => RentProDevAuth.signOut(auth, firebaseSignOut));
 </script>
 </body>
 </html>
