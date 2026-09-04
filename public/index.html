@@ -220,13 +220,6 @@
     </a>
     <p class="text-center text-muted mb-4 pb-2 small fw-medium">Property Management Simplified</p>
 
-    <button id="googleBtn" class="btn btn-google w-100">
-        <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google" width="20" height="20">
-        Sign in with Google
-    </button>
-
-    <div class="divider">or continue with email</div>
-
     <form id="loginForm">
         <div class="mb-4">
             <label class="form-label small fw-bold text-slate-700 ps-1 mb-2">Email Address</label>
@@ -262,9 +255,7 @@
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
     import { 
         getAuth, 
-        signInWithEmailAndPassword, 
-        GoogleAuthProvider, 
-        signInWithPopup, 
+        signInWithEmailAndPassword,
         onAuthStateChanged,
         sendPasswordResetEmail
     } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
@@ -280,8 +271,6 @@
 
     const app = initializeApp(firebaseConfig);
     const auth = getAuth(app);
-    const provider = new GoogleAuthProvider();
-
     const showMessage = (msg, isSuccess = false) => {
         const el = document.getElementById('statusMsg');
         el.innerText = msg;
@@ -289,21 +278,7 @@
         setTimeout(() => el.classList.add('d-none'), 5000);
     };
 
-    // 1. GOOGLE SIGN IN
-    document.getElementById('googleBtn').addEventListener('click', async () => {
-        const btn = document.getElementById('googleBtn');
-        btn.style.opacity = "0.7"; btn.style.pointerEvents = "none";
-        
-        try {
-            await signInWithPopup(auth, provider);
-        } catch (error) {
-            console.error(error);
-            showMessage("Google Sign-In failed. Check Firebase console configs.");
-            btn.style.opacity = "1"; btn.style.pointerEvents = "auto";
-        }
-    });
-
-    // 2. EMAIL SIGN IN
+    // EMAIL/PASSWORD SIGN IN
     document.getElementById('loginForm').addEventListener('submit', async (e) => {
         e.preventDefault();
         const email = document.getElementById('email').value;
@@ -328,7 +303,7 @@
         }
     });
 
-    // 3. FORGOT PASSWORD
+    // FORGOT PASSWORD
     document.getElementById('forgotBtn').addEventListener('click', async () => {
         const email = document.getElementById('email').value;
         if (!email) {
@@ -344,7 +319,7 @@
         }
     });
 
-    // 4. AUTO REDIRECT
+    // AUTO REDIRECT
     onAuthStateChanged(auth, (user) => {
         if (user) {
             window.location.href = "dashboard.html";
