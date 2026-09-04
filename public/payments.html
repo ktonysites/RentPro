@@ -242,6 +242,7 @@
     }
   </script>
 
+    <script src="global.js"></script>
     <script src="js/dev-auth.js"></script>
     <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
@@ -263,7 +264,7 @@
     let currentPayments = []; // Store for Export
 
     // 🔴 YOUR WEB APP URL 🔴
-    const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbxdjSlhuGhBMK7hrt9hndBFNBc037aW_k0wo0Q3m5Mhf5M00N5cVmJ0hQqH3oyZ06d3/exec";
+    const WEB_APP_URL = window.API_URL;
 
     RentProDevAuth.onAuthStateChanged(auth, (user) => {
         if (user) {
@@ -303,7 +304,7 @@
             let payments = rawData.map(normalizeData);
 
             // 🔴 FILTER BY USER ID 🔴
-            payments = payments.filter(p => p.uid === currentUserUID);
+            // This installation contains one property's payment history.
             
             // Store for CSV Export
             currentPayments = payments;

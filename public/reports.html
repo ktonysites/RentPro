@@ -318,6 +318,7 @@
     }
   </script>
 
+    <script src="global.js"></script>
     <script src="js/dev-auth.js"></script>
     <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
@@ -347,7 +348,7 @@
     let filteredExpenses = [];
 
     // 🔴 WEB APP URL 🔴
-    const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbxdjSlhuGhBMK7hrt9hndBFNBc037aW_k0wo0Q3m5Mhf5M00N5cVmJ0hQqH3oyZ06d3/exec"; 
+    const WEB_APP_URL = window.API_URL;
 
     RentProDevAuth.onAuthStateChanged(auth, (user) => {
         if (user) {
@@ -380,9 +381,9 @@
             const allExpenses = Array.isArray(eRes) ? eRes : (eRes.data || []);
 
             // Initial Filter by Owner
-            rawTenants = allTenants.filter(x => x.uid === currentUserUID);
-            rawPayments = allPayments.filter(x => x.uid === currentUserUID);
-            rawExpenses = allExpenses.filter(x => x.uid === currentUserUID);
+            rawTenants = allTenants;
+            rawPayments = allPayments;
+            rawExpenses = allExpenses;
 
             // Apply Time Filter
             updateDashboard();

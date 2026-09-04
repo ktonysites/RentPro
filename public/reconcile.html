@@ -57,7 +57,7 @@
         // 1. Fetch Unmatched Payments
         async function loadUnmatched() {
             // --- PASTE YOUR WEB APP URL HERE ---
-            const scriptURL = "YOUR_GOOGLE_SCRIPT_URL_HERE"; 
+            const scriptURL = window.API_URL;
             
             try {
                 const res = await fetch(scriptURL + "?action=getUnmatched");
@@ -132,7 +132,7 @@
             btn.disabled = true;
             btn.innerText = "Processing...";
 
-            const scriptURL = "https://script.google.com/macros/s/AKfycbzsWx1USYqSBOGLttP8GibfJdSfRLu9bDGSGiuOGj1TuI88gH7nTXJTZqy0Iwd3oMg2_w/exec"; // SAME URL
+            const scriptURL = window.API_URL;
 
             const payload = {
                 rowIndex: selectedPayment.rowIndex,

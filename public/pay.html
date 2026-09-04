@@ -150,6 +150,7 @@
     </div>
   </main>
 
+<script src="global.js"></script>
 <script src="js/dev-auth.js"></script>
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
@@ -169,7 +170,7 @@
     let currentUserUID = null;
 
     // Use the URL you just generated (or your latest working one)
-    const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbxdjSlhuGhBMK7hrt9hndBFNBc037aW_k0wo0Q3m5Mhf5M00N5cVmJ0hQqH3oyZ06d3/exec"; 
+    const WEB_APP_URL = window.API_URL;
 
     RentProDevAuth.onAuthStateChanged(auth, (user) => {
         if (user) { currentUserUID = user.uid; } 
@@ -190,7 +191,7 @@
             const res = await fetch(`${WEB_APP_URL}?action=getTenants&t=${Date.now()}`);
             const json = await res.json();
             const allTenants = Array.isArray(json) ? json : (json.data || []);
-            const myTenants = allTenants.filter(t => t.uid === currentUserUID);
+            const myTenants = allTenants;
 
             const tenant = myTenants.find(t => 
                 (t.Name && String(t.Name).toLowerCase().includes(query)) ||

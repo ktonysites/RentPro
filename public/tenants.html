@@ -146,13 +146,6 @@
                 <div class="col-4"><label class="form-label">Rent</label><input type="number" id="tRent" class="form-control" required></div>
                 <div class="col-4"><label class="form-label">Due Day</label><input type="number" id="tDate" class="form-control" placeholder="5" max="31" required></div>
                 
-                <div class="col-12">
-                    <label class="form-label">Assign Property</label>
-                    <select id="tProperty" class="form-select">
-                        <option value="Main Property">Main Property</option>
-                        </select>
-                </div>
-
                 <div class="col-12 mt-3"><button type="submit" id="saveBtn" class="btn btn-primary w-100">Save Tenant</button></div>
             </div>
           </form>
@@ -197,6 +190,7 @@
     window.onclick = function(e) { if (!e.target.closest('.nav-dropdown-container')) { var d=document.getElementsByClassName("nav-menu"); for(var i=0;i<d.length;i++){ if(d[i].classList.contains('show')) d[i].classList.remove('show'); } } }
   </script>
 
+  <script src="global.js"></script>
   <script src="js/dev-auth.js"></script>
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
@@ -209,7 +203,7 @@
     let currentTenants = [];
 
     // 🔴 YOUR WEB APP URL
-    const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbzsWx1USYqSBOGLttP8GibfJdSfRLu9bDGSGiuOGj1TuI88gH7nTXJTZqy0Iwd3oMg2_w/exec"; 
+    const WEB_APP_URL = window.API_URL;
 
     RentProDevAuth.onAuthStateChanged(auth, (user) => {
         if (user) { currentUserUID = user.uid; loadData(); startLiveUpdates(); } 
@@ -218,28 +212,12 @@
 
     async function loadData() {
         try {
-            // Fetch Tenants AND Properties
-            const [tRes, pRes] = await Promise.all([
-                fetch(`${WEB_APP_URL}?action=getTenants&t=${Date.now()}`).then(r=>r.json()),
-                fetch(`${WEB_APP_URL}?action=getProperties&t=${Date.now()}`).then(r=>r.json())
-            ]);
+            const tRes = await fetch(`${WEB_APP_URL}?action=getTenants&t=${Date.now()}`).then(r=>r.json());
 
-            // 1. Render Tenants
+            // This installation serves one property, so the roster is not split by SaaS account.
             const allTenants = tRes.data || [];
-            currentTenants = allTenants.filter(t => t.uid === currentUserUID);
+            currentTenants = allTenants;
             renderTable(currentTenants);
-
-            // 2. Populate Property Dropdown in Modal
-            const myProps = (pRes.data || []).filter(p => p.uid === currentUserUID);
-            const select = document.getElementById('tProperty');
-            if(myProps.length > 0) {
-                select.innerHTML = ''; // Clear default if we have real props
-                myProps.forEach(p => {
-                    const opt = document.createElement('option');
-                    opt.value = p.Name; opt.text = p.Name;
-                    select.appendChild(opt);
-                });
-            }
 
         } catch(e) { console.error(e); }
     }
@@ -295,7 +273,7 @@
         const btn = document.getElementById('saveBtn'); btn.disabled=true; btn.innerText="Saving...";
         const payload = {
             action: "addTenant", uid: currentUserUID, name: document.getElementById('tName').value, phone: document.getElementById('tPhone').value, natID: document.getElementById('tNatID').value, house: document.getElementById('tHouse').value, rent: document.getElementById('tRent').value, date: document.getElementById('tDate').value,
-            property: document.getElementById('tProperty').value // 🔥 Property Added
+            property: "Main Property"
         };
         try { await fetch(WEB_APP_URL, { method: 'POST', body: JSON.stringify(payload) }); bootstrap.Modal.getInstance(document.getElementById('addTenantModal')).hide(); loadData(); }
         catch(e) { alert("Error"); } finally { btn.disabled=false; btn.innerText="Save Tenant"; }

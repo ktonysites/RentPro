@@ -89,27 +89,6 @@
         <i class="fa-solid fa-city welcome-bg"></i>
     </div>
     
-    <div class="property-bar mb-4 shadow-sm">
-        <div class="d-flex align-items-center gap-2 flex-grow-1">
-            <div class="icon-box bg-blue-light" style="width:40px; height:40px;"><i class="fa-solid fa-building"></i></div>
-            <div>
-                <label class="small text-muted fw-bold d-block" style="font-size: 0.65rem; margin-bottom: 2px;">CURRENT PROPERTY</label>
-                <select id="propertyFilter" class="form-select form-select-sm fw-bold border-0 bg-transparent p-0 shadow-none text-dark" style="font-size: 1.1rem; cursor:pointer;">
-                    <option value="All">Loading Properties...</option>
-                </select>
-            </div>
-        </div>
-        
-        <div class="border-start ps-3 d-flex gap-2">
-            <button class="btn btn-sm btn-primary fw-bold" data-bs-toggle="modal" data-bs-target="#propModal">
-                <i class="fa-solid fa-plus me-1"></i> New Property
-            </button>
-            <button class="btn btn-sm btn-light border" onclick="loadDashboard()">
-                <i class="fa-solid fa-rotate"></i>
-            </button>
-        </div>
-    </div>
-
     <div class="row g-4 mb-4">
       <div class="col-md-3">
           <div class="card-hero">
@@ -163,30 +142,6 @@
     </div>
   </main>
 
-  <div class="modal fade" id="propModal" tabindex="-1">
-    <div class="modal-dialog modal-dialog-centered">
-      <form id="propForm" class="modal-content">
-        <div class="modal-header">
-            <h5 class="modal-title fw-bold">Add New Property</h5>
-            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-        </div>
-        <div class="modal-body">
-            <div class="mb-3">
-                <label class="form-label small fw-bold">Property Name</label>
-                <input type="text" id="propName" class="form-control" placeholder="e.g. Riverside Apts" required>
-            </div>
-            <div class="mb-3">
-                <label class="form-label small fw-bold">Location / Address</label>
-                <input type="text" id="propAddr" class="form-control" placeholder="e.g. Kiambu">
-            </div>
-        </div>
-        <div class="modal-footer bg-light">
-            <button type="submit" class="btn btn-primary fw-bold w-100">Create Property</button>
-        </div>
-      </form>
-    </div>
-  </div>
-
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
@@ -202,6 +157,7 @@
     }
 </script>
 
+<script src="global.js"></script>
 <script src="js/dev-auth.js"></script>
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
@@ -221,10 +177,9 @@
     let currentUserUID = null;
     let globalTenants = [];
     let globalPayments = [];
-    let globalProperties = [];
 
     // 🔴 REPLACE WITH YOUR NEW WEB APP URL
-    const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbxdjSlhuGhBMK7hrt9hndBFNBc037aW_k0wo0Q3m5Mhf5M00N5cVmJ0hQqH3oyZ06d3/exec"; 
+    const WEB_APP_URL = window.API_URL;
 
     RentProDevAuth.onAuthStateChanged(auth, (user) => {
         if (!user) { window.location.href = "index.html"; } 
@@ -257,36 +212,14 @@
     window.loadDashboard = async function() {
         if(!currentUserUID) return;
         
-        const [tenantsRes, paymentsRes, propsRes] = await Promise.all([
+        const [tenantsRes, paymentsRes] = await Promise.all([
             apiFetch({ action: 'getTenants' }),
-            apiFetch({ action: 'getPayments' }),
-            apiFetch({ action: 'getProperties' })
+            apiFetch({ action: 'getPayments' })
         ]);
         
-        // Filter Data by User ID
-        globalTenants = (tenantsRes.data || []).filter(t => t.uid === currentUserUID);
-        globalProperties = (propsRes.data || []).filter(p => p.uid === currentUserUID);
+        globalTenants = tenantsRes.data || [];
         let rawPayments = (paymentsRes.data || []);
 
-        // 1. POPULATE PROPERTY DROPDOWN
-        const select = $('propertyFilter');
-        const currentVal = select.value;
-        select.innerHTML = '<option value="All">All Properties</option>';
-        
-        if(globalProperties.length === 0) {
-            select.innerHTML += '<option disabled>No properties found</option>';
-        } else {
-            globalProperties.forEach(p => {
-                const opt = document.createElement('option');
-                opt.value = p.Name;
-                opt.text = p.Name;
-                select.appendChild(opt);
-            });
-        }
-        
-        if(currentVal && currentVal !== 'All') select.value = currentVal;
-
-        // 2. MAP PAYMENTS TO PROPERTIES
         const tenantMap = {}; 
         globalTenants.forEach(t => {
             let p = String(t.Phone).replace(/\D/g, '');
@@ -294,7 +227,6 @@
         });
 
         globalPayments = rawPayments.filter(p => {
-            if(p.uid === currentUserUID) return true; // Direct API match
             const pPhone = String(p.MSISDN || p.Phone || "").replace(/\D/g, '');
             return Object.keys(tenantMap).some(tp => pPhone.includes(tp));
         }).map(p => {
@@ -306,11 +238,8 @@
             return { ...p, assignedProperty: foundProp };
         });
 
-        filterDashboard(select.value);
+        filterDashboard("All");
     }
-
-    // --- FILTER LOGIC ---
-    $('propertyFilter').addEventListener('change', (e) => filterDashboard(e.target.value));
 
     function filterDashboard(propName) {
         let fTenants = globalTenants;
@@ -336,54 +265,6 @@
         renderChart(fPayments);
         renderRecentActivity(fPayments);
     }
-
-    // --- ADD PROPERTY (FIXED) ---
-    $('propForm').addEventListener('submit', async (e) => {
-        e.preventDefault();
-        
-        // Target the actual submit button
-        const btn = e.target.querySelector('button[type="submit"]');
-        const originalText = btn.innerHTML;
-        
-        btn.disabled = true; 
-        btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin me-1"></i> Creating...';
-        
-        const payload = {
-            action: "addProperty",
-            uid: currentUserUID,
-            name: $('propName').value,
-            address: $('propAddr').value
-        };
-
-        try {
-            // Added Content-Type text/plain to bypass Google Apps Script CORS
-            const response = await fetch(WEB_APP_URL, { 
-                method: 'POST',
-                headers: {
-                    "Content-Type": "text/plain;charset=utf-8"
-                },
-                body: JSON.stringify(payload) 
-            });
-
-            if (!response.ok) throw new Error("Network error when saving property.");
-
-            alert("Property Created!");
-            bootstrap.Modal.getInstance($('propModal')).hide();
-            
-            // Clear input fields
-            $('propName').value = "";
-            $('propAddr').value = ""; 
-            
-            loadDashboard(); // Refresh to show new property
-            
-        } catch(error) { 
-            console.error("Submission failed:", error);
-            alert("Error creating property. Check the console for details."); 
-        } finally { 
-            btn.disabled = false; 
-            btn.innerHTML = originalText; 
-        }
-    });
 
     function renderRecentActivity(payments) {
         const list = $('recentActivityList');

@@ -1,4 +1,4 @@
-const API_URL = "https://script.google.com/macros/s/AKfycbzSn_UZUQBEwNruOIgjOWoJpCYP1x6eHEhB3iSDaEzjj04K3lqY3G4LFmHhIqlYp5qYsA/exec";
+const API_URL = window.API_URL;
 
 let tenants = [];
 let payments = [];

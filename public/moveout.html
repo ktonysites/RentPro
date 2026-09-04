@@ -196,6 +196,7 @@
         </div>
     </div>
 
+    <script src="global.js"></script>
     <script>
         function submitMoveOut() {
             const btn = document.querySelector('.btn-submit');
@@ -214,8 +215,7 @@
                 depositStatus: document.getElementById('mDeposit').value
             };
 
-            // --- IMPORTANT: PASTE YOUR GOOGLE SCRIPT URL BELOW ---
-            const scriptURL = "YOUR_GOOGLE_SCRIPT_URL_HERE?action=moveOut";
+            const scriptURL = `${window.API_URL}?action=moveOut`;
 
             fetch(scriptURL, {
                 method: 'POST',
