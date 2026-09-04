@@ -1,0 +1,474 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>RentPro — Expenses</title>
+
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+  <style>
+    :root { 
+        --rp-primary: #2563eb; 
+        --rp-bg: #f8fafc; 
+        --rp-dark: #0f172a; 
+        --rp-card-border: #e2e8f0;
+    }
+    body { background: var(--rp-bg); font-family: 'Inter', system-ui, sans-serif; color: #334155; }
+
+    /* --- TOP HEADER --- */
+    .top-header {
+        background: var(--rp-dark); padding: 15px 5%; display: flex; justify-content: space-between; align-items: center;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); position: sticky; top: 0; z-index: 1000;
+    }
+    .brand-logo { color: white; font-weight: 700; font-size: 1.25rem; text-decoration: none; display: flex; align-items: center; gap: 10px; }
+    
+    /* NAV DROPDOWN */
+    .nav-dropdown-container { position: relative; }
+    .nav-select-btn {
+        background: rgba(255, 255, 255, 0.1); border: 1px solid rgba(255, 255, 255, 0.2); color: white;
+        padding: 10px 20px; border-radius: 8px; cursor: pointer; display: flex; align-items: center; justify-content: space-between;
+        min-width: 200px; font-weight: 500; transition: all 0.2s ease;
+    }
+    .nav-select-btn:hover { background: rgba(255, 255, 255, 0.15); border-color: rgba(255, 255, 255, 0.4); }
+    .nav-menu {
+        position: absolute; top: 115%; right: 0; width: 220px; background: white; border-radius: 8px;
+        box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+        border: 1px solid var(--rp-card-border); display: none; flex-direction: column; overflow: hidden; z-index: 1001;
+    }
+    .nav-menu.show { display: flex; animation: fadeIn 0.2s ease-out; }
+    .nav-item {
+        padding: 12px 20px; text-decoration: none; color: #475569; font-weight: 500; display: flex; align-items: center; gap: 12px;
+        transition: background 0.1s; border-bottom: 1px solid #f1f5f9;
+    }
+    .nav-item:hover { background: #f8fafc; color: var(--rp-primary); }
+    .nav-item.active { background: #eff6ff; color: var(--rp-primary); border-left: 4px solid var(--rp-primary); }
+    .nav-item.logout { color: #ef4444; }
+
+    /* --- LAYOUT --- */
+    .content { padding: 30px 5%; max-width: 1400px; margin: 0 auto; }
+    .card-stat { 
+        background: #fff; padding: 20px; border-radius: 12px; border: 1px solid #e2e8f0; 
+        display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; 
+    }
+    .card-table { 
+        background: #fff; border-radius: 12px; border: 1px solid #e2e8f0; 
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05); overflow: hidden; 
+    }
+    .table thead th { 
+        background: #f8fafc; font-weight: 700; text-transform: uppercase; font-size: 0.75rem; 
+        color: #64748b; padding: 16px; border-bottom: 1px solid #e2e8f0; white-space: nowrap;
+    }
+    .table tbody td { padding: 16px; border-bottom: 1px solid #f1f5f9; vertical-align: middle; }
+    .table-hover tbody tr:hover { background-color: #f8fafc; }
+
+    /* BADGES */
+    .badge-cat { padding: 5px 10px; border-radius: 6px; font-size: 0.75rem; font-weight: 600; display: inline-flex; align-items: center; gap: 6px; }
+    .cat-maint { background: #fee2e2; color: #991b1b; }
+    .cat-util { background: #dbeafe; color: #1e40af; }
+    .cat-clean { background: #d1fae5; color: #065f46; }
+    .cat-tax { background: #ffedd5; color: #9a3412; }
+    .cat-salary { background: #f3e8ff; color: #6b21a8; }
+    .cat-other { background: #f3f4f6; color: #374151; }
+
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
+    @media (max-width: 768px) { .content { padding: 20px 4%; } }
+  </style>
+</head>
+<body>
+
+  <header class="top-header">
+    <a href="#" class="brand-logo"><i class="fa-solid fa-building me-2"></i> RentPro</a>
+    <div class="nav-dropdown-container">
+        <div class="nav-select-btn" id="navDropdownBtn" onclick="toggleNav()">
+            <span><i class="fa-solid fa-receipt me-2"></i> Expenses</span>
+            <i class="fa-solid fa-chevron-down small"></i>
+        </div>
+        <div class="nav-menu" id="navMenu">
+            <a href="dashboard.html" class="nav-item"><i class="fa-solid fa-chart-pie"></i> Dashboard</a>
+            <a href="tenants.html" class="nav-item"><i class="fa-solid fa-users"></i> Tenants</a>
+            <a href="archives.html" class="nav-item"><i class="fa-solid fa-box-archive"></i> Archives</a>
+            <a href="payments.html" class="nav-item"><i class="fa-solid fa-money-bill-wave"></i> Payments</a>
+            <a href="expenses.html" class="nav-item active"><i class="fa-solid fa-receipt"></i> Expenses</a>
+            <a href="reports.html" class="nav-item"><i class="fa-solid fa-chart-column"></i> Reports</a>
+            <a href="#" class="nav-item logout" id="logoutBtn"><i class="fa-solid fa-right-from-bracket"></i> Logout</a>
+        </div>
+    </div>
+  </header>
+
+  <main class="content">
+    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-3">
+      <div>
+        <h2 class="fw-bold mb-1 text-dark">Expenses</h2>
+        <p class="text-muted small m-0">Track maintenance and utility costs.</p>
+      </div>
+      <div class="d-flex gap-2">
+          <button id="generateGarbageBtn" class="btn btn-warning btn-sm text-dark fw-bold">
+            <i class="fa-solid fa-trash-can me-2"></i> Generate Garbage Bills
+          </button>
+          
+          <button onclick="downloadCSV()" class="btn btn-outline-success btn-sm">
+            <i class="fa-solid fa-file-csv me-2"></i> Export CSV
+          </button>
+          <button id="addExpenseBtn" class="btn btn-primary btn-sm">
+            <i class="fa-solid fa-plus me-2"></i> Add Expense
+          </button>
+      </div>
+    </div>
+
+    <div class="row mb-4">
+        <div class="col-md-4">
+            <div class="card-stat">
+                <div>
+                    <h6 class="text-muted small fw-bold text-uppercase mb-1">Total Expenses</h6>
+                    <h3 class="fw-bold text-dark m-0" id="totalAmount">KES 0</h3>
+                </div>
+                <div class="bg-danger bg-opacity-10 text-danger p-3 rounded-3">
+                    <i class="fa-solid fa-wallet fs-4"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-2 mb-3">
+        <div class="col-md-8">
+            <div class="input-group">
+                <span class="input-group-text bg-white border-end-0"><i class="fa-solid fa-magnifying-glass text-muted"></i></span>
+                <input type="text" id="searchInput" class="form-control border-start-0 ps-0" placeholder="Search description...">
+            </div>
+        </div>
+        <div class="col-md-4">
+            <select id="houseFilter" class="form-select">
+                <option value="all">All Houses</option>
+                <option value="General">General / Shared</option>
+            </select>
+        </div>
+    </div>
+
+    <div class="card-table">
+      <div class="table-responsive">
+        <table class="table table-hover mb-0">
+          <thead>
+            <tr>
+                <th>Date</th>
+                <th>House</th> <th>Category</th>
+                <th>Description</th>
+                <th>Amount</th>
+                <th class="text-end">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="expenseTableBody">
+             <tr><td colspan="6" class="text-center p-5 text-muted"><i class="fa-solid fa-circle-notch fa-spin fs-4 mb-2"></i><br>Loading expenses...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+
+  <div class="modal fade" id="expenseModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+      <form id="expenseForm" class="modal-content">
+        <div class="modal-header border-0 pb-0">
+          <h5 class="modal-title fw-bold" id="modalTitle">Add Expense</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body p-4">
+            <input type="hidden" id="expenseId">
+            
+            <div class="row g-3">
+                <div class="col-6">
+                    <label class="form-label small fw-bold">Date</label>
+                    <input type="date" id="expenseDate" class="form-control" required>
+                </div>
+                <div class="col-6">
+                    <label class="form-label small fw-bold">Amount (KES)</label>
+                    <input type="number" id="expenseAmount" class="form-control" placeholder="0" required>
+                </div>
+                
+                <div class="col-12">
+                    <label class="form-label small fw-bold">Assign to House</label>
+                    <select id="expenseHouse" class="form-select" required>
+                        <option value="General">General (Shared Cost)</option>
+                    </select>
+                </div>
+
+                <div class="col-12">
+                    <label class="form-label small fw-bold">Category</label>
+                    <select id="expenseCategory" class="form-select" required>
+                        <option value="Maintenance">Maintenance & Repairs</option>
+                        <option value="Utilities">Utilities</option>
+                        <option value="Cleaning">Cleaning</option>
+                        <option value="Tax">Taxes/Rates</option>
+                        <option value="Salary">Staff Salary</option>
+                        <option value="Other">Other</option>
+                    </select>
+                </div>
+                <div class="col-12">
+                    <label class="form-label small fw-bold">Description</label>
+                    <input type="text" id="expenseDesc" class="form-control" placeholder="e.g. Broken pipe fix" required>
+                </div>
+            </div>
+
+            <button type="submit" class="btn btn-primary w-100 fw-bold mt-4">Save Expense</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+
+  <script>
+    function toggleNav() { document.getElementById('navMenu').classList.toggle('show'); }
+    window.onclick = function(event) {
+        if (!event.target.closest('.nav-dropdown-container')) {
+            var dropdowns = document.getElementsByClassName("nav-menu");
+            for (var i = 0; i < dropdowns.length; i++) {
+                if (dropdowns[i].classList.contains('show')) dropdowns[i].classList.remove('show');
+            }
+        }
+    }
+  </script>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+    import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+
+    const firebaseConfig = {
+        apiKey: "AIzaSyBwJEOW3jVBHLizWiJjT4a_Tay-2yUCZwk",
+        authDomain: "rentpro-saas.firebaseapp.com",
+        projectId: "rentpro-saas",
+        storageBucket: "rentpro-saas.firebasestorage.app",
+        messagingSenderId: "120985965272",
+        appId: "1:120985965272:web:c86eae74aa75460b17fdad"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    let currentUserUID = null;
+    let currentExpenses = [];
+
+    // 🔴 YOUR WEB APP URL (Make sure Backend is updated!)
+    const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbxdjSlhuGhBMK7hrt9hndBFNBc037aW_k0wo0Q3m5Mhf5M00N5cVmJ0hQqH3oyZ06d3/exec"; 
+
+    // --- INIT ---
+    function initHouseDropdowns() {
+        const filterSelect = document.getElementById('houseFilter');
+        const modalSelect = document.getElementById('expenseHouse');
+        
+        for (let i = 1; i <= 25; i++) {
+            const opt1 = document.createElement("option"); opt1.value = i; opt1.text = "House " + i;
+            const opt2 = document.createElement("option"); opt2.value = i; opt2.text = "House " + i;
+            filterSelect.appendChild(opt1);
+            modalSelect.appendChild(opt2);
+        }
+    }
+    initHouseDropdowns();
+
+    onAuthStateChanged(auth, (user) => {
+        if (user) {
+            currentUserUID = user.uid;
+            loadExpenses();
+        } else {
+            window.location.href = "index.html";
+        }
+    });
+
+    const money = (val) => new Intl.NumberFormat('en-KE', { style: 'currency', currency: 'KES', minimumFractionDigits:0 }).format(val).replace('KES','').trim();
+
+    // --- LOAD DATA ---
+    async function loadExpenses() {
+        try {
+            const res = await fetch(`${WEB_APP_URL}?action=getExpenses&t=${Date.now()}`);
+            const json = await res.json();
+            const allData = Array.isArray(json) ? json : (json.data || []);
+            
+            currentExpenses = allData.filter(e => e.uid === currentUserUID);
+            renderTable(currentExpenses);
+
+        } catch(e) {
+            console.error(e);
+            document.getElementById('expenseTableBody').innerHTML = `<tr><td colspan="6" class="text-center text-danger p-4">Error loading data.</td></tr>`;
+        }
+    }
+
+    // --- RENDER TABLE ---
+    function renderTable(data) {
+        const tbody = document.getElementById('expenseTableBody');
+        tbody.innerHTML = "";
+        let total = 0;
+
+        if(data.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="6" class="text-center p-5 text-muted">No expenses found.</td></tr>`;
+            document.getElementById('totalAmount').innerText = "KES 0";
+            return;
+        }
+
+        data.sort((a,b) => new Date(b.Date) - new Date(a.Date));
+
+        data.forEach(e => {
+            total += Number(e.Amount || 0);
+            let dateStr = e.Date;
+            try { dateStr = new Date(e.Date).toLocaleDateString('en-GB', {day:'numeric', month:'short', year:'numeric'}); } catch(err){}
+
+            let badgeClass = "cat-other";
+            const cat = (e.Category || "").toLowerCase();
+            if(cat.includes('maint')) badgeClass = "cat-maint";
+            if(cat.includes('util')) badgeClass = "cat-util";
+            if(cat.includes('clean')) badgeClass = "cat-clean";
+            if(cat.includes('tax')) badgeClass = "cat-tax";
+            if(cat.includes('salary')) badgeClass = "cat-salary";
+
+            let houseBadge = `<span class="badge bg-light text-dark border">General</span>`;
+            if (e.House && e.House != "General") {
+                houseBadge = `<span class="badge bg-info bg-opacity-10 text-info border border-info">House ${e.House}</span>`;
+            }
+
+            tbody.innerHTML += `
+                <tr>
+                    <td>${dateStr}</td>
+                    <td>${houseBadge}</td>
+                    <td><span class="badge-cat ${badgeClass}">${e.Category}</span></td>
+                    <td>${e.Description}</td>
+                    <td class="text-danger fw-bold">- KES ${money(e.Amount)}</td>
+                    <td class="text-end">
+                        <button class="btn btn-sm btn-light border" onclick="deleteExpense('${e.ID}')"><i class="fa-solid fa-trash text-danger"></i></button>
+                    </td>
+                </tr>
+            `;
+        });
+
+        document.getElementById('totalAmount').innerText = "KES " + money(total);
+    }
+
+    // --- FILTER LOGIC ---
+    function applyFilters() {
+        const searchVal = document.getElementById('searchInput').value.toLowerCase();
+        const houseVal = document.getElementById('houseFilter').value;
+
+        const filtered = currentExpenses.filter(item => {
+            const matchesText = (item.Description && item.Description.toLowerCase().includes(searchVal)) ||
+                                (item.Category && item.Category.toLowerCase().includes(searchVal));
+            let matchesHouse = true;
+            if (houseVal !== 'all') {
+                matchesHouse = (String(item.House) == String(houseVal));
+            }
+            return matchesText && matchesHouse;
+        });
+        renderTable(filtered);
+    }
+
+    document.getElementById('searchInput').addEventListener('input', applyFilters);
+    document.getElementById('houseFilter').addEventListener('change', applyFilters);
+
+    // --- ADD EXPENSE ---
+    document.getElementById('addExpenseBtn').addEventListener('click', () => {
+        document.getElementById('expenseForm').reset();
+        document.getElementById('expenseDate').value = new Date().toISOString().split('T')[0];
+        const modal = new bootstrap.Modal(document.getElementById('expenseModal'));
+        modal.show();
+    });
+
+    document.getElementById('expenseForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const btn = e.target.querySelector('button[type="submit"]');
+        btn.disabled = true; btn.innerText = "Saving...";
+
+        const payload = {
+            action: "addExpense",
+            uid: currentUserUID,
+            date: document.getElementById('expenseDate').value,
+            category: document.getElementById('expenseCategory').value,
+            desc: document.getElementById('expenseDesc').value,
+            amount: document.getElementById('expenseAmount').value,
+            house: document.getElementById('expenseHouse').value 
+        };
+
+        try {
+            await fetch(WEB_APP_URL, { method: 'POST', body: JSON.stringify(payload) });
+            bootstrap.Modal.getInstance(document.getElementById('expenseModal')).hide();
+            loadExpenses();
+        } catch(err) { alert("Error saving."); }
+        finally { btn.disabled = false; btn.innerText = "Save Expense"; }
+    });
+
+    // 🔥 GENERATE GARBAGE BILLS ONLY (Bulk)
+    document.getElementById('generateGarbageBtn').addEventListener('click', async () => {
+        if(!confirm("Generate Garbage Fees (150 KES) for ALL 25 houses?")) return;
+        
+        const btn = document.getElementById('generateGarbageBtn');
+        btn.disabled = true;
+        btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin me-2"></i> Generating...`;
+
+        const today = new Date().toISOString().split('T')[0];
+        const bills = [];
+
+        // Loop 1-25: Add ONLY Garbage Fee
+        for (let i = 1; i <= 25; i++) {
+            bills.push({
+                uid: currentUserUID,
+                date: today,
+                category: "Utilities",
+                desc: `Monthly Garbage Fee - House ${i}`,
+                amount: 150,
+                house: i
+            });
+        }
+
+        try {
+            // SEND BULK REQUEST
+            await fetch(WEB_APP_URL, { 
+                method: 'POST', 
+                body: JSON.stringify({ action: "addBulkExpenses", data: bills }) 
+            });
+            alert("Success! 25 Garbage bills generated.");
+            loadExpenses();
+        } catch(err) {
+            console.error(err);
+            alert("Error generating bills.");
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = `<i class="fa-solid fa-trash-can me-2"></i> Generate Garbage Bills`;
+        }
+    });
+
+    // --- DELETE ---
+    window.deleteExpense = async (id) => {
+        if(!confirm("Delete this expense?")) return;
+        try {
+            await fetch(WEB_APP_URL, { method: 'POST', body: JSON.stringify({ action: "deleteExpense", id: id }) });
+            loadExpenses();
+        } catch(e) { alert("Error deleting."); }
+    };
+
+    // --- CSV EXPORT ---
+    window.downloadCSV = () => {
+        const searchVal = document.getElementById('searchInput').value.toLowerCase();
+        const houseVal = document.getElementById('houseFilter').value;
+        const dataToExport = currentExpenses.filter(item => {
+            const matchesText = (item.Description || "").toLowerCase().includes(searchVal);
+            const matchesHouse = (houseVal === 'all') || (String(item.House) == String(houseVal));
+            return matchesText && matchesHouse;
+        });
+
+        if(dataToExport.length === 0) { alert("No data to export."); return; }
+
+        let csv = "data:text/csv;charset=utf-8,Date,House,Category,Description,Amount\n";
+        dataToExport.forEach(e => {
+            let d = e.Date; 
+            try { d = new Date(e.Date).toISOString().split('T')[0]; } catch(err){}
+            csv += `"${d}","${e.House || 'General'}","${e.Category}","${e.Description}",${e.Amount}\n`;
+        });
+        const link = document.createElement("a");
+        link.href = encodeURI(csv);
+        link.download = "RentPro_Expenses.csv";
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    };
+
+    if(document.getElementById('logoutBtn')) document.getElementById('logoutBtn').addEventListener('click', () => signOut(auth));
+  </script>
+</body>
+</html>

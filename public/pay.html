@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>RentPro — Pay Rent</title> 
+  
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+  <style>
+    :root { 
+        --rp-primary: #3b82f6; 
+        --rp-bg: #f1f5f9; 
+        --rp-sidebar: #0f172a; 
+        --mpesa-green: #00c851;
+    }
+    body { background: var(--rp-bg); font-family: 'Inter', system-ui, sans-serif; color: #334155; }
+
+    /* SIDEBAR */
+    .sidebar { width: 260px; min-height: 100vh; background: var(--rp-sidebar); color: #fff; position: fixed; top: 0; left: 0; display: flex; flex-direction: column; z-index: 1000; }
+    .sidebar-header { padding: 24px; border-bottom: 1px solid rgba(255,255,255,0.05); }
+    .nav-link { color: #94a3b8; padding: 14px 24px; display: flex; align-items: center; gap: 12px; text-decoration: none; transition: 0.2s; font-weight: 500; border-left: 4px solid transparent;}
+    .nav-link:hover { background: rgba(255,255,255,0.05); color: #fff; }
+    .nav-link.active { background: rgba(59, 130, 246, 0.1); border-left-color: var(--rp-primary); color: white; }
+    
+    .content { margin-left: 260px; padding: 40px; display: flex; justify-content: center; align-items: flex-start; min-height: 100vh; }
+
+    .pay-card { 
+        background: white; width: 100%; max-width: 500px; border-radius: 24px; 
+        box-shadow: 0 20px 40px -5px rgba(0, 0, 0, 0.05); border: 1px solid #e2e8f0; overflow: hidden;
+    }
+
+    .search-header { background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%); padding: 40px 30px; text-align: center; color: white; }
+    .search-box { background: white; border-radius: 12px; padding: 6px; display: flex; box-shadow: 0 4px 15px rgba(0,0,0,0.1); margin-top: -25px; margin-bottom: 20px; }
+    .search-box input { border: none; box-shadow: none; padding: 10px 15px; font-size: 1rem; }
+    .search-box button { border-radius: 8px; padding: 10px 24px; font-weight: 600; }
+
+    .tenant-ticket { background: #fff; border: 1px solid #e2e8f0; border-radius: 16px; overflow: hidden; }
+    .ticket-header { background: #f8fafc; padding: 20px; border-bottom: 1px dashed #cbd5e1; text-align: center; }
+    .ticket-body { padding: 25px; }
+    .info-row { display: flex; justify-content: space-between; margin-bottom: 12px; font-size: 0.95rem; }
+    .info-val { font-weight: 600; color: #1e293b; text-align: right; }
+
+    /* M-PESA BOX */
+    .mpesa-box { background: #fff; border: 2px solid var(--mpesa-green); border-radius: 16px; overflow: hidden; margin-top: 20px; }
+    .mpesa-header { background: var(--mpesa-green); color: white; padding: 12px 20px; display: flex; justify-content: space-between; align-items: center; }
+    .mpesa-logo { height: 24px; background: white; padding: 2px 6px; border-radius: 4px; }
+    .mpesa-details { padding: 20px; background: #f0fff4; }
+    
+    .copy-row {
+        display: flex; justify-content: space-between; align-items: center;
+        background: white; border: 1px solid #bbf7d0; padding: 10px 15px;
+        border-radius: 8px; margin-bottom: 10px;
+    }
+    .copy-label { font-size: 0.75rem; text-transform: uppercase; color: #166534; font-weight: 700; margin-bottom: 2px; }
+    .copy-value { font-size: 1.1rem; font-weight: 800; color: #1e293b; letter-spacing: 0.5px; }
+    .btn-copy { color: var(--rp-primary); background: rgba(59,130,246,0.1); border: none; padding: 6px 12px; border-radius: 6px; font-size: 0.8rem; font-weight: 600; transition: 0.2s; }
+    .btn-copy:hover { background: rgba(59,130,246,0.2); }
+
+    @media (max-width: 768px) { .content { margin-left: 0; padding: 15px; } .sidebar { display: none; } }
+  </style>
+</head>
+<body>
+
+  <div class="sidebar">
+    <div class="sidebar-header"><h5 class="m-0 fw-bold"><i class="fa-solid fa-building me-2"></i> RentPro</h5></div>
+    <nav class="mt-2">
+        <a href="dashboard.html" class="nav-link"><i class="fa-solid fa-chart-pie"></i> Dashboard</a>
+        <a href="tenants.html" class="nav-link"><i class="fa-solid fa-users"></i> Tenants</a>
+        <a href="payments.html" class="nav-link"><i class="fa-solid fa-money-bill-wave"></i> Payments</a>
+        <a href="pay.html" class="nav-link active"><i class="fa-solid fa-credit-card"></i> Pay Rent</a>
+        <a href="expenses.html" class="nav-link"><i class="fa-solid fa-receipt"></i> Expenses</a>
+        <a href="reports.html" class="nav-link"><i class="fa-solid fa-chart-column"></i> Reports</a>
+        <div class="mt-auto border-top border-secondary pt-2">
+            <a href="#" class="nav-link text-danger" id="logoutBtn"><i class="fa-solid fa-right-from-bracket"></i> Logout</a>
+        </div>
+    </nav>
+  </div>
+
+  <main class="content">
+    <div class="pay-card">
+        <div class="search-header">
+            <h3 class="fw-bold mb-1">Make a Payment</h3>
+            <p class="mb-0 opacity-75 small">Search tenant to view payment details.</p>
+        </div>
+
+        <div class="px-4 pb-4">
+            <div class="search-box">
+                <input type="text" id="searchInput" class="form-control" placeholder="Enter Name or House No...">
+                <button class="btn btn-primary" id="findBtn"><i class="fa-solid fa-search"></i></button>
+            </div>
+
+            <div id="loader" class="text-center py-5 d-none">
+                <div class="spinner-border text-primary" role="status"></div>
+                <p class="mt-3 text-muted small fw-medium">Searching database...</p>
+            </div>
+
+            <div id="defaultView" class="text-center py-4 text-muted">
+                <i class="fa-solid fa-magnifying-glass mb-3" style="font-size: 2rem; opacity: 0.3;"></i>
+                <p class="small">Enter tenant details above to pay.</p>
+            </div>
+
+            <div id="resultSection" class="d-none animate__animated animate__fadeIn">
+                <div class="tenant-ticket">
+                    <div class="ticket-header">
+                        <div class="avatar-placeholder mb-2"><i class="fa-solid fa-circle-user text-secondary" style="font-size: 3rem; opacity: 0.5;"></i></div>
+                        <h4 id="dispName" class="fw-bold text-dark mb-0">--</h4>
+                        <span id="dispHouse" class="badge bg-dark mt-2">House --</span>
+                    </div>
+                    <div class="ticket-body">
+                        <div class="info-row"><span class="info-label">Current Balance</span><span class="info-val fs-5 text-danger fw-bold" id="dispBalance">KES 0</span></div>
+                    </div>
+                </div>
+
+                <div class="mpesa-box">
+                    <div class="mpesa-header">
+                        <span class="fw-bold small">PAYMENT INSTRUCTIONS</span>
+                        <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/1/15/M-PESA_LOGO-01.svg/320px-M-PESA_LOGO-01.svg.png" class="mpesa-logo">
+                    </div>
+                    <div class="mpesa-details">
+                        
+                        <p class="small text-muted mb-3">Please go to your M-Pesa menu or Banking App and use the details below:</p>
+
+                        <div class="copy-row">
+                            <div>
+                                <div class="copy-label">Equity Paybill</div>
+                                <div class="copy-value">247247</div>
+                            </div>
+                            <button class="btn-copy" onclick="copyText('247247')"><i class="fa-regular fa-copy"></i> Copy</button>
+                        </div>
+
+                        <div class="copy-row">
+                            <div>
+                                <div class="copy-label">Account Number</div>
+                                <div class="copy-value text-danger" id="mpesaAcc">---</div>
+                            </div>
+                            <button class="btn-copy" onclick="copyText(document.getElementById('mpesaAcc').innerText)"><i class="fa-regular fa-copy"></i> Copy</button>
+                        </div>
+
+                    </div>
+                </div>
+
+                <button class="btn btn-light w-100 mt-4 text-muted" onclick="resetView()">
+                    <i class="fa-solid fa-arrow-left me-2"></i> Search Different Tenant
+                </button>
+            </div>
+        </div>
+    </div>
+  </main>
+
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+    import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+
+    const firebaseConfig = {
+        apiKey: "AIzaSyBwJEOW3jVBHLizWiJjT4a_Tay-2yUCZwk",
+        authDomain: "rentpro-saas.firebaseapp.com",
+        projectId: "rentpro-saas",
+        storageBucket: "rentpro-saas.firebasestorage.app",
+        messagingSenderId: "120985965272",
+        appId: "1:120985965272:web:c86eae74aa75460b17fdad"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    let currentUserUID = null;
+
+    // Use the URL you just generated (or your latest working one)
+    const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbxdjSlhuGhBMK7hrt9hndBFNBc037aW_k0wo0Q3m5Mhf5M00N5cVmJ0hQqH3oyZ06d3/exec"; 
+
+    onAuthStateChanged(auth, (user) => {
+        if (user) { currentUserUID = user.uid; } 
+        else { window.location.href = "index.html"; }
+    });
+
+    const money = (val) => new Intl.NumberFormat('en-KE', { style: 'currency', currency: 'KES', minimumFractionDigits: 0 }).format(val);
+
+    document.getElementById('findBtn').addEventListener('click', async () => {
+        const query = document.getElementById('searchInput').value.toLowerCase().trim();
+        if(!query) return alert("Enter details");
+
+        document.getElementById('defaultView').classList.add('d-none');
+        document.getElementById('resultSection').classList.add('d-none');
+        document.getElementById('loader').classList.remove('d-none');
+
+        try {
+            const res = await fetch(`${WEB_APP_URL}?action=getTenants&t=${Date.now()}`);
+            const json = await res.json();
+            const allTenants = Array.isArray(json) ? json : (json.data || []);
+            const myTenants = allTenants.filter(t => t.uid === currentUserUID);
+
+            const tenant = myTenants.find(t => 
+                (t.Name && String(t.Name).toLowerCase().includes(query)) ||
+                (t.House && String(t.House).toLowerCase() === query)
+            );
+
+            document.getElementById('loader').classList.add('d-none');
+
+            if(tenant) {
+                document.getElementById('dispName').innerText = tenant.Name;
+                document.getElementById('dispHouse').innerText = `House ${tenant.House}`;
+                
+                const rent = Number(tenant.Rent || 0);
+                const paid = Number(tenant.AmountPaid || 0);
+                const balance = (tenant.Balance !== undefined && tenant.Balance !== "") ? Number(tenant.Balance) : (rent - paid);
+                
+                document.getElementById('dispBalance').innerText = money(balance);
+                
+                // GENERATE MANUAL EQUITY ACCOUNT NUMBER
+                const equityAccount = `275515#${tenant.House}`;
+                document.getElementById('mpesaAcc').innerText = equityAccount;
+
+                document.getElementById('resultSection').classList.remove('d-none');
+            } else {
+                alert("Tenant not found.");
+                resetView();
+            }
+        } catch(e) { console.error(e); resetView(); }
+    });
+
+    window.resetView = () => {
+        document.getElementById('resultSection').classList.add('d-none');
+        document.getElementById('loader').classList.add('d-none');
+        document.getElementById('defaultView').classList.remove('d-none');
+        document.getElementById('searchInput').value = '';
+    };
+
+    window.copyText = (text) => {
+        navigator.clipboard.writeText(text);
+        const originalText = event.target.innerHTML;
+        event.target.innerHTML = `<i class="fa-solid fa-check"></i> Copied`;
+        setTimeout(() => { event.target.innerHTML = originalText; }, 1500);
+    };
+
+    if(document.getElementById('logoutBtn')) {
+        document.getElementById('logoutBtn').addEventListener('click', () => signOut(auth));
+    }
+</script>
+</body>
+</html>

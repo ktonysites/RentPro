@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>RentPro — Tenants</title>
+  
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  
+  <style>
+    :root { 
+        --rp-primary: #2563eb; 
+        --rp-bg: #f8fafc; 
+        --rp-dark: #0f172a; 
+        --rp-card-border: #e2e8f0;
+    }
+    body { background: var(--rp-bg); font-family: 'Inter', system-ui, sans-serif; color: #334155; }
+
+    /* HEADER */
+    .top-header { background: var(--rp-dark); padding: 15px 5%; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); position: sticky; top: 0; z-index: 1000; }
+    .brand-logo { color: white; font-weight: 700; font-size: 1.25rem; text-decoration: none; display: flex; align-items: center; gap: 10px; }
+    
+    /* NAV DROPDOWN */
+    .nav-dropdown-container { position: relative; }
+    .nav-select-btn { background: rgba(255, 255, 255, 0.1); border: 1px solid rgba(255, 255, 255, 0.2); color: white; padding: 10px 20px; border-radius: 8px; cursor: pointer; display: flex; align-items: center; justify-content: space-between; min-width: 200px; font-weight: 500; transition: all 0.2s ease; }
+    .nav-select-btn:hover { background: rgba(255, 255, 255, 0.15); border-color: rgba(255, 255, 255, 0.4); }
+    .nav-menu { position: absolute; top: 115%; right: 0; width: 220px; background: white; border-radius: 8px; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1); border: 1px solid var(--rp-card-border); display: none; flex-direction: column; overflow: hidden; z-index: 1001; }
+    .nav-menu.show { display: flex; animation: fadeIn 0.2s ease-out; }
+    .nav-item { padding: 12px 20px; text-decoration: none; color: #475569; font-weight: 500; display: flex; align-items: center; gap: 12px; transition: background 0.1s; border-bottom: 1px solid #f1f5f9; }
+    .nav-item:hover { background: #f8fafc; color: var(--rp-primary); }
+    .nav-item.active { background: #eff6ff; color: var(--rp-primary); border-left: 4px solid var(--rp-primary); }
+    .nav-item.logout { color: #ef4444; }
+
+    /* LAYOUT */
+    .content { padding: 30px 5%; max-width: 1400px; margin: 0 auto; }
+    .card-table { background: #fff; border: 1px solid var(--rp-card-border); border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.02); overflow: hidden; }
+    .table thead th { background: #f1f5f9; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; color: #64748b; padding: 16px; border-bottom: 1px solid var(--rp-card-border); white-space: nowrap; }
+    .table tbody td { padding: 16px; vertical-align: middle; border-bottom: 1px solid var(--rp-card-border); }
+    .table-hover tbody tr:hover { background-color: #f8fafc; cursor: pointer; }
+
+    /* BADGES */
+    .status-badge { padding: 4px 10px; border-radius: 20px; font-size: 0.75rem; font-weight: 600; }
+    .status-paid { background: #dcfce7; color: #166534; } 
+    .status-partial { background: #fef9c3; color: #854d0e; } 
+    .status-unpaid { background: #fee2e2; color: #991b1b; } 
+
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
+    @media (max-width: 768px) { .content { padding: 20px 4%; } }
+  </style>
+</head>
+<body>
+
+  <header class="top-header">
+    <a href="#" class="brand-logo"><i class="fa-solid fa-building me-2"></i> RentPro</a>
+    <div class="nav-dropdown-container">
+        <div class="nav-select-btn" id="navDropdownBtn" onclick="toggleNav()">
+            <span><i class="fa-solid fa-users me-2"></i> Tenants</span>
+            <i class="fa-solid fa-chevron-down small"></i>
+        </div>
+        <div class="nav-menu" id="navMenu">
+            <a href="dashboard.html" class="nav-item">
+                <i class="fa-solid fa-chart-pie"></i> Dashboard
+            </a>
+            <a href="tenants.html" class="nav-item active">
+                <i class="fa-solid fa-users"></i> Tenants
+            </a>
+            <a href="utilities.html" class="nav-item">
+                <i class="fa-solid fa-faucet-drip"></i> Utilities
+            </a>
+            <a href="payments.html" class="nav-item">
+                <i class="fa-solid fa-money-bill-wave"></i> Payments
+            </a>
+            <a href="expenses.html" class="nav-item">
+                <i class="fa-solid fa-receipt"></i> Expenses
+            </a>
+            <a href="reports.html" class="nav-item">
+                <i class="fa-solid fa-chart-column"></i> Reports
+            </a>
+            <a href="#" class="nav-item logout" id="logoutBtn">
+                <i class="fa-solid fa-right-from-bracket"></i> Logout
+            </a>
+        </div>
+    </div>
+  </header>
+
+  <main class="content">
+    <div class="d-flex justify-content-between align-items-center mb-4 page-header flex-wrap gap-3">
+      <div>
+        <h2 class="fw-bold text-dark mb-1">Tenant Management</h2>
+        <p class="text-muted small mb-0">Manage leases and payments.</p>
+      </div>
+      
+      <div class="page-actions d-flex gap-2">
+        <button class="btn btn-outline-success" onclick="downloadCSV()">
+            <i class="fa-solid fa-file-csv me-2"></i> Export
+        </button>
+
+        <a href="archives.html" class="btn btn-outline-secondary" style="border-color: #cbd5e1; color: #475569;">
+            <i class="fa-solid fa-box-archive me-2"></i> Archives
+        </a>
+
+        <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addTenantModal">
+            <i class="fa-solid fa-plus me-2"></i> New Tenant
+        </button>
+      </div>
+    </div>
+
+    <div class="card-table">
+      <div class="table-responsive">
+        <table class="table table-hover mb-0 align-middle">
+          <thead>
+            <tr>
+              <th>Tenant</th>
+              <th>House</th>
+              <th>Rent</th>
+              <th>Paid</th>
+              <th>Balance</th>
+              <th>Status</th>
+              <th class="text-end">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="tenantTableBody">
+             <tr><td colspan="7" class="text-center p-5 text-muted"><i class="fa-solid fa-spinner fa-spin me-2"></i>Loading data...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+
+  <div class="modal fade" id="addTenantModal" tabindex="-1">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+            <h5 class="modal-title fw-bold">Add New Tenant</h5>
+            <button class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <form id="addTenantForm">
+            <div class="row g-3">
+                <div class="col-12"><label class="form-label">Full Name</label><input type="text" id="tName" class="form-control" required></div>
+                <div class="col-6"><label class="form-label">Phone</label><input type="number" id="tPhone" class="form-control" required></div>
+                <div class="col-6"><label class="form-label">ID Number</label><input type="text" id="tNatID" class="form-control" required></div>
+                <div class="col-4"><label class="form-label">House</label><input type="text" id="tHouse" class="form-control" required></div>
+                <div class="col-4"><label class="form-label">Rent</label><input type="number" id="tRent" class="form-control" required></div>
+                <div class="col-4"><label class="form-label">Due Day</label><input type="number" id="tDate" class="form-control" placeholder="5" max="31" required></div>
+                
+                <div class="col-12">
+                    <label class="form-label">Assign Property</label>
+                    <select id="tProperty" class="form-select">
+                        <option value="Main Property">Main Property</option>
+                        </select>
+                </div>
+
+                <div class="col-12 mt-3"><button type="submit" id="saveBtn" class="btn btn-primary w-100">Save Tenant</button></div>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal fade" id="payModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header border-0 pb-0">
+            <h5 class="modal-title fw-bold">Record Payment</h5>
+            <button class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body pt-2">
+          <p class="small text-muted mb-3">Payment for: <span id="payTenantName" class="fw-bold text-dark"></span></p>
+          <form id="payForm">
+             <input type="hidden" id="payTenantId">
+             <div class="mb-3">
+                <label class="form-label small fw-bold">Amount (KES)</label>
+                <div class="input-group"><span class="input-group-text bg-light">KES</span><input type="number" id="payAmount" class="form-control" placeholder="e.g. 5000" required></div>
+             </div>
+             <div class="mb-3">
+                 <label class="form-label small fw-bold">Method</label>
+                 <select id="payMethod" class="form-select" required>
+                     <option value="M-Pesa">M-Pesa</option><option value="Bank">Bank Deposit</option><option value="Cash">Cash</option>
+                 </select>
+             </div>
+             <div class="mb-3"><label class="form-label small fw-bold">Reference</label><textarea id="payMessage" class="form-control" rows="2" placeholder="e.g. Ref No..."></textarea></div>
+             <button type="submit" id="confirmPayBtn" class="btn btn-success w-100">Confirm Payment</button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+  
+  <script>
+    function toggleNav() { document.getElementById('navMenu').classList.toggle('show'); }
+    window.onclick = function(e) { if (!e.target.closest('.nav-dropdown-container')) { var d=document.getElementsByClassName("nav-menu"); for(var i=0;i<d.length;i++){ if(d[i].classList.contains('show')) d[i].classList.remove('show'); } } }
+  </script>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+    import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+
+    const firebaseConfig = { apiKey: "AIzaSyBwJEOW3jVBHLizWiJjT4a_Tay-2yUCZwk", authDomain: "rentpro-saas.firebaseapp.com", projectId: "rentpro-saas" };
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    let currentUserUID = null;
+    let currentTenants = [];
+
+    // 🔴 YOUR WEB APP URL
+    const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbzsWx1USYqSBOGLttP8GibfJdSfRLu9bDGSGiuOGj1TuI88gH7nTXJTZqy0Iwd3oMg2_w/exec"; 
+
+    onAuthStateChanged(auth, (user) => {
+        if (user) { currentUserUID = user.uid; loadData(); startLiveUpdates(); } 
+        else window.location.href = "index.html";
+    });
+
+    async function loadData() {
+        try {
+            // Fetch Tenants AND Properties
+            const [tRes, pRes] = await Promise.all([
+                fetch(`${WEB_APP_URL}?action=getTenants&t=${Date.now()}`).then(r=>r.json()),
+                fetch(`${WEB_APP_URL}?action=getProperties&t=${Date.now()}`).then(r=>r.json())
+            ]);
+
+            // 1. Render Tenants
+            const allTenants = tRes.data || [];
+            currentTenants = allTenants.filter(t => t.uid === currentUserUID);
+            renderTable(currentTenants);
+
+            // 2. Populate Property Dropdown in Modal
+            const myProps = (pRes.data || []).filter(p => p.uid === currentUserUID);
+            const select = document.getElementById('tProperty');
+            if(myProps.length > 0) {
+                select.innerHTML = ''; // Clear default if we have real props
+                myProps.forEach(p => {
+                    const opt = document.createElement('option');
+                    opt.value = p.Name; opt.text = p.Name;
+                    select.appendChild(opt);
+                });
+            }
+
+        } catch(e) { console.error(e); }
+    }
+
+    function renderTable(data) {
+        const tbody = document.getElementById('tenantTableBody'); tbody.innerHTML = "";
+        if(data.length === 0) { tbody.innerHTML = `<tr><td colspan="7" class="text-center p-5 text-muted">No tenants found.</td></tr>`; return; }
+
+        data.forEach(t => {
+            const rent = Number(t.Rent||0), paid = Number(t.AmountPaid||0), bal = rent - paid;
+            const uniqueId = encodeURIComponent(t.ID);
+            let status = bal<=0 ? '<span class="status-badge status-paid">PAID</span>' : (paid>0 ? '<span class="status-badge status-partial">PARTIAL</span>' : '<span class="status-badge status-unpaid">UNPAID</span>');
+
+            tbody.innerHTML += `<tr onclick="window.location.href='tenant-profile.html?id=${uniqueId}'">
+                <td><div class="fw-bold text-dark">${t.Name}</div><div class="small text-muted">${t.Phone}</div></td>
+                <td><span class="badge bg-light text-dark border">${t.House}</span></td>
+                <td class="fw-medium">${rent.toLocaleString()}</td>
+                <td class="text-success fw-medium">${paid.toLocaleString()}</td>
+                <td class="fw-bold text-danger">${bal.toLocaleString()}</td>
+                <td>${status}</td>
+                <td class="text-end">
+                    <button class="btn btn-sm btn-outline-success me-1" onclick="event.stopPropagation(); openPayModal('${uniqueId}', '${t.Name}')"><i class="fa-solid fa-hand-holding-dollar"></i> Pay</button>
+                    <button class="btn btn-sm btn-outline-danger" onclick="event.stopPropagation(); deleteTenant('${uniqueId}')"><i class="fa-solid fa-trash"></i></button>
+                </td>
+            </tr>`;
+        });
+    }
+
+    // LIVE UPDATE POLLER
+    function startLiveUpdates() { setInterval(() => loadData(), 15000); }
+
+    // UTILS
+    window.downloadCSV = () => {
+        let csv = "Name,Phone,National ID,House,Rent,Paid,Balance,Property\n";
+        currentTenants.forEach(t => { csv += `"${t.Name}",${t.Phone},${t.NationalID},${t.House},${t.Rent},${t.AmountPaid},${t.Rent-t.AmountPaid},"${t.Property}"\n`; });
+        const link = document.createElement("a"); link.href = encodeURI("data:text/csv;charset=utf-8,"+csv); link.download = "RentPro_Tenants.csv"; document.body.appendChild(link); link.click();
+    };
+
+    window.openPayModal = (id, name) => {
+        document.getElementById('payTenantId').value = id; document.getElementById('payTenantName').innerText = name;
+        new bootstrap.Modal(document.getElementById('payModal')).show();
+    };
+
+    window.deleteTenant = async (id) => {
+        if(!confirm("Archive this tenant?")) return;
+        await fetch(WEB_APP_URL, { method: 'POST', body: JSON.stringify({ action: "deleteTenant", id: id }) });
+        loadData();
+    };
+
+    // FORM SUBMIT
+    document.getElementById('addTenantForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const btn = document.getElementById('saveBtn'); btn.disabled=true; btn.innerText="Saving...";
+        const payload = {
+            action: "addTenant", uid: currentUserUID, name: document.getElementById('tName').value, phone: document.getElementById('tPhone').value, natID: document.getElementById('tNatID').value, house: document.getElementById('tHouse').value, rent: document.getElementById('tRent').value, date: document.getElementById('tDate').value,
+            property: document.getElementById('tProperty').value // 🔥 Property Added
+        };
+        try { await fetch(WEB_APP_URL, { method: 'POST', body: JSON.stringify(payload) }); bootstrap.Modal.getInstance(document.getElementById('addTenantModal')).hide(); loadData(); }
+        catch(e) { alert("Error"); } finally { btn.disabled=false; btn.innerText="Save Tenant"; }
+    });
+
+    document.getElementById('payForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const btn = document.getElementById('confirmPayBtn'); btn.disabled=true; btn.innerText="Processing...";
+        const payload = { action: "recordPayment", id: document.getElementById('payTenantId').value, amount: document.getElementById('payAmount').value, method: document.getElementById('payMethod').value, message: document.getElementById('payMessage').value };
+        try { await fetch(WEB_APP_URL, { method: 'POST', body: JSON.stringify(payload) }); bootstrap.Modal.getInstance(document.getElementById('payModal')).hide(); loadData(); }
+        catch(e) { alert("Error"); } finally { btn.disabled=false; btn.innerText="Confirm Payment"; }
+    });
+
+    if(document.getElementById('logoutBtn')) document.getElementById('logoutBtn').addEventListener('click', () => signOut(auth));
+  </script>
+</body>
+</html>

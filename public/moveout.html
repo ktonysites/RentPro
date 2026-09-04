@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RentPro - Tenant Move Out</title>
+    <style>
+        :root {
+            /* Core Brand Colors - Adjust these to match your exact dashboard */
+            --primary-color: #2c3e50;    /* Dark Blue/Grey */
+            --accent-color: #d9534f;     /* Red for Move Out/Danger actions */
+            --accent-hover: #c9302c;
+            --bg-color: #f4f7f6;
+            --card-bg: #ffffff;
+            --text-color: #333333;
+            --border-color: #e0e0e0;
+            --shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            min-height: 100vh;
+        }
+
+        /* Main Container */
+        .container {
+            width: 100%;
+            max-width: 600px;
+            margin-top: 40px;
+        }
+
+        /* Card Style */
+        .card {
+            background-color: var(--card-bg);
+            border-radius: 8px;
+            box-shadow: var(--shadow);
+            padding: 30px;
+            border: 1px solid var(--border-color);
+        }
+
+        /* Header */
+        .card-header {
+            margin-bottom: 25px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid var(--bg-color);
+        }
+
+        .card-header h2 {
+            margin: 0;
+            color: var(--primary-color);
+            font-size: 24px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        /* Icon styling */
+        .icon-moveout {
+            font-size: 24px;
+        }
+
+        /* Form Group */
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: var(--primary-color);
+            font-size: 14px;
+        }
+
+        /* Inputs & Selects */
+        .form-control {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            font-size: 16px;
+            background-color: #fafafa;
+            transition: border-color 0.3s, box-shadow 0.3s;
+            box-sizing: border-box; /* Ensures padding doesn't break width */
+        }
+
+        .form-control:focus {
+            outline: none;
+            border-color: var(--accent-color);
+            background-color: #fff;
+            box-shadow: 0 0 0 3px rgba(217, 83, 79, 0.1);
+        }
+
+        textarea.form-control {
+            resize: vertical;
+            min-height: 80px;
+        }
+
+        /* Button */
+        .btn-submit {
+            width: 100%;
+            padding: 14px;
+            background-color: var(--accent-color);
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.3s;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .btn-submit:hover {
+            background-color: var(--accent-hover);
+        }
+
+        .btn-submit:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+
+        /* Status Messages */
+        #status {
+            margin-top: 15px;
+            text-align: center;
+            font-weight: 600;
+            min-height: 24px;
+            padding: 10px;
+            border-radius: 4px;
+        }
+        
+        .status-success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        
+        .status-error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        /* Helper Text */
+        .helper-text {
+            font-size: 12px;
+            color: #777;
+            margin-top: 4px;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <div class="card">
+            <div class="card-header">
+                <h2><span>📤</span> Process Move-Out</h2>
+            </div>
+
+            <div class="form-group">
+                <label for="mName">Tenant Name</label>
+                <input type="text" id="mName" class="form-control" placeholder="e.g. John Kamau">
+                <div class="helper-text">Must match the name exactly as registered.</div>
+            </div>
+
+            <div class="form-group">
+                <label for="mHouse">House Number</label>
+                <input type="text" id="mHouse" class="form-control" placeholder="e.g. A104">
+            </div>
+
+            <div class="form-group">
+                <label for="mReason">Reason for Moving</label>
+                <textarea id="mReason" class="form-control" placeholder="Brief explanation..."></textarea>
+            </div>
+
+            <div class="form-group">
+                <label for="mDeposit">Deposit Action</label>
+                <select id="mDeposit" class="form-control">
+                    <option value="Yes">✅ Full Refund</option>
+                    <option value="Partial">⚠️ Partial (With Deductions)</option>
+                    <option value="No">❌ Forfeited / No Refund</option>
+                </select>
+            </div>
+
+            <button onclick="submitMoveOut()" class="btn-submit">Confirm & Archive Tenant</button>
+            <div id="status"></div>
+        </div>
+    </div>
+
+    <script>
+        function submitMoveOut() {
+            const btn = document.querySelector('.btn-submit');
+            const statusDiv = document.getElementById('status');
+            
+            // UI Reset
+            statusDiv.className = '';
+            statusDiv.innerText = '';
+            btn.disabled = true;
+            btn.innerText = "Processing Archive...";
+
+            const payload = {
+                tenantName: document.getElementById('mName').value,
+                houseNumber: document.getElementById('mHouse').value,
+                reason: document.getElementById('mReason').value,
+                depositStatus: document.getElementById('mDeposit').value
+            };
+
+            // --- IMPORTANT: PASTE YOUR GOOGLE SCRIPT URL BELOW ---
+            const scriptURL = "YOUR_GOOGLE_SCRIPT_URL_HERE?action=moveOut";
+
+            fetch(scriptURL, {
+                method: 'POST',
+                body: JSON.stringify(payload)
+            })
+            .then(response => response.json())
+            .then(data => {
+                if(data.success) {
+                    statusDiv.className = 'status-success';
+                    statusDiv.innerText = "✓ " + data.message;
+                    
+                    // Clear fields on success
+                    document.getElementById('mName').value = "";
+                    document.getElementById('mHouse').value = "";
+                    document.getElementById('mReason').value = "";
+                } else {
+                    statusDiv.className = 'status-error';
+                    statusDiv.innerText = "⚠ " + data.message;
+                }
+                btn.disabled = false;
+                btn.innerText = "Confirm & Archive Tenant";
+            })
+            .catch(error => {
+                statusDiv.className = 'status-error';
+                statusDiv.innerText = "⚠ Network Error. Check connection.";
+                console.error('Error!', error.message);
+                btn.disabled = false;
+                btn.innerText = "Confirm & Archive Tenant";
+            });
+        }
+    </script>
+   <script>
+    // Robust Auto-fill Logic
+    document.addEventListener('DOMContentLoaded', function() {
+        console.log("Move-out page loaded. Checking for URL parameters...");
+
+        // 1. Get the URL parameters (e.g. ?name=John&house=A1)
+        const urlParams = new URLSearchParams(window.location.search);
+        
+        // 2. Get the values and Decode them (fixes %20 for spaces)
+        const nameParam = urlParams.get('name');
+        const houseParam = urlParams.get('house');
+
+        console.log("Found params:", nameParam, houseParam);
+
+        // 3. Find the Input Boxes
+        const nameInput = document.getElementById('mName');
+        const houseInput = document.getElementById('mHouse');
+
+        // 4. Fill them if data exists
+        if (nameInput && nameParam) {
+            nameInput.value = decodeURIComponent(nameParam);
+        }
+        
+        if (houseInput && houseParam) {
+            houseInput.value = decodeURIComponent(houseParam);
+        }
+    });
+</script>
+</body>
+</html>

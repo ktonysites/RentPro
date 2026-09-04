@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>RentPro — Utilities</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    :root { --rp-primary: #2563eb; --rp-bg: #f8fafc; --rp-dark: #0f172a; }
+    body { background: var(--rp-bg); font-family: 'Inter', sans-serif; }
+    .top-header { background: var(--rp-dark); padding: 15px 5%; display: flex; justify-content: space-between; align-items: center; color: white; }
+    .content { padding: 30px 5%; max-width: 1400px; margin: 0 auto; }
+    .card-table { background: #fff; border-radius: 12px; border: 1px solid #e2e8f0; overflow: hidden; }
+    .badge-unpaid { background: #fee2e2; color: #991b1b; padding: 5px 10px; border-radius: 6px; font-weight: 600; font-size: 0.75rem; }
+    .badge-paid { background: #dcfce7; color: #166534; padding: 5px 10px; border-radius: 6px; font-weight: 600; font-size: 0.75rem; }
+  </style>
+</head>
+<body>
+
+  <header class="top-header">
+    <h5 class="m-0 fw-bold"><i class="fa-solid fa-faucet-drip me-2"></i> Utilities (Water/Garbage)</h5>
+    <a href="dashboard.html" class="btn btn-outline-light btn-sm">Back to Dashboard</a>
+  </header>
+
+  <main class="content">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+      <div>
+        <h2 class="fw-bold mb-1">Utility Bills</h2>
+        <p class="text-muted small m-0">Track Water (120) & Garbage (150) payments.</p>
+      </div>
+      <button id="generateBillsBtn" class="btn btn-primary">
+        <i class="fa-solid fa-plus-circle me-2"></i> Generate This Month's Bills
+      </button>
+    </div>
+
+    <div class="row mb-4">
+        <div class="col-md-4">
+            <div class="card p-3 border-0 shadow-sm">
+                <h6 class="text-muted small fw-bold">Total Unpaid Utilities</h6>
+                <h3 class="fw-bold text-danger m-0" id="totalUnpaid">KES 0</h3>
+            </div>
+        </div>
+    </div>
+
+    <div class="card-table">
+      <table class="table table-hover mb-0 align-middle">
+        <thead class="bg-light">
+          <tr>
+            <th class="ps-4">House</th>
+            <th>Tenant Name</th>
+            <th>Month</th>
+            <th>Water (120)</th>
+            <th>Garbage (150)</th>
+            <th>Total Due</th>
+            <th>Status</th>
+            <th class="text-end pe-4">Action</th>
+          </tr>
+        </thead>
+        <tbody id="billsTableBody">
+          <tr><td colspan="8" class="text-center p-5 text-muted"><i class="fa-solid fa-spinner fa-spin me-2"></i> Loading...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </main>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+  <script type="module">
+    // 🔴 CHANGE THIS TO YOUR WEB APP URL
+    const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbzsWx1USYqSBOGLttP8GibfJdSfRLu9bDGSGiuOGj1TuI88gH7nTXJTZqy0Iwd3oMg2_w/exec"; 
+
+    // Load Data on Start
+    loadBills();
+
+    async function loadBills() {
+        try {
+            const res = await fetch(`${WEB_APP_URL}?action=getUtilityBills`);
+            const json = await res.json();
+            renderTable(json.data);
+        } catch(e) {
+            console.error(e);
+            alert("Error loading bills.");
+        }
+    }
+
+    function renderTable(data) {
+        const tbody = document.getElementById('billsTableBody');
+        tbody.innerHTML = "";
+        let totalDue = 0;
+
+        // SAFEGUARD: If data is missing/undefined, treat it as an empty list
+        if (!data || !Array.isArray(data) || data.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="8" class="text-center p-5 text-muted">No bills found (or check if Backend is Deployed).</td></tr>`;
+            document.getElementById('totalUnpaid').innerText = "KES 0";
+            return;
+        }
+
+        data.forEach(item => {
+            // Ensure numbers are treated as numbers
+            const water = Number(item.Water) || 0;
+            const garbage = Number(item.Garbage) || 0;
+            const total = water + garbage;
+
+            if(item.Status === "Unpaid") totalDue += total;
+            
+            const badge = item.Status === "Paid" 
+                ? `<span class="badge-paid">PAID</span>` 
+                : `<span class="badge-unpaid">UNPAID</span>`;
+
+            const btn = item.Status === "Unpaid"
+                ? `<button class="btn btn-sm btn-outline-success" onclick="markPaid('${item.ID}')">Mark Paid</button>`
+                : `<button class="btn btn-sm btn-light text-muted" disabled>Paid</button>`;
+
+            tbody.innerHTML += `
+                <tr>
+                    <td class="ps-4 fw-bold">House ${item.House}</td>
+                    <td>${item.TenantName}</td>
+                    <td>${item.Month}</td>
+                    <td>${water}</td>
+                    <td>${garbage}</td>
+                    <td class="fw-bold">KES ${total}</td>
+                    <td>${badge}</td>
+                    <td class="text-end pe-4">${btn}</td>
+                </tr>
+            `;
+        });
+        document.getElementById('totalUnpaid').innerText = "KES " + totalDue.toLocaleString();
+    }
+    // Generate Bills Logic
+    document.getElementById('generateBillsBtn').addEventListener('click', async () => {
+        if(!confirm("Generate bills for ALL tenants for this month?")) return;
+        
+        const btn = document.getElementById('generateBillsBtn');
+        btn.disabled = true; btn.innerText = "Processing...";
+
+        try {
+            await fetch(WEB_APP_URL, { 
+                method: 'POST', 
+                body: JSON.stringify({ action: "generateMonthlyUtilities" }) 
+            });
+            alert("Bills Generated Successfully!");
+            loadBills();
+        } catch(e) { alert("Error generating."); }
+        finally { btn.disabled = false; btn.innerText = "Generate This Month's Bills"; }
+    });
+
+    // Mark Paid Logic
+    window.markPaid = async (id) => {
+        if(!confirm("Mark this bill as PAID?")) return;
+        try {
+            await fetch(WEB_APP_URL, { 
+                method: 'POST', 
+                body: JSON.stringify({ action: "payUtilityBill", id: id }) 
+            });
+            loadBills();
+        } catch(e) { alert("Error updating."); }
+    };
+  </script>
+</body>
+</html>

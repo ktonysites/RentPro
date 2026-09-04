@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RentPro — Page Not Found</title>
+    
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&display=swap" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <style>
+        :root {
+            --rp-primary: #2563eb;
+            --rp-dark: #0f172a;
+            --rp-bg: #f8fafc;
+        }
+
+        body {
+            background-color: var(--rp-bg);
+            font-family: 'Inter', sans-serif;
+            height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #334155;
+            overflow: hidden;
+        }
+
+        .error-container {
+            text-align: center;
+            max-width: 600px;
+            padding: 40px;
+        }
+
+        .error-code {
+            font-size: 8rem;
+            font-weight: 800;
+            color: var(--rp-primary);
+            line-height: 1;
+            margin-bottom: 20px;
+            text-shadow: 0 10px 30px rgba(37, 99, 235, 0.2);
+            position: relative;
+            display: inline-block;
+        }
+
+        /* Small animation for the icon inside the zero */
+        .error-icon {
+            font-size: 5rem;
+            color: var(--rp-dark);
+            animation: float 3s ease-in-out infinite;
+        }
+
+        @keyframes float {
+            0% { transform: translateY(0px); }
+            50% { transform: translateY(-10px); }
+            100% { transform: translateY(0px); }
+        }
+
+        .error-title {
+            font-size: 2rem;
+            font-weight: 700;
+            color: var(--rp-dark);
+            margin-bottom: 10px;
+        }
+
+        .error-text {
+            color: #64748b;
+            font-size: 1.1rem;
+            margin-bottom: 30px;
+        }
+
+        .btn-home {
+            background-color: var(--rp-primary);
+            border: none;
+            padding: 12px 30px;
+            border-radius: 50px;
+            font-weight: 600;
+            transition: all 0.3s;
+            box-shadow: 0 4px 15px rgba(37, 99, 235, 0.3);
+        }
+
+        .btn-home:hover {
+            background-color: #1d4ed8;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(37, 99, 235, 0.4);
+        }
+
+        .btn-outline {
+            border: 2px solid #e2e8f0;
+            color: #475569;
+            padding: 10px 30px;
+            border-radius: 50px;
+            font-weight: 600;
+            margin-left: 10px;
+            background: white;
+            transition: all 0.2s;
+        }
+
+        .btn-outline:hover {
+            background-color: #f1f5f9;
+            color: var(--rp-dark);
+            border-color: #cbd5e1;
+        }
+        
+        .bg-pattern {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            top: 0;
+            left: 0;
+            z-index: -1;
+            opacity: 0.05;
+            background-image: radial-gradient(#2563eb 1px, transparent 1px);
+            background-size: 20px 20px;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="bg-pattern"></div>
+
+    <div class="error-container">
+        <div class="mb-4">
+            <span class="error-code">4<i class="fa-solid fa-house-crack error-icon mx-2"></i>4</span>
+        </div>
+        
+        <h1 class="error-title">Lease Not Found!</h1>
+        <p class="error-text">
+            Oops! It looks like this property doesn't exist or has been moved.<br>
+            Don't worry, let's get you back to your dashboard.
+        </p>
+
+        <div>
+            <a href="dashboard.html" class="btn btn-primary btn-home text-white text-decoration-none">
+                <i class="fa-solid fa-chart-pie me-2"></i> Back to Dashboard
+            </a>
+            <a href="javascript:history.back()" class="btn btn-outline text-decoration-none">
+                Go Back
+            </a>
+        </div>
+
+        <div class="mt-5 text-muted small">
+            &copy; 2026 RentPro SaaS
+        </div>
+    </div>
+
+</body>
+</html>

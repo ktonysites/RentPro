@@ -1,0 +1,27 @@
+/* style.css — light admin theme */
+:root {
+  --brand1: #0d6efd;
+  --sidebar-bg: linear-gradient(180deg,var(--brand1), #0b5ed7);
+}
+body { margin:0; font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial; }
+.sidebar {
+  width: 220px;
+  background: var(--sidebar-bg);
+  min-height: 100vh;
+  color: white;
+  padding:16px;
+}
+.sidebar .nav-link { color: rgba(255,255,255,0.95); display:block; padding:8px 10px; text-decoration:none; margin-bottom:6px; border-radius:6px;}
+.sidebar .nav-link.active { background: rgba(255,255,255,0.08); font-weight:600; }
+.content { width:100%; padding:20px; background:#f7f9fc; min-height:100vh; }
+.card { border-radius:8px; box-shadow: 0 1px 4px rgba(15,15,15,0.04); }
+.table th, .table td { vertical-align:middle; }
+.btn-outline-light { color: white; border-color: rgba(255,255,255,0.2); }
+/* Add this inside your <style> tag */
+.page-actions .btn {
+    transition: all 0.2s ease;
+}
+.page-actions .btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+}

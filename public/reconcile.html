@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RentPro - Reconcile</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body { background: #f8f9fa; padding: 20px; font-family: 'Segoe UI', sans-serif; }
+        .card { border: none; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .amount-badge { font-size: 1.1em; font-weight: bold; color: #198754; }
+    </style>
+</head>
+<body>
+    <div class="container" style="max-width: 800px;">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h3><i class="fa-solid fa-triangle-exclamation text-warning me-2"></i> Fix Unmatched Payments</h3>
+            <a href="dashboard.html" class="btn btn-outline-secondary">Back to Dashboard</a>
+        </div>
+
+        <div id="loading" class="text-center py-5">
+            <div class="spinner-border text-primary"></div>
+            <p>Scanning for lost payments...</p>
+        </div>
+
+        <div id="paymentList"></div>
+    </div>
+
+    <div class="modal fade" id="fixModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Assign Payment</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <p>Select the correct House Number for this payment:</p>
+                    <select id="houseSelect" class="form-select mb-3"></select>
+                    <div class="alert alert-info">
+                        Money will be added to this tenant's balance immediately.
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-primary w-100" onclick="confirmFix()">Confirm Assignment</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="global.js"></script>
+    <script>
+        let selectedPayment = null;
+        const fixModal = new bootstrap.Modal(document.getElementById('fixModal'));
+
+        // 1. Fetch Unmatched Payments
+        async function loadUnmatched() {
+            // --- PASTE YOUR WEB APP URL HERE ---
+            const scriptURL = "YOUR_GOOGLE_SCRIPT_URL_HERE"; 
+            
+            try {
+                const res = await fetch(scriptURL + "?action=getUnmatched");
+                const data = await res.json();
+                
+                const list = document.getElementById('paymentList');
+                document.getElementById('loading').style.display = 'none';
+                list.innerHTML = "";
+
+                if(data.length === 0) {
+                    list.innerHTML = `
+                        <div class="card p-5 text-center">
+                            <h4 class="text-success"><i class="fa-solid fa-check-circle me-2"></i>All Clean!</h4>
+                            <p class="text-muted">No unmatched payments found.</p>
+                        </div>`;
+                    return;
+                }
+
+                data.forEach((item, index) => {
+                    const dateShort = new Date(item.date).toLocaleDateString();
+                    list.innerHTML += `
+                        <div class="card mb-3">
+                            <div class="card-body d-flex justify-content-between align-items-center">
+                                <div>
+                                    <div class="text-muted small">${dateShort} • From: <strong>${item.sender}</strong></div>
+                                    <div class="mt-1">${item.message.substring(0, 50)}...</div>
+                                </div>
+                                <div class="text-end">
+                                    <div class="amount-badge">KES ${formatMoney(item.amount)}</div>
+                                    <button class="btn btn-sm btn-primary mt-2" 
+                                        onclick='openFixModal(${JSON.stringify(item)})'>
+                                        Fix This
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                });
+            } catch(e) {
+                alert("Error loading data. Check console.");
+                console.error(e);
+            }
+        }
+
+        // 2. Load Houses for Dropdown
+        function loadHouses() {
+            const tenants = loadLocal(KEY_TENANTS); // Using global.js cache
+            const select = document.getElementById('houseSelect');
+            select.innerHTML = "";
+            
+            tenants.forEach(t => {
+                // Ensure we have a house number
+                const h = t.house || t.House || t.room || "Unknown";
+                const n = t.name || t.Name || "Unknown";
+                const opt = document.createElement("option");
+                opt.value = h;
+                opt.innerText = `House ${h} - ${n}`;
+                select.appendChild(opt);
+            });
+        }
+
+        function openFixModal(item) {
+            selectedPayment = item;
+            loadHouses();
+            fixModal.show();
+        }
+
+        async function confirmFix() {
+            const btn = document.querySelector('#fixModal .btn-primary');
+            const house = document.getElementById('houseSelect').value;
+            
+            btn.disabled = true;
+            btn.innerText = "Processing...";
+
+            const scriptURL = "https://script.google.com/macros/s/AKfycbzsWx1USYqSBOGLttP8GibfJdSfRLu9bDGSGiuOGj1TuI88gH7nTXJTZqy0Iwd3oMg2_w/exec"; // SAME URL
+
+            const payload = {
+                rowIndex: selectedPayment.rowIndex,
+                houseNumber: house,
+                amount: selectedPayment.amount
+            };
+
+            await fetch(scriptURL + "?action=manualAssign", {
+                method: "POST",
+                body: JSON.stringify(payload)
+            });
+
+            alert("✅ Fixed! Balance updated.");
+            location.reload();
+        }
+
+        loadUnmatched();
+    </script>
+</body>
+</html>
