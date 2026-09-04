@@ -5,7 +5,7 @@ window.API_URL = "https://script.google.com/macros/s/AKfycbwBly-iQTvSU8iPkCQyD0w
 // JSONP lets read-only requests load through a script tag without that browser restriction.
 const nativeFetch = window.fetch.bind(window);
 window.fetch = function (resource, options) {
-	const requestUrl = typeof resource === "string" ? resource : resource && resource.url;
+	const requestUrl = typeof resource === "string" ? resource : resource && (resource.url || resource.href);
 	const method = (options && options.method) || (resource && resource.method) || "GET";
 	if (!requestUrl || method.toUpperCase() !== "GET" || !requestUrl.startsWith(window.API_URL)) {
 		return nativeFetch(resource, options);
