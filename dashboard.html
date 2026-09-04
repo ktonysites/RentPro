@@ -127,7 +127,7 @@
     <div class="row g-4">
         <div class="col-lg-8">
             <div class="card-hero">
-                <h6 class="fw-bold mb-4" id="chartTitle">Revenue Analytics (All)</h6>
+                <h6 class="fw-bold mb-4" id="chartTitle">Main Property Analysis</h6>
                 <div style="height: 300px;"><canvas id="revenueChart"></canvas></div>
             </div>
         </div>
@@ -238,20 +238,13 @@
             return { ...p, assignedProperty: foundProp };
         });
 
-        filterDashboard("All");
+        renderPropertyAnalysis();
     }
 
-    function filterDashboard(propName) {
-        let fTenants = globalTenants;
-        let fPayments = globalPayments;
-
-        if (propName !== "All") {
-            fTenants = globalTenants.filter(t => (t.Property || "Main Property") === propName);
-            fPayments = globalPayments.filter(p => (p.assignedProperty || "Unassigned") === propName);
-            $('chartTitle').innerText = `Revenue: ${propName}`;
-        } else {
-            $('chartTitle').innerText = `Revenue: All Properties`;
-        }
+    function renderPropertyAnalysis() {
+        const fTenants = globalTenants;
+        const fPayments = globalPayments;
+        $('chartTitle').innerText = 'Main Property Analysis';
 
         // Calculate Stats
         const tRent = fTenants.reduce((s, t) => s + Number(t.Rent || 0), 0);
@@ -326,7 +319,7 @@
             data: {
                 labels: labels.length ? labels : ['No Data'],
                 datasets: [{
-                    label: 'Revenue',
+                    label: 'Monthly Rent Collection',
                     data: data.length ? data : [0],
                     backgroundColor: '#2563eb',
                     borderRadius: 4,
