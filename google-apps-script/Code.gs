@@ -13,7 +13,13 @@ var WATER_RATE = 120;
 var GARBAGE_FEE = 150;
 
 function doGet(e) {
-  return handleRequest(e);
+  var result = handleRequest(e);
+  var callback = e && e.parameter ? String(e.parameter.callback || "") : "";
+  if (!/^[A-Za-z_$][0-9A-Za-z_$]*$/.test(callback)) return result;
+
+  return ContentService
+    .createTextOutput(callback + "(" + result.getContent() + ");")
+    .setMimeType(ContentService.MimeType.JAVASCRIPT);
 }
 
 function doPost(e) {
