@@ -226,12 +226,7 @@
 
     async function loadProfile() {
         try {
-            const [tRes, pRes, uRes] = await Promise.all([
-                fetch(`${WEB_APP_URL}?action=getTenants`).then(r => r.json()),
-                fetch(`${WEB_APP_URL}?action=getPayments`).then(r => r.json()),
-                fetch(`${WEB_APP_URL}?action=getUtilityBills`).then(r => r.json())
-            ]);
-
+            const tRes = await fetch(`${WEB_APP_URL}?action=getTenants`).then(r => r.json());
             const tenants = (tRes.data || []);
             const tenant = tenants.find(t => String(t.ID) === String(tenantId) || String(t.Name) === String(tenantId));
             if (!tenant) return alert("Tenant not found");
@@ -256,6 +251,15 @@
             document.getElementById('pdfBal').innerText = "KES " + Number(tenant.Balance).toLocaleString();
             document.getElementById('pdfDate').innerText = new Date().toLocaleDateString();
             document.getElementById('pdfRef').innerText = "RP-" + Math.floor(Math.random()*10000);
+
+            // Show the profile as soon as the tenant record is available.
+            document.getElementById('loadingState').style.display = 'none';
+            document.getElementById('profileContent').style.display = 'flex';
+
+            const [pRes, uRes] = await Promise.all([
+                fetch(`${WEB_APP_URL}?action=getPayments`).then(r => r.json()),
+                fetch(`${WEB_APP_URL}?action=getUtilityBills`).then(r => r.json())
+            ]);
 
             // 3. UTILITIES
             const myUtils = (uRes.data || []).filter(u => String(u.House) === String(tenant.House));
@@ -297,10 +301,10 @@
                 pdfHBody.innerHTML += `<tr><td>${dStr}</td><td>Payment</td><td>${p.Method}</td><td>${Number(p.Amount).toLocaleString()}</td></tr>`;
             });
 
-            document.getElementById('loadingState').style.display = 'none';
-            document.getElementById('profileContent').style.display = 'flex';
-
-        } catch(e) { console.error(e); }
+        } catch(e) {
+            console.error("Tenant profile failed to load:", e);
+            document.getElementById('loadingState').innerText = "Unable to load tenant profile. Please try again.";
+        }
     }
 
     // 🔥 5. GENERATE PDF FUNCTION
