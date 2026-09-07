@@ -11,15 +11,9 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 
   <style>
-    :root { --rp-primary: #2563eb; --rp-dark: #0f172a; --rp-light: #f1f5f9; --sidebar-width: 260px; }
+    :root { --rp-primary: #2563eb; --rp-light: #f1f5f9; }
     body { background: var(--rp-light); font-family: 'Inter', sans-serif; color: #334155; }
-    
-    /* SIDEBAR */
-    .sidebar { width: var(--sidebar-width); min-height: 100vh; background: var(--rp-dark); color: #fff; position: fixed; top: 0; left: 0; display: flex; flex-direction: column; z-index: 1000; }
-    .nav-link { color: #94a3b8; padding: 14px 24px; display: flex; align-items: center; gap: 12px; text-decoration: none; font-size: 0.9rem; }
-    .nav-link:hover { background: rgba(255,255,255,0.05); color: #fff; }
-    .nav-link.active { background: rgba(59, 130, 246, 0.1); color: #fff; border-right: 3px solid #3b82f6; }
-    .content { margin-left: var(--sidebar-width); padding: 30px; }
+    .content { min-height: 100vh; padding: 30px; }
 
     /* CARDS */
     .card-profile { background: white; border: 1px solid #e2e8f0; border-radius: 12px; padding: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); height: 100%; position: relative; }
@@ -38,36 +32,36 @@
     .pdf-table th { background: #f3f4f6; padding: 8px; text-align: left; border: 1px solid #ddd; }
     .pdf-table td { padding: 8px; border: 1px solid #ddd; }
 
-    @media (max-width: 768px) { .content { margin-left: 0; } .sidebar { display: none; } }
+        @media (max-width: 768px) {
+            .content { padding: 16px 12px 24px; }
+            .profile-header { align-items: stretch !important; }
+            .profile-header > div:last-child { display: grid !important; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px !important; }
+            .profile-header .btn { width: 100%; padding-left: 6px; padding-right: 6px; }
+            .profile-header .btn i { margin-right: 0 !important; }
+            .profile-header .btn { font-size: 0; }
+            .profile-header .btn i { font-size: 0.9rem; }
+            .card-profile { padding: 16px; border-radius: 8px; }
+            .row.g-4 { --bs-gutter-y: 1rem; }
+            .table { min-width: 520px; }
+            .table-responsive { margin-left: -1px; margin-right: -1px; }
+        }
   </style>
 </head>
 <body>
 
-  <div class="sidebar">
-    <div style="padding:20px; border-bottom:1px solid #ffffff10;"><h5 class="m-0 fw-bold"><i class="fa-solid fa-building me-2"></i> RentPro</h5></div>
-    <nav class="mt-2">
-        <a href="dashboard.html" class="nav-link"><i class="fa-solid fa-chart-pie"></i> Dashboard</a>
-        <a href="tenants.html" class="nav-link active"><i class="fa-solid fa-users"></i> Tenants</a>
-        <a href="utilities.html" class="nav-link"><i class="fa-solid fa-faucet-drip"></i> Utilities</a>
-        <a href="payments.html" class="nav-link"><i class="fa-solid fa-money-bill-wave"></i> Payments</a>
-        <a href="expenses.html" class="nav-link"><i class="fa-solid fa-receipt"></i> Expenses</a>
-        <div class="mt-auto border-top border-secondary pt-2"><a href="#" class="nav-link text-danger" id="logoutBtn"><i class="fa-solid fa-right-from-bracket"></i> Logout</a></div>
-    </nav>
-  </div>
-
   <main class="content">
-    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-3">
+        <div class="profile-header d-flex justify-content-between align-items-center mb-4 flex-wrap gap-3">
       <div>
         <a href="tenants.html" class="text-decoration-none text-muted small fw-bold mb-1 d-inline-block"><i class="fa-solid fa-arrow-left me-1"></i> Back to Tenants</a>
         <h2 class="fw-bold text-dark m-0" id="pHeaderName">Loading...</h2>
       </div>
       <div class="d-flex gap-2">
-          <button class="btn btn-secondary btn-sm shadow-sm" onclick="downloadPDF()">
+          <button class="btn btn-secondary btn-sm shadow-sm" onclick="downloadPDF()" aria-label="Download tenant report" title="Download report">
             <i class="fa-solid fa-file-pdf me-2"></i> Report
           </button>
           
-          <button class="btn btn-primary btn-sm shadow-sm" data-bs-toggle="modal" data-bs-target="#editModal"><i class="fa-solid fa-pen-to-square me-2"></i> Edit</button>
-          <button class="btn btn-info btn-sm text-white shadow-sm" data-bs-toggle="modal" data-bs-target="#meterModal"><i class="fa-solid fa-faucet me-2"></i> Reading</button>
+          <button class="btn btn-primary btn-sm shadow-sm" data-bs-toggle="modal" data-bs-target="#editModal" aria-label="Edit tenant" title="Edit tenant"><i class="fa-solid fa-pen-to-square me-2"></i> Edit</button>
+          <button class="btn btn-info btn-sm text-white shadow-sm" data-bs-toggle="modal" data-bs-target="#meterModal" aria-label="Record meter reading" title="Record reading"><i class="fa-solid fa-faucet me-2"></i> Reading</button>
       </div>
     </div>
 
@@ -397,7 +391,6 @@
         catch(e) { alert("Error"); } finally { btn.disabled = false; }
     });
 
-    if(document.getElementById('logoutBtn')) document.getElementById('logoutBtn').addEventListener('click', () => RentProDevAuth.signOut(auth, firebaseSignOut));
   </script>
 </body>
 </html>

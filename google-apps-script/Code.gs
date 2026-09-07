@@ -41,6 +41,7 @@ function handleRequest(e) {
       case "updateTenant": return editTenant(params);
       case "addBulkTenants": return addBulkTenants(params);
       case "deleteTenant": return deleteTenant(params);
+      case "deleteAllTenants": return deleteAllTenants();
       case "getPayments": return getPayments();
       case "addPayment": return addPayment(params);
       case "updatePayment": return updatePayment(params);
@@ -181,12 +182,21 @@ function deleteTenant(data) {
 
   for (var i = values.length - 1; i >= 1; i--) {
     if (String(values[i][0]) === String(tenantId)) {
-      archiveTenantRow(values[i]);
       currentSheet.deleteRow(i + 1);
-      return response(true, "Tenant archived");
+      return response(true, "Tenant permanently deleted");
     }
   }
   return response(false, "Tenant ID not found");
+}
+
+function deleteAllTenants() {
+  var currentSheet = sheet(SHEET_TENANTS);
+  var lastRow = currentSheet.getLastRow();
+  if (lastRow <= 1) return response(true, "No tenants to delete", { deleted: 0 });
+
+  var deleted = lastRow - 1;
+  currentSheet.deleteRows(2, deleted);
+  return response(true, "All tenants permanently deleted", { deleted: deleted });
 }
 
 function getPayments() {
