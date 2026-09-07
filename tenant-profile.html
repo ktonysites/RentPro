@@ -84,6 +84,7 @@
                  <div class="col-6"><div class="label-text">Balance</div><div class="value-text text-danger" id="pBal">-</div></div>
                  <div class="col-6"><div class="label-text">Next of Kin</div><div class="value-text" id="pNextOfKin">-</div></div>
                  <div class="col-6"><div class="label-text">Relation</div><div class="value-text" id="pKinRelation">-</div></div>
+                 <div class="col-6"><div class="label-text">Next of Kin Phone</div><div class="value-text" id="pKinPhone">-</div></div>
              </div>
           </div>
         </div>
@@ -150,6 +151,10 @@
                   <td style="color:#666;">Next of Kin:</td><td id="pdfNextOfKin"></td>
                   <td style="color:#666;">Relation:</td><td id="pdfKinRelation"></td>
               </tr>
+              <tr>
+                  <td style="color:#666;">Kin Phone:</td><td id="pdfKinPhone"></td>
+                  <td></td><td></td>
+              </tr>
           </table>
       </div>
 
@@ -213,6 +218,7 @@
                         <div class="col-6"><label class="form-label small fw-bold">Monthly Rent</label><input id="editRent" type="number" class="form-control" required></div>
                         <div class="col-6"><label class="form-label small fw-bold">Next of Kin</label><input id="editNextOfKin" class="form-control"></div>
                         <div class="col-6"><label class="form-label small fw-bold">Relation</label><input id="editKinRelation" class="form-control"></div>
+                        <div class="col-6"><label class="form-label small fw-bold">Next of Kin Phone</label><input id="editKinPhone" type="tel" class="form-control"></div>
                     </div>
                 </div>
                 <div class="modal-footer"><button type="submit" id="editSaveBtn" class="btn btn-primary w-100">Save Changes</button></div>
@@ -274,6 +280,7 @@
             document.getElementById('pBal').innerText = "KES " + Number(tenant.Balance).toLocaleString();
             document.getElementById('pNextOfKin').innerText = tenant.NextOfKin || "N/A";
             document.getElementById('pKinRelation').innerText = tenant.KinRelation || "N/A";
+            document.getElementById('pKinPhone').innerText = tenant.NextOfKinPhone || "N/A";
             document.getElementById('pAvatar').innerText = tenant.Name.charAt(0).toUpperCase();
 
             // 🔥 2. FILL PDF TEMPLATE
@@ -285,6 +292,7 @@
             document.getElementById('pdfBal').innerText = "KES " + Number(tenant.Balance).toLocaleString();
             document.getElementById('pdfNextOfKin').innerText = tenant.NextOfKin || "N/A";
             document.getElementById('pdfKinRelation').innerText = tenant.KinRelation || "N/A";
+            document.getElementById('pdfKinPhone').innerText = tenant.NextOfKinPhone || "N/A";
             document.getElementById('pdfDate').innerText = new Date().toLocaleDateString();
             document.getElementById('pdfRef').innerText = "RP-" + Math.floor(Math.random()*10000);
 
@@ -295,6 +303,7 @@
             document.getElementById('editRent').value = tenant.Rent || 0;
             document.getElementById('editNextOfKin').value = tenant.NextOfKin || '';
             document.getElementById('editKinRelation').value = tenant.KinRelation || '';
+            document.getElementById('editKinPhone').value = tenant.NextOfKinPhone || '';
 
             // Show the profile as soon as the tenant record is available.
             document.getElementById('loadingState').style.display = 'none';
@@ -366,7 +375,8 @@
             house: document.getElementById('editHouse').value.trim(),
             rent: document.getElementById('editRent').value,
             nextOfKin: document.getElementById('editNextOfKin').value.trim(),
-            kinRelation: document.getElementById('editKinRelation').value.trim()
+            kinRelation: document.getElementById('editKinRelation').value.trim(),
+            nextOfKinPhone: document.getElementById('editKinPhone').value.trim()
         };
 
         try {

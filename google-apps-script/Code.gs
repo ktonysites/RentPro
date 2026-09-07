@@ -137,7 +137,8 @@ function addTenant(data) {
     Number(value(data, ["rent", "Rent"], 0)),
     "Main Property",
     textValue(value(data, ["nextOfKin", "NextOfKin"], "")),
-    textValue(value(data, ["kinRelation", "KinRelation", "Relation"], ""))
+    textValue(value(data, ["kinRelation", "KinRelation", "Relation"], "")),
+    textValue(value(data, ["nextOfKinPhone", "NextOfKinPhone"], ""))
   ]);
   return response(true, "Tenant added");
 }
@@ -156,9 +157,10 @@ function editTenant(data) {
         value(data, ["house", "House"], values[i][5]),
         Number(value(data, ["rent", "Rent"], values[i][6]))
       ]]);
-      currentSheet.getRange(i + 1, 13, 1, 2).setValues([[
+      currentSheet.getRange(i + 1, 13, 1, 3).setValues([[
         textValue(value(data, ["nextOfKin", "NextOfKin"], values[i][12] || "")),
-        textValue(value(data, ["kinRelation", "KinRelation", "Relation"], values[i][13] || ""))
+        textValue(value(data, ["kinRelation", "KinRelation", "Relation"], values[i][13] || "")),
+        textValue(value(data, ["nextOfKinPhone", "NextOfKinPhone"], values[i][14] || ""))
       ]]);
       return response(true, "Tenant updated");
     }
@@ -177,7 +179,8 @@ function addBulkTenants(data) {
       value(item, ["house", "House"], ""), Number(value(item, ["rent", "Rent"], 0)), 15,
       new Date(), 0, Number(value(item, ["rent", "Rent"], 0)), "Main Property",
       textValue(value(item, ["nextOfKin", "NextOfKin"], "")),
-      textValue(value(item, ["kinRelation", "KinRelation", "Relation"], ""))
+      textValue(value(item, ["kinRelation", "KinRelation", "Relation"], "")),
+      textValue(value(item, ["nextOfKinPhone", "NextOfKinPhone"], ""))
     ];
   });
   currentSheet.getRange(currentSheet.getLastRow() + 1, 1, output.length, output[0].length).setValues(output);
@@ -376,8 +379,8 @@ function latestReadingForHouse(house) {
 }
 
 function archiveTenantRow(row, reason, depositStatus) {
-  var archiveRow = row.slice(0, 14);
-  while (archiveRow.length < 14) archiveRow.push("");
+  var archiveRow = row.slice(0, 15);
+  while (archiveRow.length < 15) archiveRow.push("");
   archiveRow.push(reason || "", depositStatus || "", new Date());
   sheet(SHEET_ARCHIVES).appendRow(archiveRow);
 }
@@ -460,10 +463,10 @@ function textValue(input) {
 function initSheets() {
   var spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
   var definitions = [
-    { name: SHEET_TENANTS, headers: ["ID", "UID", "Name", "Phone", "NationalID", "House", "Rent", "DueDate", "DateAdded", "AmountPaid", "Balance", "Property", "NextOfKin", "KinRelation"] },
+    { name: SHEET_TENANTS, headers: ["ID", "UID", "Name", "Phone", "NationalID", "House", "Rent", "DueDate", "DateAdded", "AmountPaid", "Balance", "Property", "NextOfKin", "KinRelation", "NextOfKinPhone"] },
     { name: SHEET_PAYMENTS, headers: ["Date", "Amount", "Tenant", "Reference", "Method", "House", "Notes"] },
     { name: SHEET_EXPENSES, headers: ["ID", "UID", "Date", "Category", "Description", "Amount", "House"] },
-    { name: SHEET_ARCHIVES, headers: ["ID", "UID", "Name", "Phone", "NationalID", "House", "Rent", "DueDate", "DateAdded", "AmountPaid", "Balance", "Property", "NextOfKin", "KinRelation", "MoveOutReason", "DepositStatus", "ArchivedDate"] },
+    { name: SHEET_ARCHIVES, headers: ["ID", "UID", "Name", "Phone", "NationalID", "House", "Rent", "DueDate", "DateAdded", "AmountPaid", "Balance", "Property", "NextOfKin", "KinRelation", "NextOfKinPhone", "MoveOutReason", "DepositStatus", "ArchivedDate"] },
     { name: SHEET_UTILITIES, headers: ["ID", "Month", "House", "TenantName", "Water", "Garbage", "Status", "DatePaid", "PrevRead", "CurrRead", "UnitsUsed"] }
   ];
 
