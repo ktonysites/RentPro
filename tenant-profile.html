@@ -340,7 +340,13 @@
 
             // 4. PAYMENTS
             const allPayments = (pRes.data || []);
-            const myPayments = allPayments.filter(p => p.Tenant.toLowerCase().includes(tenant.Name.toLowerCase()));
+            const tenantName = String(tenant.Name || '').toLowerCase();
+            const tenantHouse = String(tenant.House || '');
+            const myPayments = allPayments.filter(p => {
+                const paymentTenant = String(p.Tenant || '').toLowerCase();
+                const paymentHouse = String(p.House || '');
+                return paymentTenant.includes(tenantName) || (tenantHouse && paymentHouse === tenantHouse);
+            });
             const hBody = document.getElementById('historyBody');
             const pdfHBody = document.getElementById('pdfHistoryBody'); // PDF Table
             hBody.innerHTML = ""; pdfHBody.innerHTML = "";
