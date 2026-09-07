@@ -83,9 +83,14 @@
         <h2 class="fw-bold text-dark mb-1"><i class="fa-solid fa-box-archive text-muted me-2"></i>Deleted Tenants</h2>
         <p class="text-muted small mb-0">Records stored for 1 year. Click a row to view full history & repairs.</p>
       </div>
-      <button class="btn btn-outline-secondary btn-sm" onclick="loadArchives()">
-        <i class="fa-solid fa-rotate me-1"></i> Refresh
-      </button>
+            <div class="d-flex gap-2">
+                <button id="deleteSelectedBtn" class="btn btn-outline-danger btn-sm" onclick="deleteSelectedArchives()" disabled>
+                    <i class="fa-solid fa-trash me-1"></i> Delete Selected
+                </button>
+                <button class="btn btn-outline-secondary btn-sm" onclick="loadArchives()">
+                    <i class="fa-solid fa-rotate me-1"></i> Refresh
+                </button>
+            </div>
     </div>
 
     <div class="card-table">
@@ -93,6 +98,7 @@
         <table class="table table-hover mb-0">
           <thead>
             <tr>
+                            <th><input class="form-check-input" type="checkbox" id="selectAllArchives" aria-label="Select all archived tenants"></th>
               <th>Tenant Name</th>
               <th>National ID</th>
               <th>House Occupied</th>
@@ -102,7 +108,7 @@
             </tr>
           </thead>
           <tbody id="archiveTableBody">
-             <tr><td colspan="6" class="text-center p-5 text-muted"><i class="fa-solid fa-spinner fa-spin me-2"></i>Loading archives...</td></tr>
+             <tr><td colspan="7" class="text-center p-5 text-muted"><i class="fa-solid fa-spinner fa-spin me-2"></i>Loading archives...</td></tr>
           </tbody>
         </table>
       </div>
@@ -152,11 +158,26 @@
     let allPayments = [];
     let allRepairs = [];
 
+    async function apiWrite(payload) {
+        const url = new URL(API_URL);
+        Object.entries(payload).forEach(([key, value]) => url.searchParams.set(key, value));
+        const response = await fetch(url.toString());
+        const result = await response.json();
+        if (!result.success) throw new Error(result.message || 'Request failed.');
+        return result;
+    }
+
+    function updateDeleteSelection() {
+        const selected = document.querySelectorAll('.archive-select:checked').length;
+        document.getElementById('deleteSelectedBtn').disabled = selected === 0;
+        document.getElementById('selectAllArchives').checked = allArchives.length > 0 && selected === allArchives.length;
+    }
+
     // --- 1. LOAD DATA ---
     async function loadArchives() {
         try {
             const tbody = document.getElementById('archiveTableBody');
-            tbody.innerHTML = '<tr><td colspan="6" class="text-center p-4"><div class="spinner-border text-primary" role="status"></div></td></tr>';
+            tbody.innerHTML = '<tr><td colspan="7" class="text-center p-4"><div class="spinner-border text-primary" role="status"></div></td></tr>';
 
             // Fetch everything in one go
             const res = await fetch(`${API_URL}?action=getArchivedData`);
@@ -180,7 +201,9 @@
         tbody.innerHTML = "";
 
         if (allArchives.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="6" class="text-center p-5 text-muted">No archived tenants found.</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="7" class="text-center p-5 text-muted">No archived tenants found.</td></tr>`;
+            document.getElementById('selectAllArchives').checked = false;
+            updateDeleteSelection();
             return;
         }
 
@@ -194,6 +217,7 @@
             // We use encodeURIComponent to pass safe data
             tbody.innerHTML += `
                 <tr onclick="openHistory('${t.Name}', '${t.House}', '${delDate}')">
+                    <td onclick="event.stopPropagation()"><input class="form-check-input archive-select" type="checkbox" value="${t.ID || ''}" aria-label="Select ${t.Name}" onchange="updateDeleteSelection()"></td>
                     <td class="fw-bold">${t.Name}</td>
                     <td>${t.NationalID || '-'}</td>
                     <td><span class="badge bg-light text-dark border">House ${t.House}</span></td>
@@ -207,7 +231,30 @@
                 </tr>
             `;
         });
+        updateDeleteSelection();
     }
+
+    document.getElementById('selectAllArchives').addEventListener('change', (event) => {
+        document.querySelectorAll('.archive-select').forEach(checkbox => { checkbox.checked = event.target.checked; });
+        updateDeleteSelection();
+    });
+
+    window.deleteSelectedArchives = async () => {
+        const ids = Array.from(document.querySelectorAll('.archive-select:checked')).map(checkbox => checkbox.value).filter(Boolean);
+        if (!ids.length) return;
+        if (!confirm(`Permanently delete ${ids.length} archived tenant record${ids.length === 1 ? '' : 's'}? This cannot be undone.`)) return;
+
+        const button = document.getElementById('deleteSelectedBtn');
+        button.disabled = true;
+        try {
+            await apiWrite({ action: 'deleteArchivedTenants', ids: ids.join(',') });
+            await loadArchives();
+        } catch (error) {
+            console.error('Delete archived tenants failed:', error);
+            alert(`Unable to delete archived tenants: ${error.message}`);
+            updateDeleteSelection();
+        }
+    };
 
     // --- 3. OPEN MODAL & FILTER LOGS ---
     window.openHistory = (name, house, date) => {
@@ -218,7 +265,7 @@
 
         // A. Filter Payments (Matching Name or House)
         const tenantPayments = allPayments.filter(p => 
-            String(p.tenant).toLowerCase().includes(name.toLowerCase()) || 
+            String(p.tenant || '').toLowerCase().includes(name.toLowerCase()) ||
             String(p.house) == String(house) // Loose match for house
         );
 

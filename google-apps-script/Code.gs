@@ -58,6 +58,7 @@ function handleRequest(e) {
       case "payUtilityBill": return payUtilityBill(params);
       case "addMeterReading": return addMeterReading(params);
       case "getArchivedData": return getArchivedData();
+      case "deleteArchivedTenants": return deleteArchivedTenants(params);
       case "moveOut": return moveOut(params);
       case "getUnmatched": return getUnmatched();
       case "manualAssign": return manualAssign(params);
@@ -396,6 +397,24 @@ function getArchivedData() {
     return item;
   });
   return archiveResponse(archived);
+}
+
+function deleteArchivedTenants(data) {
+  var currentSheet = sheet(SHEET_ARCHIVES);
+  var requestedIds = String(value(data || {}, ["ids"], "")).split(",").filter(Boolean);
+  if (!requestedIds.length) return response(false, "No archived tenants selected");
+
+  var wanted = {};
+  requestedIds.forEach(function(tenantId) { wanted[String(tenantId)] = true; });
+  var values = currentSheet.getDataRange().getValues();
+  var deleted = 0;
+  for (var i = values.length - 1; i >= 1; i--) {
+    if (wanted[String(values[i][0])]) {
+      currentSheet.deleteRow(i + 1);
+      deleted++;
+    }
+  }
+  return response(true, "Archived tenants permanently deleted", { deleted: deleted });
 }
 
 function archiveResponse(archives) {
