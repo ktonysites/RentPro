@@ -134,7 +134,9 @@ function addTenant(data) {
     new Date(),
     0,
     Number(value(data, ["rent", "Rent"], 0)),
-    "Main Property"
+    "Main Property",
+    textValue(value(data, ["nextOfKin", "NextOfKin"], "")),
+    textValue(value(data, ["kinRelation", "KinRelation", "Relation"], ""))
   ]);
   return response(true, "Tenant added");
 }
@@ -153,6 +155,10 @@ function editTenant(data) {
         value(data, ["house", "House"], values[i][5]),
         Number(value(data, ["rent", "Rent"], values[i][6]))
       ]]);
+      currentSheet.getRange(i + 1, 13, 1, 2).setValues([[
+        textValue(value(data, ["nextOfKin", "NextOfKin"], values[i][12] || "")),
+        textValue(value(data, ["kinRelation", "KinRelation", "Relation"], values[i][13] || ""))
+      ]]);
       return response(true, "Tenant updated");
     }
   }
@@ -168,7 +174,9 @@ function addBulkTenants(data) {
       id("T"), value(item, ["uid"], ""), value(item, ["name", "Name"], ""),
       textValue(value(item, ["phone", "Phone"], "")), textValue(value(item, ["natID", "NationalID"], "")),
       value(item, ["house", "House"], ""), Number(value(item, ["rent", "Rent"], 0)), 5,
-      new Date(), 0, Number(value(item, ["rent", "Rent"], 0)), "Main Property"
+      new Date(), 0, Number(value(item, ["rent", "Rent"], 0)), "Main Property",
+      textValue(value(item, ["nextOfKin", "NextOfKin"], "")),
+      textValue(value(item, ["kinRelation", "KinRelation", "Relation"], ""))
     ];
   });
   currentSheet.getRange(currentSheet.getLastRow() + 1, 1, output.length, output[0].length).setValues(output);
@@ -338,7 +346,8 @@ function addMeterReading(data) {
 }
 
 function archiveTenantRow(row, reason, depositStatus) {
-  var archiveRow = row.slice(0, 12);
+  var archiveRow = row.slice(0, 14);
+  while (archiveRow.length < 14) archiveRow.push("");
   archiveRow.push(reason || "", depositStatus || "", new Date());
   sheet(SHEET_ARCHIVES).appendRow(archiveRow);
 }
@@ -421,10 +430,10 @@ function textValue(input) {
 function initSheets() {
   var spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
   var definitions = [
-    { name: SHEET_TENANTS, headers: ["ID", "UID", "Name", "Phone", "NationalID", "House", "Rent", "DueDate", "DateAdded", "AmountPaid", "Balance", "Property"] },
+    { name: SHEET_TENANTS, headers: ["ID", "UID", "Name", "Phone", "NationalID", "House", "Rent", "DueDate", "DateAdded", "AmountPaid", "Balance", "Property", "NextOfKin", "KinRelation"] },
     { name: SHEET_PAYMENTS, headers: ["Date", "Amount", "Tenant", "Reference", "Method", "House", "Notes"] },
     { name: SHEET_EXPENSES, headers: ["ID", "UID", "Date", "Category", "Description", "Amount", "House"] },
-    { name: SHEET_ARCHIVES, headers: ["ID", "UID", "Name", "Phone", "NationalID", "House", "Rent", "DueDate", "DateAdded", "AmountPaid", "Balance", "Property", "MoveOutReason", "DepositStatus", "ArchivedDate"] },
+    { name: SHEET_ARCHIVES, headers: ["ID", "UID", "Name", "Phone", "NationalID", "House", "Rent", "DueDate", "DateAdded", "AmountPaid", "Balance", "Property", "NextOfKin", "KinRelation", "MoveOutReason", "DepositStatus", "ArchivedDate"] },
     { name: SHEET_UTILITIES, headers: ["ID", "Month", "House", "TenantName", "Water", "Garbage", "Status", "DatePaid", "PrevRead", "CurrRead", "UnitsUsed"] }
   ];
 
@@ -435,6 +444,9 @@ function initSheets() {
       currentSheet.getRange(1, 1, 1, definition.headers.length).setValues([definition.headers]);
     } else if (currentSheet.getLastRow() === 0) {
       currentSheet.getRange(1, 1, 1, definition.headers.length).setValues([definition.headers]);
+    } else if (currentSheet.getLastColumn() < definition.headers.length) {
+      var missingHeaders = definition.headers.slice(currentSheet.getLastColumn());
+      currentSheet.getRange(1, currentSheet.getLastColumn() + 1, 1, missingHeaders.length).setValues([missingHeaders]);
     }
   });
 }

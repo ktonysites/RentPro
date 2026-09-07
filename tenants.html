@@ -149,6 +149,8 @@
                 <div class="col-4"><label class="form-label">House</label><input type="text" id="tHouse" class="form-control" required></div>
                 <div class="col-4"><label class="form-label">Rent</label><input type="number" id="tRent" class="form-control" required></div>
                 <div class="col-4"><label class="form-label">Due Day</label><input type="number" id="tDate" class="form-control" placeholder="5" max="31" required></div>
+                <div class="col-6"><label class="form-label">Next of Kin</label><input type="text" id="tNextOfKin" class="form-control"></div>
+                <div class="col-6"><label class="form-label">Relation</label><input type="text" id="tKinRelation" class="form-control" placeholder="e.g. Spouse"></div>
                 
                 <div class="col-12 mt-3"><button type="submit" id="saveBtn" class="btn btn-primary w-100">Save Tenant</button></div>
             </div>
@@ -264,10 +266,14 @@
 
     // UTILS
     window.downloadCSV = () => {
-        let csv = "Name,Phone,National ID,House,Rent,Paid,Balance,Property\n";
-        currentTenants.forEach(t => { csv += `"${t.Name}",${t.Phone},${t.NationalID},${t.House},${t.Rent},${t.AmountPaid},${t.Rent-t.AmountPaid},"${t.Property}"\n`; });
+      let csv = "Name,Phone,National ID,House,Rent,Paid,Balance,Next of Kin,Relation,Property\n";
+      currentTenants.forEach(t => { csv += [t.Name, t.Phone, t.NationalID, t.House, t.Rent, t.AmountPaid, Number(t.Rent || 0) - Number(t.AmountPaid || 0), t.NextOfKin, t.KinRelation, t.Property].map(csvValue).join(",") + "\n"; });
         const link = document.createElement("a"); link.href = encodeURI("data:text/csv;charset=utf-8,"+csv); link.download = "RentPro_Tenants.csv"; document.body.appendChild(link); link.click();
     };
+
+    function csvValue(value) {
+      return `"${String(value ?? "").replace(/"/g, '""')}"`;
+    }
 
     window.openPayModal = (id, name) => {
         document.getElementById('payTenantId').value = id; document.getElementById('payTenantName').innerText = name;
@@ -315,7 +321,7 @@
         e.preventDefault();
         const btn = document.getElementById('saveBtn'); btn.disabled=true; btn.innerText="Saving...";
         const payload = {
-            action: "addTenant", uid: currentUserUID, name: document.getElementById('tName').value, phone: document.getElementById('tPhone').value, natID: document.getElementById('tNatID').value, house: document.getElementById('tHouse').value, rent: document.getElementById('tRent').value, date: document.getElementById('tDate').value,
+            action: "addTenant", uid: currentUserUID, name: document.getElementById('tName').value, phone: document.getElementById('tPhone').value, natID: document.getElementById('tNatID').value, house: document.getElementById('tHouse').value, rent: document.getElementById('tRent').value, date: document.getElementById('tDate').value, nextOfKin: document.getElementById('tNextOfKin').value, kinRelation: document.getElementById('tKinRelation').value,
             property: "Main Property"
         };
         try {
