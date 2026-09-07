@@ -209,6 +209,15 @@
     // 🔴 YOUR WEB APP URL
     const WEB_APP_URL = window.API_URL;
 
+    async function apiWrite(payload) {
+      const url = new URL(WEB_APP_URL);
+      Object.entries(payload).forEach(([key, value]) => url.searchParams.set(key, value));
+      const response = await fetch(url.toString());
+      const result = await response.json();
+      if (!result.success) throw new Error(result.message || 'Request failed.');
+      return result;
+    }
+
     RentProDevAuth.onAuthStateChanged(auth, (user) => {
         if (user) { currentUserUID = user.uid; loadData(); startLiveUpdates(); } 
         else window.location.href = "index.html";
@@ -273,14 +282,7 @@
       }
 
       try {
-        const response = await fetch(WEB_APP_URL, {
-          method: 'POST',
-          body: JSON.stringify({ action: "deleteTenant", id: decodeURIComponent(id) })
-        });
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
-
-        const result = await response.json();
-        if (!result.success) throw new Error(result.message || "The tenant was not deleted.");
+        await apiWrite({ action: "deleteTenant", id: decodeURIComponent(id) });
         await loadData();
       } catch (error) {
         console.error("Delete tenant failed:", error);
@@ -300,14 +302,7 @@
       if (!confirm(`Permanently delete all ${currentTenants.length} active tenants? This cannot be undone and will not create archive records.`)) return;
 
       try {
-        const response = await fetch(WEB_APP_URL, {
-          method: 'POST',
-          body: JSON.stringify({ action: "deleteAllTenants" })
-        });
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
-
-        const result = await response.json();
-        if (!result.success) throw new Error(result.message || "The tenants were not deleted.");
+        await apiWrite({ action: "deleteAllTenants" });
         await loadData();
       } catch (error) {
         console.error("Delete all tenants failed:", error);
@@ -323,16 +318,24 @@
             action: "addTenant", uid: currentUserUID, name: document.getElementById('tName').value, phone: document.getElementById('tPhone').value, natID: document.getElementById('tNatID').value, house: document.getElementById('tHouse').value, rent: document.getElementById('tRent').value, date: document.getElementById('tDate').value,
             property: "Main Property"
         };
-        try { await fetch(WEB_APP_URL, { method: 'POST', body: JSON.stringify(payload) }); bootstrap.Modal.getInstance(document.getElementById('addTenantModal')).hide(); loadData(); }
-        catch(e) { alert("Error"); } finally { btn.disabled=false; btn.innerText="Save Tenant"; }
+        try {
+          await apiWrite(payload);
+          bootstrap.Modal.getInstance(document.getElementById('addTenantModal')).hide();
+          await loadData();
+        } catch(e) { alert(`Unable to save tenant: ${e.message}`); }
+        finally { btn.disabled=false; btn.innerText="Save Tenant"; }
     });
 
     document.getElementById('payForm').addEventListener('submit', async (e) => {
         e.preventDefault();
         const btn = document.getElementById('confirmPayBtn'); btn.disabled=true; btn.innerText="Processing...";
         const payload = { action: "recordPayment", id: document.getElementById('payTenantId').value, amount: document.getElementById('payAmount').value, method: document.getElementById('payMethod').value, message: document.getElementById('payMessage').value };
-        try { await fetch(WEB_APP_URL, { method: 'POST', body: JSON.stringify(payload) }); bootstrap.Modal.getInstance(document.getElementById('payModal')).hide(); loadData(); }
-        catch(e) { alert("Error"); } finally { btn.disabled=false; btn.innerText="Confirm Payment"; }
+        try {
+          await apiWrite(payload);
+          bootstrap.Modal.getInstance(document.getElementById('payModal')).hide();
+          await loadData();
+        } catch(e) { alert(`Unable to record payment: ${e.message}`); }
+        finally { btn.disabled=false; btn.innerText="Confirm Payment"; }
     });
 
     if(document.getElementById('logoutBtn')) document.getElementById('logoutBtn').addEventListener('click', () => RentProDevAuth.signOut(auth, firebaseSignOut));
