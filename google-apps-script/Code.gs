@@ -37,6 +37,7 @@ function handleRequest(e) {
     switch (action) {
       case "getTenants": return getTenants();
       case "addTenant": return addTenant(params);
+      case "setAllDueDates": return setAllDueDates(params);
       case "editTenant": return editTenant(params);
       case "updateTenant": return editTenant(params);
       case "addBulkTenants": return addBulkTenants(params);
@@ -130,7 +131,7 @@ function addTenant(data) {
     textValue(value(data, ["natID", "NationalID"], "")),
     value(data, ["house", "House"], ""),
     Number(value(data, ["rent", "Rent"], 0)),
-    value(data, ["date", "DueDate"], 5),
+    value(data, ["date", "DueDate"], 15),
     new Date(),
     0,
     Number(value(data, ["rent", "Rent"], 0)),
@@ -173,7 +174,7 @@ function addBulkTenants(data) {
     return [
       id("T"), value(item, ["uid"], ""), value(item, ["name", "Name"], ""),
       textValue(value(item, ["phone", "Phone"], "")), textValue(value(item, ["natID", "NationalID"], "")),
-      value(item, ["house", "House"], ""), Number(value(item, ["rent", "Rent"], 0)), 5,
+      value(item, ["house", "House"], ""), Number(value(item, ["rent", "Rent"], 0)), 15,
       new Date(), 0, Number(value(item, ["rent", "Rent"], 0)), "Main Property",
       textValue(value(item, ["nextOfKin", "NextOfKin"], "")),
       textValue(value(item, ["kinRelation", "KinRelation", "Relation"], ""))
@@ -195,6 +196,18 @@ function deleteTenant(data) {
     }
   }
   return response(false, "Tenant ID not found");
+}
+
+function setAllDueDates(data) {
+  var currentSheet = sheet(SHEET_TENANTS);
+  var lastRow = currentSheet.getLastRow();
+  var dueDate = Number(value(data || {}, ["date", "DueDate"], 15));
+  if (!dueDate || dueDate < 1 || dueDate > 31) return response(false, "Due date must be between 1 and 31");
+  if (lastRow <= 1) return response(true, "No tenants to update", { updated: 0, dueDate: dueDate });
+
+  var dueDates = Array(lastRow - 1).fill([dueDate]);
+  currentSheet.getRange(2, 8, lastRow - 1, 1).setValues(dueDates);
+  return response(true, "All tenant due dates updated", { updated: lastRow - 1, dueDate: dueDate });
 }
 
 function deleteAllTenants() {
