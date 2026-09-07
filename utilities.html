@@ -71,6 +71,15 @@
     // 🔴 CHANGE THIS TO YOUR WEB APP URL
     const WEB_APP_URL = window.API_URL;
 
+    async function apiWrite(payload) {
+      const url = new URL(WEB_APP_URL);
+      Object.entries(payload).forEach(([key, value]) => url.searchParams.set(key, value));
+      const response = await fetch(url.toString());
+      const result = await response.json();
+      if (!result.success) throw new Error(result.message || 'Request failed.');
+      return result;
+    }
+
     // Load Data on Start
     loadBills();
 
@@ -136,10 +145,7 @@
         btn.disabled = true; btn.innerText = "Processing...";
 
         try {
-            await fetch(WEB_APP_URL, { 
-                method: 'POST', 
-                body: JSON.stringify({ action: "generateMonthlyUtilities" }) 
-            });
+            await apiWrite({ action: "generateMonthlyUtilities" });
             alert("Bills Generated Successfully!");
             loadBills();
         } catch(e) { alert("Error generating."); }
@@ -150,10 +156,7 @@
     window.markPaid = async (id) => {
         if(!confirm("Mark this bill as PAID?")) return;
         try {
-            await fetch(WEB_APP_URL, { 
-                method: 'POST', 
-                body: JSON.stringify({ action: "payUtilityBill", id: id }) 
-            });
+            await apiWrite({ action: "payUtilityBill", id: id });
             loadBills();
         } catch(e) { alert("Error updating."); }
     };

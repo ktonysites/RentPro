@@ -302,13 +302,17 @@ function generateMonthlyUtilities() {
   var month = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "MMM yyyy");
   var existing = rowsAsObjects(SHEET_UTILITIES);
   var output = [];
+  var billedHouses = {};
+
+  existing.forEach(function(bill) {
+    if (String(bill.Month) === month) billedHouses[String(bill.House)] = true;
+  });
 
   tenantRows.forEach(function(tenant) {
-    var alreadyExists = existing.some(function(bill) {
-      return String(bill.Month) === month && String(bill.House) === String(tenant.House);
-    });
-    if (!alreadyExists) {
+    var house = String(tenant.House || "").trim();
+    if (house && !billedHouses[house]) {
       output.push([id("UTIL"), month, tenant.House, tenant.Name, WATER_RATE, GARBAGE_FEE, "Unpaid", "", "", "", 0]);
+      billedHouses[house] = true;
     }
   });
 
@@ -333,16 +337,29 @@ function payUtilityBill(data) {
 }
 
 function addMeterReading(data) {
-  var previous = Number(value(data, ["prevRead"], 0));
+  var house = String(value(data, ["house"], "")).trim();
+  var previous = latestReadingForHouse(house);
   var current = Number(value(data, ["currRead"], 0));
+  if (!house) return response(false, "House is required");
+  if (current < previous) return response(false, "Current reading cannot be below the previous reading");
   var units = Math.max(0, current - previous);
   var water = units * Number(value(data, ["waterRate"], WATER_RATE));
   sheet(SHEET_UTILITIES).appendRow([
     id("UTIL"), Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "MMM yyyy"),
-    value(data, ["house"], ""), value(data, ["tenantName"], ""), water,
+    house, value(data, ["tenantName"], ""), water,
     Number(value(data, ["garbageFee"], GARBAGE_FEE)), "Unpaid", "", previous, current, units
   ]);
   return response(true, "Meter reading saved");
+}
+
+function latestReadingForHouse(house) {
+  if (!house) return 0;
+  var readings = rowsAsObjects(SHEET_UTILITIES).filter(function(item) {
+    return String(item.House || "").trim() === house && item.CurrRead !== "" && item.CurrRead !== undefined;
+  });
+  if (!readings.length) return 0;
+  readings.sort(function(a, b) { return String(b.ID).localeCompare(String(a.ID)); });
+  return Number(readings[0].CurrRead) || 0;
 }
 
 function archiveTenantRow(row, reason, depositStatus) {

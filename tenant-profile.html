@@ -237,6 +237,15 @@
 
     const WEB_APP_URL = window.API_URL;
 
+    async function apiWrite(payload) {
+        const url = new URL(WEB_APP_URL);
+        Object.entries(payload).forEach(([key, value]) => url.searchParams.set(key, value));
+        const response = await fetch(url.toString());
+        const result = await response.json();
+        if (!result.success) throw new Error(result.message || 'Request failed.');
+        return result;
+    }
+
     RentProDevAuth.onAuthStateChanged(auth, (user) => {
         if (user) { currentUserUID = user.uid; loadProfile(); } 
         else window.location.href = "index.html";
@@ -361,10 +370,7 @@
         };
 
         try {
-            const response = await fetch(WEB_APP_URL, { method: 'POST', body: JSON.stringify(payload) });
-            if (!response.ok) throw new Error(`HTTP ${response.status}`);
-            const result = await response.json();
-            if (!result.success) throw new Error(result.message || 'Tenant update failed.');
+            await apiWrite(payload);
             bootstrap.Modal.getInstance(document.getElementById('editModal')).hide();
             await loadProfile();
         } catch (error) {
@@ -403,8 +409,8 @@
         btn.disabled = true; btn.innerText = "Processing...";
         const curr = document.getElementById('currReading').value;
         const payload = { action: "addMeterReading", house: tenantData.House, tenantName: tenantData.Name, prevRead: lastReading, currRead: curr, garbageFee: 150, waterRate: 120 };
-        try { await fetch(WEB_APP_URL, { method: "POST", body: JSON.stringify(payload) }); alert("Saved!"); location.reload(); }
-        catch(e) { alert("Error"); } finally { btn.disabled = false; }
+        try { await apiWrite(payload); alert("Saved!"); location.reload(); }
+        catch(e) { alert(`Unable to save reading: ${e.message}`); } finally { btn.disabled = false; }
     });
 
   </script>
