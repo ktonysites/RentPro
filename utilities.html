@@ -9,10 +9,18 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <style>
     :root { --rp-primary: #2563eb; --rp-bg: #f8fafc; --rp-dark: #0f172a; }
-    body { background: var(--rp-bg); font-family: 'Inter', sans-serif; }
+    body { background: var(--rp-bg); font-family: 'Inter', sans-serif; overflow-x: hidden; }
     .top-header { background: var(--rp-dark); padding: 15px 5%; display: flex; justify-content: space-between; align-items: center; color: white; }
     .content { padding: 30px 5%; max-width: 1400px; margin: 0 auto; }
     .card-table { background: #fff; border-radius: 12px; border: 1px solid #e2e8f0; overflow: hidden; }
+    .table-wrap { max-width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    @media (max-width: 768px) {
+      main.content { padding: 16px 12px 24px; }
+      main.content > .d-flex { align-items: flex-start !important; flex-wrap: wrap; gap: 12px; }
+      #generateBillsBtn { width: 100%; }
+      .table { min-width: 720px; font-size: 0.78rem; }
+      .table thead th, .table tbody td { padding: 9px 8px; }
+    }
     .badge-unpaid { background: #fee2e2; color: #991b1b; padding: 5px 10px; border-radius: 6px; font-weight: 600; font-size: 0.75rem; }
     .badge-paid { background: #dcfce7; color: #166534; padding: 5px 10px; border-radius: 6px; font-weight: 600; font-size: 0.75rem; }
   </style>
@@ -45,6 +53,7 @@
     </div>
 
     <div class="card-table">
+      <div class="table-wrap">
       <table class="table table-hover mb-0 align-middle">
         <thead class="bg-light">
           <tr>
@@ -62,6 +71,7 @@
           <tr><td colspan="8" class="text-center p-5 text-muted"><i class="fa-solid fa-spinner fa-spin me-2"></i> Loading...</td></tr>
         </tbody>
       </table>
+      </div>
     </div>
   </main>
 

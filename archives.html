@@ -18,7 +18,7 @@
         --rp-danger: #ef4444;
         --rp-success: #22c55e;
     }
-    body { background: var(--rp-bg); font-family: 'Inter', system-ui, sans-serif; color: #334155; }
+    body { background: var(--rp-bg); font-family: 'Inter', system-ui, sans-serif; color: #334155; overflow-x: hidden; }
 
     /* --- REUSED HEADER STYLES --- */
     .top-header {
@@ -66,6 +66,15 @@
     }
     .timeline-item:last-child { border-bottom: none; }
     .timeline-date { color: #94a3b8; font-size: 0.8rem; }
+    @media (max-width: 768px) {
+        .content { padding: 16px 12px 24px; }
+        .content > .d-flex { align-items: flex-start !important; flex-wrap: wrap; }
+        .content > .d-flex > div:last-child { width: 100%; }
+        .content > .d-flex > div:last-child button { flex: 1; }
+        .table-responsive { max-width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+        .table { min-width: 650px; font-size: 0.78rem; }
+        .table thead th, .table tbody td { padding: 9px 8px; }
+    }
   </style>
 </head>
 <body>
