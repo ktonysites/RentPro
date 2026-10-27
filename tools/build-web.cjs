@@ -10,7 +10,7 @@ const FILES = [
   "index.html", "dashboard.html", "tenants.html", "tenant-profile.html", "payments.html", "reconcile.html",
   "pay.html", "utilities.html", "expenses.html", "reports.html", "archives.html", "moveout.html", "404.html",
   "global.js", "manifest.webmanifest",
-  "js/dev-auth.js", "js/require-auth.js", "js/shell.js"
+  "js/dev-auth.js", "js/require-auth.js", "js/shell.js", "js/splash.js"
 ];
 const DIRS = ["styles", "icons"];
 

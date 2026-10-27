@@ -68,7 +68,12 @@
             window.location.href = 'dashboard.html';
             return true;
         },
-        onAuthStateChanged(auth, callback, firebaseOnAuthStateChanged) {
+        onAuthStateChanged(auth, outerCallback, firebaseOnAuthStateChanged) {
+            // Every auth result (user or null) is also broadcast, e.g. for the loading screen.
+            const callback = (user) => {
+                window.dispatchEvent(new CustomEvent('rentpro:auth', { detail: user || null }));
+                outerCallback(user);
+            };
             // Also tell the navigation shell who is signed in.
             const announce = (user) => {
                 if (user) window.dispatchEvent(new CustomEvent('rentpro:user', { detail: { email: user.email, displayName: user.displayName } }));

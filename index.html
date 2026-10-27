@@ -35,6 +35,9 @@
         position: relative;
     }
 
+    /* The background glows extend past the screen edge; clip them so phones can't scroll sideways. */
+    html { overflow-x: hidden; }
+
     /* Dark band behind the phone status bar in the Android app (zero height in a browser). */
     body::before { content: ""; position: fixed; top: 0; left: 0; right: 0; height: env(safe-area-inset-top, 0px); background: #0c1022; z-index: 10; }
 
@@ -220,6 +223,7 @@
   </style>
 </head>
 <body>
+  <script src="js/splash.js"></script>
 
   <div class="bg-shape shape-1"></div>
   <div class="bg-shape shape-2"></div>
