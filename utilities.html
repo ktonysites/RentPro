@@ -2,62 +2,48 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>RentPro — Utilities</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-  <style>
-    :root { --rp-primary: #2563eb; --rp-bg: #f8fafc; --rp-dark: #0f172a; }
-    body { background: var(--rp-bg); font-family: 'Inter', sans-serif; overflow-x: hidden; }
-    .top-header { background: var(--rp-dark); padding: 15px 5%; display: flex; justify-content: space-between; align-items: center; color: white; }
-    .content { padding: 30px 5%; max-width: 1400px; margin: 0 auto; }
-    .card-table { background: #fff; border-radius: 12px; border: 1px solid #e2e8f0; overflow: hidden; }
-    .table-wrap { max-width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
-    @media (max-width: 768px) {
-      main.content { padding: 16px 12px 24px; }
-      main.content > .d-flex { align-items: flex-start !important; flex-wrap: wrap; gap: 12px; }
-      #generateBillsBtn { width: 100%; }
-      .table { min-width: 720px; font-size: 0.78rem; }
-      .table thead th, .table tbody td { padding: 9px 8px; }
-    }
-    .badge-unpaid { background: #fee2e2; color: #991b1b; padding: 5px 10px; border-radius: 6px; font-weight: 600; font-size: 0.75rem; }
-    .badge-paid { background: #dcfce7; color: #166534; padding: 5px 10px; border-radius: 6px; font-weight: 600; font-size: 0.75rem; }
-  </style>
+  <link rel="stylesheet" href="styles/app.css">
+  <link rel="manifest" href="manifest.webmanifest">
+  <meta name="theme-color" content="#0c1022">
+  <link rel="icon" href="icons/icon-192.png">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
 </head>
-<body>
-
-  <header class="top-header">
-    <h5 class="m-0 fw-bold"><i class="fa-solid fa-faucet-drip me-2"></i> Utilities (Water/Garbage)</h5>
-    <div class="d-flex gap-2">
-      <a href="dashboard.html" class="btn btn-outline-light btn-sm">Back to Dashboard</a>
-      <a href="#" id="logoutBtn" class="btn btn-outline-light btn-sm"><i class="fa-solid fa-right-from-bracket me-1"></i> Logout</a>
-    </div>
-  </header>
+<body data-page="utilities">
+  <script src="js/shell.js"></script>
 
   <main class="content">
-    <div class="d-flex justify-content-between align-items-center mb-4">
+    <div class="page-head">
       <div>
         <h2 class="fw-bold mb-1">Utility Bills</h2>
         <p class="text-muted small m-0">Track Water (120) & Garbage (150) payments.</p>
       </div>
-      <button id="generateBillsBtn" class="btn btn-primary">
-        <i class="fa-solid fa-plus-circle me-2"></i> Generate This Month's Bills
-      </button>
+      <div class="page-actions">
+        <button id="generateBillsBtn" class="btn btn-primary">
+          <i class="fa-solid fa-plus-circle me-2"></i> Generate This Month's Bills
+        </button>
+      </div>
     </div>
 
-    <div class="row mb-4">
-        <div class="col-md-4">
-            <div class="card p-3 border-0 shadow-sm">
-                <h6 class="text-muted small fw-bold">Total Unpaid Utilities</h6>
-                <h3 class="fw-bold text-danger m-0" id="totalUnpaid">KES 0</h3>
+    <div class="row mb-2">
+        <div class="col-md-6 col-xl-4">
+            <div class="card-stat">
+                <div>
+                    <div class="card-label">Total Unpaid Utilities</div>
+                    <h3 class="card-value text-danger" id="totalUnpaid">KES 0</h3>
+                </div>
+                <div class="icon-box bg-blue-light"><i class="fa-solid fa-faucet-drip"></i></div>
             </div>
         </div>
     </div>
 
     <div class="card-table">
       <div class="table-wrap">
-      <table class="table table-hover mb-0 align-middle">
+      <table class="table table-stack table-hover mb-0 align-middle">
         <thead class="bg-light">
           <tr>
             <th class="ps-4">House</th>
@@ -139,14 +125,14 @@
 
             tbody.innerHTML += `
                 <tr>
-                    <td class="ps-4 fw-bold">House ${escapeHtml(item.House)}</td>
-                    <td>${escapeHtml(item.TenantName)}</td>
-                    <td>${escapeHtml(item.Month)}</td>
-                    <td>${water}</td>
-                    <td>${garbage}</td>
-                    <td class="fw-bold">KES ${total}</td>
-                    <td>${badge}</td>
-                    <td class="text-end pe-4">${btn}</td>
+                    <td class="td-primary ps-4 fw-bold">House ${escapeHtml(item.House)}</td>
+                    <td data-label="Tenant">${escapeHtml(item.TenantName)}</td>
+                    <td data-label="Month">${escapeHtml(item.Month)}</td>
+                    <td data-label="Water">${water}</td>
+                    <td data-label="Garbage">${garbage}</td>
+                    <td data-label="Total" class="fw-bold">KES ${total}</td>
+                    <td data-label="Status">${badge}</td>
+                    <td class="text-end pe-4 td-actions">${btn}</td>
                 </tr>
             `;
         });

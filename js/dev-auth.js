@@ -1,7 +1,8 @@
 // Local development authentication for testing without a production Firebase account.
 (function () {
     const localHosts = new Set(['localhost', '127.0.0.1', '[::1]']);
-    const enabled = localHosts.has(window.location.hostname);
+    // Only the plain-http dev server. The Android app also runs at https://localhost and must use real Firebase sign-in.
+    const enabled = localHosts.has(window.location.hostname) && window.location.protocol === 'http:' && !window.Capacitor;
     const sessionKey = 'rentpro_local_dev_user';
     const devCredentials = {
         email: 'dev@rentpro.local',
@@ -36,13 +37,18 @@
             return true;
         },
         onAuthStateChanged(auth, callback, firebaseOnAuthStateChanged) {
+            // Also tell the navigation shell who is signed in.
+            const announce = (user) => {
+                if (user) window.dispatchEvent(new CustomEvent('rentpro:user', { detail: { email: user.email, displayName: user.displayName } }));
+                callback(user);
+            };
             const localUser = getCurrentUser();
             if (localUser) {
-                queueMicrotask(() => callback(localUser));
+                queueMicrotask(() => announce(localUser));
                 return () => {};
             }
 
-            return firebaseOnAuthStateChanged(auth, callback);
+            return firebaseOnAuthStateChanged(auth, announce);
         },
         signOut(auth, firebaseSignOut) {
             if (getCurrentUser()) {

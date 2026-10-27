@@ -37,6 +37,11 @@ window.fetch = function (resource, options) {
 	});
 };
 
+// Installable web app (not needed inside the Android app, which bundles its own files).
+if ("serviceWorker" in navigator && location.protocol === "https:" && !window.Capacitor) {
+	window.addEventListener("load", () => navigator.serviceWorker.register("sw.js").catch(() => {}));
+}
+
 const KEY_TENANTS = "rentpro_tenants_v1";
 
 function loadLocal(key, fallback = []) {
@@ -56,6 +61,12 @@ function formatMoney(amount) {
 // Escapes sheet values before they are placed in innerHTML.
 function escapeHtml(input) {
 	return String(input ?? "").replace(/[&<>"']/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
+}
+
+// Keeps the navigation's unmatched-payments badge in step with a freshly loaded count.
+function updateUnmatchedBadge(count) {
+	try { sessionStorage.setItem("rentpro_unmatched", JSON.stringify({ at: Date.now(), count })); } catch (error) { /* storage is optional */ }
+	if (window.RentProShell) window.RentProShell.showUnmatched(count);
 }
 
 // Sends any API action as a GET (POSTs to Apps Script fail CORS in the browser).

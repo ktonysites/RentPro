@@ -2,209 +2,84 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RentPro - Tenant Move Out</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>RentPro — Move Out</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="styles/app.css">
+    <link rel="manifest" href="manifest.webmanifest">
+    <meta name="theme-color" content="#0c1022">
+    <link rel="icon" href="icons/icon-192.png">
+    <link rel="apple-touch-icon" href="icons/icon-192.png">
     <style>
-        :root {
-            /* Core Brand Colors - Adjust these to match your exact dashboard */
-            --primary-color: #2c3e50;    /* Dark Blue/Grey */
-            --accent-color: #d9534f;     /* Red for Move Out/Danger actions */
-            --accent-hover: #c9302c;
-            --bg-color: #f4f7f6;
-            --card-bg: #ffffff;
-            --text-color: #333333;
-            --border-color: #e0e0e0;
-            --shadow: 0 4px 6px rgba(0,0,0,0.1);
-        }
-
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background-color: var(--bg-color);
-            color: var(--text-color);
-            margin: 0;
-            padding: 20px;
-            display: flex;
-            justify-content: center;
-            align-items: flex-start;
-            min-height: 100vh;
-        }
-
-        /* Main Container */
-        .container {
-            width: 100%;
-            max-width: 600px;
-            margin-top: 40px;
-        }
-
-        /* Card Style */
-        .card {
-            background-color: var(--card-bg);
-            border-radius: 8px;
-            box-shadow: var(--shadow);
-            padding: 30px;
-            border: 1px solid var(--border-color);
-        }
-
-        /* Header */
-        .card-header {
-            margin-bottom: 25px;
-            padding-bottom: 15px;
-            border-bottom: 2px solid var(--bg-color);
-        }
-
-        .card-header h2 {
-            margin: 0;
-            color: var(--primary-color);
-            font-size: 24px;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-
-        /* Icon styling */
-        .icon-moveout {
-            font-size: 24px;
-        }
-
-        /* Form Group */
-        .form-group {
-            margin-bottom: 20px;
-        }
-
-        .form-group label {
-            display: block;
-            margin-bottom: 8px;
-            font-weight: 600;
-            color: var(--primary-color);
-            font-size: 14px;
-        }
-
-        /* Inputs & Selects */
-        .form-control {
-            width: 100%;
-            padding: 12px;
-            border: 1px solid var(--border-color);
-            border-radius: 6px;
-            font-size: 16px;
-            background-color: #fafafa;
-            transition: border-color 0.3s, box-shadow 0.3s;
-            box-sizing: border-box; /* Ensures padding doesn't break width */
-        }
-
-        .form-control:focus {
-            outline: none;
-            border-color: var(--accent-color);
-            background-color: #fff;
-            box-shadow: 0 0 0 3px rgba(217, 83, 79, 0.1);
-        }
-
-        textarea.form-control {
-            resize: vertical;
-            min-height: 80px;
-        }
-
-        /* Button */
-        .btn-submit {
-            width: 100%;
-            padding: 14px;
-            background-color: var(--accent-color);
-            color: white;
-            border: none;
-            border-radius: 6px;
-            font-size: 16px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: background 0.3s;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-
-        .btn-submit:hover {
-            background-color: var(--accent-hover);
-        }
-
-        .btn-submit:disabled {
-            background-color: #ccc;
-            cursor: not-allowed;
-        }
-
-        /* Status Messages */
-        #status {
-            margin-top: 15px;
-            text-align: center;
-            font-weight: 600;
-            min-height: 24px;
-            padding: 10px;
-            border-radius: 4px;
-        }
-        
-        .status-success {
-            background-color: #d4edda;
-            color: #155724;
-            border: 1px solid #c3e6cb;
-        }
-        
-        .status-error {
-            background-color: #f8d7da;
-            color: #721c24;
-            border: 1px solid #f5c6cb;
-        }
-
-        /* Helper Text */
-        .helper-text {
-            font-size: 12px;
-            color: #777;
-            margin-top: 4px;
-        }
+        .moveout-card { max-width: 620px; padding: 28px; }
+        .moveout-icon { width: 48px; height: 48px; border-radius: 14px; display: grid; place-items: center; background: var(--rp-danger-soft); color: var(--rp-danger); font-size: 1.2rem; }
+        #status:empty { display: none; }
+        #status { margin-top: 16px; padding: 12px 14px; border-radius: 12px; font-weight: 600; font-size: 0.9rem; }
+        .status-success { background: var(--rp-success-soft); color: #166534; }
+        .status-error { background: var(--rp-danger-soft); color: #991b1b; }
     </style>
 </head>
-<body>
+<body data-page="moveout">
+    <script src="js/shell.js"></script>
 
-    <div class="container">
-        <a href="tenants.html" style="display:inline-block; margin-bottom:12px; color:#555; text-decoration:none; font-size:14px;">&larr; Back to Tenants</a>
-        <div class="card">
-            <div class="card-header">
-                <h2><span>📤</span> Process Move-Out</h2>
+    <main class="content">
+        <div class="page-head">
+            <div>
+                <a href="tenants.html" class="text-decoration-none text-muted small fw-semibold mb-1 d-none d-lg-inline-block"><i class="fa-solid fa-arrow-left me-1"></i> Tenants</a>
+                <h2>Process Move-Out</h2>
+                <p>Archive a tenant who is leaving. Their payment history is kept.</p>
+            </div>
+        </div>
+
+        <div class="rp-card moveout-card">
+            <div class="d-flex align-items-center gap-3 mb-4">
+                <div class="moveout-icon"><i class="fa-solid fa-door-open"></i></div>
+                <div>
+                    <div class="fw-bold text-dark">Tenant details</div>
+                    <div class="small text-muted">Name and house must both match the tenant.</div>
+                </div>
             </div>
 
-            <div class="form-group">
-                <label for="mName">Tenant Name</label>
-                <input type="text" id="mName" class="form-control" placeholder="e.g. John Kamau">
-                <div class="helper-text">Must match the name exactly as registered.</div>
+            <div class="row g-3">
+                <div class="col-md-7">
+                    <label class="form-label" for="mName">Tenant Name</label>
+                    <input type="text" id="mName" class="form-control" placeholder="e.g. John Kamau">
+                </div>
+                <div class="col-md-5">
+                    <label class="form-label" for="mHouse">House Number</label>
+                    <input type="text" id="mHouse" class="form-control" placeholder="e.g. 7">
+                </div>
+                <div class="col-12">
+                    <label class="form-label" for="mReason">Reason for Moving</label>
+                    <textarea id="mReason" class="form-control" rows="3" placeholder="Brief explanation..."></textarea>
+                </div>
+                <div class="col-12">
+                    <label class="form-label" for="mDeposit">Deposit</label>
+                    <select id="mDeposit" class="form-select">
+                        <option value="Yes">Full refund</option>
+                        <option value="Partial">Partial refund (with deductions)</option>
+                        <option value="No">Forfeited / no refund</option>
+                    </select>
+                </div>
             </div>
 
-            <div class="form-group">
-                <label for="mHouse">House Number</label>
-                <input type="text" id="mHouse" class="form-control" placeholder="e.g. A104">
-            </div>
-
-            <div class="form-group">
-                <label for="mReason">Reason for Moving</label>
-                <textarea id="mReason" class="form-control" placeholder="Brief explanation..."></textarea>
-            </div>
-
-            <div class="form-group">
-                <label for="mDeposit">Deposit Action</label>
-                <select id="mDeposit" class="form-control">
-                    <option value="Yes">✅ Full Refund</option>
-                    <option value="Partial">⚠️ Partial (With Deductions)</option>
-                    <option value="No">❌ Forfeited / No Refund</option>
-                </select>
-            </div>
-
-            <button onclick="submitMoveOut()" class="btn-submit">Confirm & Archive Tenant</button>
+            <button onclick="submitMoveOut()" class="btn btn-danger w-100 mt-4 btn-submit"><i class="fa-solid fa-box-archive me-2"></i>Confirm &amp; Archive Tenant</button>
             <div id="status"></div>
         </div>
-    </div>
+    </main>
 
     <script src="global.js"></script>
     <script src="js/dev-auth.js"></script>
     <script type="module" src="js/require-auth.js"></script>
     <script>
+        const SUBMIT_LABEL = '<i class="fa-solid fa-box-archive me-2"></i>Confirm &amp; Archive Tenant';
+
         function submitMoveOut() {
             const btn = document.querySelector('.btn-submit');
             const statusDiv = document.getElementById('status');
-            
+
             // UI Reset
             statusDiv.className = '';
             statusDiv.innerText = '';
@@ -222,7 +97,7 @@
 
             if (!confirm(`Archive ${payload.tenantName || 'the tenant in house ' + payload.houseNumber}? They will be removed from the active tenant list.`)) {
                 btn.disabled = false;
-                btn.innerText = "Confirm & Archive Tenant";
+                btn.innerHTML = SUBMIT_LABEL;
                 return;
             }
 
@@ -232,7 +107,7 @@
                 if(data.success) {
                     statusDiv.className = 'status-success';
                     statusDiv.innerText = "✓ " + data.message;
-                    
+
                     // Clear fields on success
                     document.getElementById('mName').value = "";
                     document.getElementById('mHouse').value = "";
@@ -243,44 +118,23 @@
                     statusDiv.innerText = "⚠ " + data.message;
                 }
                 btn.disabled = false;
-                btn.innerText = "Confirm & Archive Tenant";
+                btn.innerHTML = SUBMIT_LABEL;
             })
             .catch(error => {
                 statusDiv.className = 'status-error';
                 statusDiv.innerText = "⚠ Network Error. Check connection.";
                 console.error('Error!', error.message);
                 btn.disabled = false;
-                btn.innerText = "Confirm & Archive Tenant";
+                btn.innerHTML = SUBMIT_LABEL;
             });
         }
+
+        // Prefill from the tenant profile's Move Out link (?id=...&name=...&house=...).
+        document.addEventListener('DOMContentLoaded', function() {
+            const urlParams = new URLSearchParams(window.location.search);
+            if (urlParams.get('name')) document.getElementById('mName').value = urlParams.get('name');
+            if (urlParams.get('house')) document.getElementById('mHouse').value = urlParams.get('house');
+        });
     </script>
-   <script>
-    // Robust Auto-fill Logic
-    document.addEventListener('DOMContentLoaded', function() {
-        console.log("Move-out page loaded. Checking for URL parameters...");
-
-        // 1. Get the URL parameters (e.g. ?name=John&house=A1)
-        const urlParams = new URLSearchParams(window.location.search);
-        
-        // 2. Get the values and Decode them (fixes %20 for spaces)
-        const nameParam = urlParams.get('name');
-        const houseParam = urlParams.get('house');
-
-        console.log("Found params:", nameParam, houseParam);
-
-        // 3. Find the Input Boxes
-        const nameInput = document.getElementById('mName');
-        const houseInput = document.getElementById('mHouse');
-
-        // 4. Fill them if data exists
-        if (nameInput && nameParam) {
-            nameInput.value = decodeURIComponent(nameParam);
-        }
-        
-        if (houseInput && houseParam) {
-            houseInput.value = decodeURIComponent(houseParam);
-        }
-    });
-</script>
 </body>
 </html>

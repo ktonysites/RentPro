@@ -70,3 +70,7 @@ node_modules/
 
 # dataconnect generated files
 .dataconnect
+
+# Capacitor / Android build output
+www/
+dist/

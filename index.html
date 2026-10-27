@@ -2,18 +2,22 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>RentPro — Login</title>
   
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
+  <link rel="manifest" href="manifest.webmanifest">
+  <meta name="theme-color" content="#0c1022">
+  <link rel="icon" href="icons/icon-192.png">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
   <style>
     :root { 
-        --rp-primary: #2563eb;
-        --rp-primary-gradient: linear-gradient(135deg, #2563eb 0%, #3b82f6 100%);
-        --rp-primary-hover: #1d4ed8;
+        --rp-primary: #4f46e5;
+        --rp-primary-gradient: linear-gradient(135deg, #6366f1 0%, #4f46e5 55%, #7c3aed 100%);
+        --rp-primary-hover: #4338ca;
         --rp-dark: #0f172a; 
         --rp-bg: #f8fafc;
         --rp-text-muted: #64748b;
@@ -22,14 +26,17 @@
     body { 
         background-color: #f1f5f9;
         font-family: 'Inter', system-ui, sans-serif; 
-        height: 100vh; 
+        min-height: 100vh; min-height: 100dvh; padding: 24px 16px; 
         display: flex; 
         align-items: center; 
         justify-content: center; 
         color: #334155;
-        overflow: hidden; /* Prevents scrolling from background orbs */
+        overflow-x: hidden; /* Background orbs never cause sideways scrolling */
         position: relative;
     }
+
+    /* Dark band behind the phone status bar in the Android app (zero height in a browser). */
+    body::before { content: ""; position: fixed; top: 0; left: 0; right: 0; height: env(safe-area-inset-top, 0px); background: #0c1022; z-index: 10; }
 
     /* Ambient Background Glows */
     .bg-shape {
@@ -41,7 +48,7 @@
     }
     .shape-1 {
         width: 400px; height: 400px;
-        background: rgba(59, 130, 246, 0.3); /* Blue */
+        background: rgba(99, 102, 241, 0.32); /* Indigo */
         top: -100px; left: -100px;
     }
     .shape-2 {
@@ -108,7 +115,7 @@
 
     .input-group:focus-within {
         border-color: var(--rp-primary);
-        box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.15);
+        box-shadow: 0 0 0 4px rgba(79, 70, 229, 0.15);
         background-color: #fff;
     }
 
@@ -153,11 +160,11 @@
         font-size: 1.05rem;
         letter-spacing: 0.3px;
         transition: all 0.3s ease;
-        box-shadow: 0 4px 12px rgba(37, 99, 235, 0.2);
+        box-shadow: 0 4px 12px rgba(79, 70, 229, 0.25);
     }
     .btn-primary:hover { 
         transform: translateY(-2px); 
-        box-shadow: 0 8px 20px rgba(37, 99, 235, 0.35); 
+        box-shadow: 0 8px 20px rgba(79, 70, 229, 0.38); 
     }
     .btn-primary:active { transform: translateY(0); }
 

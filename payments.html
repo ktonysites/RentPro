@@ -2,196 +2,29 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>RentPro — Payments</title>
   
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-
-  <style>
-    :root { 
-        --rp-primary: #2563eb; 
-        --rp-bg: #f8fafc; 
-        --rp-dark: #0f172a; 
-        --rp-card-border: #e2e8f0;
-    }
-    body { background: var(--rp-bg); font-family: 'Inter', system-ui, sans-serif; color: #334155; overflow-x: hidden; }
-
-    /* --- TOP HEADER & DROPDOWN --- */
-    .top-header {
-        background: var(--rp-dark);
-        padding: 15px 5%;
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-        position: sticky;
-        top: 0;
-        z-index: 1000;
-    }
-
-    .brand-logo {
-        color: white;
-        font-weight: 700;
-        font-size: 1.25rem;
-        text-decoration: none;
-        display: flex;
-        align-items: center;
-        gap: 10px;
-    }
-
-    .nav-dropdown-container { position: relative; }
-
-    .nav-select-btn {
-        background: rgba(255, 255, 255, 0.1);
-        border: 1px solid rgba(255, 255, 255, 0.2);
-        color: white;
-        padding: 10px 20px;
-        border-radius: 8px;
-        cursor: pointer;
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        min-width: 200px;
-        font-weight: 500;
-        transition: all 0.2s ease;
-    }
-
-    .nav-select-btn:hover {
-        background: rgba(255, 255, 255, 0.15);
-        border-color: rgba(255, 255, 255, 0.4);
-    }
-
-    .nav-menu {
-        position: absolute;
-        top: 115%;
-        right: 0;
-        width: 220px;
-        background: white;
-        border-radius: 8px;
-        box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
-        border: 1px solid var(--rp-card-border);
-        display: none;
-        flex-direction: column;
-        overflow: hidden;
-        z-index: 1001;
-    }
-
-    .nav-menu.show { display: flex; animation: fadeIn 0.2s ease-out; }
-
-    .nav-item {
-        padding: 12px 20px;
-        text-decoration: none;
-        color: #475569;
-        font-weight: 500;
-        display: flex;
-        align-items: center;
-        gap: 12px;
-        transition: background 0.1s;
-        border-bottom: 1px solid #f1f5f9;
-    }
-
-    .nav-item:hover { background: #f8fafc; color: var(--rp-primary); }
-    .nav-item.active { background: #eff6ff; color: var(--rp-primary); border-left: 4px solid var(--rp-primary); }
-    .nav-item.logout { color: #ef4444; }
-
-    /* --- LAYOUT & TABLE STYLES --- */
-    .content { 
-        padding: 30px 5%; 
-        max-width: 1400px;
-        margin: 0 auto;
-    }
-
-    .card-table { 
-        background: #fff; 
-        border: 1px solid var(--rp-card-border); 
-        border-radius: 12px; 
-        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05); 
-        overflow: hidden; 
-    }
-
-    .table thead th { 
-        background: #f8fafc; 
-        font-weight: 700; 
-        text-transform: uppercase; 
-        font-size: 0.75rem; 
-        color: #64748b; 
-        padding: 16px; 
-        border-bottom: 1px solid #e2e8f0; 
-        letter-spacing: 0.5px;
-        white-space: nowrap; 
-    }
-
-    .table tbody td { 
-        padding: 16px; 
-        border-bottom: 1px solid #f1f5f9; 
-        vertical-align: middle; 
-    }
-    
-    .table-hover tbody tr:hover { background-color: #f8fafc; }
-
-    /* Badges */
-    .badge-ref { background: #f1f5f9; color: #475569; padding: 4px 8px; border-radius: 4px; font-family: monospace; font-size: 0.8rem; border: 1px solid #e2e8f0; }
-    .badge-status { background: #dcfce7; color: #166534; padding: 4px 10px; border-radius: 20px; font-weight: 600; font-size: 0.7rem; text-transform: uppercase; }
-
-    @keyframes fadeIn { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
-
-    /* Mobile Tweaks */
-    @media (max-width: 768px) { 
-        .content { padding: 20px 4%; } 
-        .page-header { flex-direction: column; align-items: flex-start; gap: 15px; }
-        .page-actions { width: 100%; display: flex; gap: 10px; }
-        .page-actions .btn { flex: 1; }
-        .table-responsive { max-width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
-        .table { min-width: 560px; font-size: 0.78rem; }
-        .table thead th, .table tbody td { padding: 9px 8px; }
-    }
-  </style>
+  <link rel="stylesheet" href="styles/app.css">
+  <link rel="manifest" href="manifest.webmanifest">
+  <meta name="theme-color" content="#0c1022">
+  <link rel="icon" href="icons/icon-192.png">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
 </head>
-<body>
+<body data-page="payments">
+  <script src="js/shell.js"></script>
 
-  <header class="top-header">
-    <a href="#" class="brand-logo">
-        <i class="fa-solid fa-building me-2"></i> RentPro
-    </a>
-
-    <div class="nav-dropdown-container">
-        <div class="nav-select-btn" id="navDropdownBtn" onclick="toggleNav()">
-            <span><i class="fa-solid fa-money-bill-wave me-2"></i> Payments</span>
-            <i class="fa-solid fa-chevron-down small"></i>
-        </div>
-
-        <div class="nav-menu" id="navMenu">
-            <a href="dashboard.html" class="nav-item">
-                <i class="fa-solid fa-chart-pie"></i> Dashboard
-            </a>
-            <a href="tenants.html" class="nav-item">
-                <i class="fa-solid fa-users"></i> Tenants
-            </a>
-            <a href="payments.html" class="nav-item active">
-                <i class="fa-solid fa-money-bill-wave"></i> Payments
-            </a>
-            <a href="expenses.html" class="nav-item">
-                <i class="fa-solid fa-receipt"></i> Expenses
-            </a>
-            <a href="reports.html" class="nav-item">
-                <i class="fa-solid fa-chart-column"></i> Reports
-            </a>
-            <a href="#" class="nav-item logout" id="logoutBtn">
-                <i class="fa-solid fa-right-from-bracket"></i> Logout
-            </a>
-        </div>
-    </div>
-  </header>
 
   <main class="content">
-    <div class="d-flex justify-content-between align-items-center mb-4 page-header">
+    <div class="page-head">
       <div>
         <h2 class="fw-bold mb-1 text-dark">Payment History</h2>
         <p class="text-muted small m-0">Real-time log of incoming transactions.</p>
       </div>
-      <div class="d-flex gap-2 page-actions">
+      <div class="page-actions">
           <a href="reconcile.html" class="btn btn-outline-warning" id="unmatchedBtn">
             <i class="fa-solid fa-triangle-exclamation me-2"></i> Unmatched <span id="unmatchedCount" class="badge bg-warning text-dark ms-1">0</span>
           </a>
@@ -206,7 +39,7 @@
 
     <div class="card-table">
       <div class="table-responsive">
-        <table class="table table-hover mb-0">
+        <table class="table table-stack table-hover mb-0">
           <thead>
             <tr>
               <th>Date</th>
@@ -230,23 +63,6 @@
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 
-  <script>
-    function toggleNav() {
-        document.getElementById('navMenu').classList.toggle('show');
-    }
-    // Close dropdown when clicking outside
-    window.onclick = function(event) {
-        if (!event.target.closest('.nav-dropdown-container')) {
-            var dropdowns = document.getElementsByClassName("nav-menu");
-            for (var i = 0; i < dropdowns.length; i++) {
-                var openDropdown = dropdowns[i];
-                if (openDropdown.classList.contains('show')) {
-                    openDropdown.classList.remove('show');
-                }
-            }
-        }
-    }
-  </script>
 
     <script src="global.js"></script>
     <script src="js/dev-auth.js"></script>
@@ -314,7 +130,9 @@
             
             // Store for CSV Export
             currentPayments = payments;
-            document.getElementById('unmatchedCount').innerText = payments.filter(p => /unmatched|unassigned/i.test(p.notes || '')).length;
+            const unmatchedCount = payments.filter(p => /unmatched|unassigned/i.test(p.notes || '')).length;
+            document.getElementById('unmatchedCount').innerText = unmatchedCount;
+            updateUnmatchedBadge(unmatchedCount);
 
             // Sort by Date (Newest First)
             payments.sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
@@ -340,16 +158,16 @@
                 const amount = p.amount || 0;
                 const house = p.house ? `<div class="small text-muted">House ${escapeHtml(p.house)}</div>` : '';
                 const statusBadge = /unmatched|unassigned/i.test(status)
-                    ? `<a href="reconcile.html" class="badge-status text-decoration-none" style="background:#fef3c7;color:#92400e">${escapeHtml(status)}</a>`
+                    ? `<a href="reconcile.html" class="badge-status is-warning text-decoration-none">${escapeHtml(status)}</a>`
                     : `<span class="badge-status">${escapeHtml(status)}</span>`;
 
                 tbody.innerHTML += `
                     <tr>
-                        <td class="text-muted small fw-bold">${dateDisplay}</td>
-                        <td><span class="badge-ref">${escapeHtml(ref)}</span></td>
-                        <td class="fw-bold text-dark">${escapeHtml(name)}${house}</td>
-                        <td>${statusBadge}</td>
-                        <td class="text-end fw-bold text-success">${money(amount)}</td>
+                        <td data-label="Date" class="text-muted small fw-bold">${dateDisplay}</td>
+                        <td data-label="Reference"><span class="badge-ref">${escapeHtml(ref)}</span></td>
+                        <td class="td-primary fw-bold text-dark">${escapeHtml(name)}${house}</td>
+                        <td data-label="Status">${statusBadge}</td>
+                        <td data-label="Amount" class="text-end fw-bold text-success">${money(amount)}</td>
                     </tr>`;
             });
 

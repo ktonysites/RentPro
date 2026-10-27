@@ -2,34 +2,40 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RentPro - Reconcile</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>RentPro — Unmatched Payments</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="styles/app.css">
+    <link rel="manifest" href="manifest.webmanifest">
+    <meta name="theme-color" content="#0c1022">
+    <link rel="icon" href="icons/icon-192.png">
+    <link rel="apple-touch-icon" href="icons/icon-192.png">
     <style>
-        body { background: #f8f9fa; padding: 20px; font-family: 'Segoe UI', sans-serif; }
-        .card { border: none; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
-        .amount-badge { font-size: 1.1em; font-weight: bold; color: #198754; }
+        #paymentList { max-width: 860px; }
+        #paymentList .card { border: 1px solid var(--rp-border); border-radius: var(--rp-radius); box-shadow: var(--rp-shadow); }
+        .amount-badge { font-size: 1.15em; font-weight: 800; color: var(--rp-success); white-space: nowrap; }
     </style>
 </head>
-<body>
-    <div class="container" style="max-width: 800px;">
-        <div class="d-flex justify-content-between align-items-center mb-4 gap-2 flex-wrap">
-            <h3><i class="fa-solid fa-triangle-exclamation text-warning me-2"></i> Fix Unmatched Payments</h3>
-            <div class="d-flex gap-2">
-                <a href="payments.html" class="btn btn-outline-secondary">Back to Payments</a>
-                <a href="#" id="logoutBtn" class="btn btn-outline-danger"><i class="fa-solid fa-right-from-bracket me-1"></i> Logout</a>
+<body data-page="reconcile">
+    <script src="js/shell.js"></script>
+    <main class="content">
+        <div class="page-head">
+            <div>
+                <a href="payments.html" class="text-decoration-none text-muted small fw-semibold mb-1 d-none d-lg-inline-block"><i class="fa-solid fa-arrow-left me-1"></i> Payments</a>
+                <h2>Unmatched Payments</h2>
+                <p>SMS payments whose account number didn't name a known house and whose payer matched no tenant. Assign each one to credit the tenant.</p>
             </div>
         </div>
-        <p class="text-muted small">Payments from the SMS listener land here when the account reference does not name a known house and the payer's name matches no tenant.</p>
 
         <div id="loading" class="text-center py-5">
             <div class="spinner-border text-primary"></div>
-            <p>Scanning for lost payments...</p>
+            <p class="text-muted mt-2">Scanning for unmatched payments...</p>
         </div>
 
         <div id="paymentList"></div>
-    </div>
+    </main>
 
     <div class="modal fade" id="fixModal" tabindex="-1">
         <div class="modal-dialog">
@@ -52,7 +58,7 @@
         </div>
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
     <script src="global.js"></script>
     <script src="js/dev-auth.js"></script>
     <script type="module" src="js/require-auth.js"></script>
@@ -72,6 +78,7 @@
                 ]);
                 unmatchedPayments = unmatchedRes.data || [];
                 tenants = tenantsRes.data || [];
+                updateUnmatchedBadge(unmatchedPayments.length);
             } catch (e) {
                 console.error(e);
                 document.getElementById('loading').style.display = 'none';

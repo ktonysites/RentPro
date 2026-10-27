@@ -2,26 +2,24 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>RentPro — Tenant Profile</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
-
+  <link rel="stylesheet" href="styles/app.css">
+  <link rel="manifest" href="manifest.webmanifest">
+  <meta name="theme-color" content="#0c1022">
+  <link rel="icon" href="icons/icon-192.png">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
   <style>
-    :root { --rp-primary: #2563eb; --rp-light: #f1f5f9; }
-    body { background: var(--rp-light); font-family: 'Inter', sans-serif; color: #334155; }
-    .content { min-height: 100vh; padding: 30px; }
-
-    /* CARDS */
-    .card-profile { background: white; border: 1px solid #e2e8f0; border-radius: 12px; padding: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); height: 100%; position: relative; }
-    .avatar-lg { width: 90px; height: 90px; background: #eff6ff; color: var(--rp-primary); font-size: 2.5rem; font-weight: 700; display: flex; align-items: center; justify-content: center; border-radius: 50%; margin: 0 auto 15px auto; border: 4px solid #fff; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
-    .label-text { font-size: 0.7rem; text-transform: uppercase; color: #94a3b8; font-weight: 700; letter-spacing: 0.5px; margin-bottom: 2px; }
-    .value-text { font-size: 1rem; color: #1e293b; font-weight: 500; margin-bottom: 12px; border-bottom: 1px solid #f1f5f9; padding-bottom: 8px; }
-    
-    /* PDF PRINT TEMPLATE (Hidden from view) */
+    .card-profile { padding: 24px; height: 100%; position: relative; }
+    .avatar-lg { width: 88px; height: 88px; background: var(--rp-primary-soft); color: var(--rp-primary); font-size: 2.3rem; font-weight: 800; display: grid; place-items: center; border-radius: 50%; margin: 0 auto 14px; border: 4px solid #fff; box-shadow: 0 6px 18px rgba(79, 70, 229, 0.2); }
+    .label-text { font-size: 0.68rem; text-transform: uppercase; color: var(--rp-subtle); font-weight: 700; letter-spacing: 0.06em; margin-bottom: 2px; }
+    .value-text { font-size: 0.95rem; color: var(--rp-ink); font-weight: 500; margin-bottom: 12px; border-bottom: 1px solid #f1f2f6; padding-bottom: 8px; word-break: break-word; }
+    /* PDF template (hidden on screen) */
     #printableReport { display: none; padding: 40px; background: white; font-family: 'Inter', sans-serif; color: #000; }
     .pdf-header { border-bottom: 2px solid #000; padding-bottom: 20px; margin-bottom: 30px; display: flex; justify-content: space-between; align-items: end; }
     .pdf-title { font-size: 24px; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; }
@@ -31,38 +29,28 @@
     .pdf-table { width: 100%; border-collapse: collapse; font-size: 12px; }
     .pdf-table th { background: #f3f4f6; padding: 8px; text-align: left; border: 1px solid #ddd; }
     .pdf-table td { padding: 8px; border: 1px solid #ddd; }
-
-        @media (max-width: 768px) {
-            .content { padding: 16px 12px 24px; }
-            .profile-header { align-items: stretch !important; }
-            .profile-header > div:last-child { display: grid !important; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px !important; }
-            .profile-header .btn { width: 100%; padding-left: 6px; padding-right: 6px; }
-            .profile-header .btn i { margin-right: 0 !important; }
-            .profile-header .btn { font-size: 0; }
-            .profile-header .btn i { font-size: 0.9rem; }
-            .card-profile { padding: 16px; border-radius: 8px; }
-            .row.g-4 { --bs-gutter-y: 1rem; }
-            .table { min-width: 520px; }
-            .table-responsive { margin-left: -1px; margin-right: -1px; }
-        }
+    @media (max-width: 767.98px) {
+      .page-actions { display: grid !important; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .card-profile { padding: 16px; }
+    }
   </style>
 </head>
-<body>
+<body data-page="tenant-profile">
+  <script src="js/shell.js"></script>
 
   <main class="content">
-        <div class="profile-header d-flex justify-content-between align-items-center mb-4 flex-wrap gap-3">
+        <div class="page-head">
       <div>
-        <a href="tenants.html" class="text-decoration-none text-muted small fw-bold mb-1 d-inline-block"><i class="fa-solid fa-arrow-left me-1"></i> Back to Tenants</a>
-        <h2 class="fw-bold text-dark m-0" id="pHeaderName">Loading...</h2>
+        <a href="tenants.html" class="text-decoration-none text-muted small fw-semibold mb-1 d-none d-lg-inline-block"><i class="fa-solid fa-arrow-left me-1"></i> Tenants</a>
+        <h2 id="pHeaderName">Loading...</h2>
       </div>
-      <div class="d-flex gap-2">
-          <button class="btn btn-secondary btn-sm shadow-sm" onclick="downloadPDF()" aria-label="Download tenant report" title="Download report">
+      <div class="page-actions">
+          <button class="btn btn-outline-secondary" onclick="downloadPDF()" aria-label="Download tenant report" title="Download report">
             <i class="fa-solid fa-file-pdf me-2"></i> Report
           </button>
-          
-          <button class="btn btn-primary btn-sm shadow-sm" data-bs-toggle="modal" data-bs-target="#editModal" aria-label="Edit tenant" title="Edit tenant"><i class="fa-solid fa-pen-to-square me-2"></i> Edit</button>
-          <button class="btn btn-info btn-sm text-white shadow-sm" data-bs-toggle="modal" data-bs-target="#meterModal" aria-label="Record meter reading" title="Record reading"><i class="fa-solid fa-faucet me-2"></i> Reading</button>
-          <a id="moveOutBtn" href="moveout.html" class="btn btn-outline-danger btn-sm shadow-sm" aria-label="Move tenant out" title="Move out"><i class="fa-solid fa-door-open me-2"></i> Move Out</a>
+          <button class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#meterModal" aria-label="Record meter reading" title="Record reading"><i class="fa-solid fa-faucet me-2"></i> Reading</button>
+          <a id="moveOutBtn" href="moveout.html" class="btn btn-outline-danger" aria-label="Move tenant out" title="Move out"><i class="fa-solid fa-door-open me-2"></i> Move Out</a>
+          <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#editModal" aria-label="Edit tenant" title="Edit tenant"><i class="fa-solid fa-pen-to-square me-2"></i> Edit</button>
       </div>
     </div>
 

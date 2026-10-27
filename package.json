@@ -1,16 +1,21 @@
 {
-  "name": "rent-mgmt",
-  "version": "1.0.0",
-  "main": "index.js",
+  "name": "rentpro",
+  "version": "1.1.0",
+  "private": true,
   "scripts": {
-    "start": "node index.js",
-    "migrate": "node migrate.js",
     "test": "node --test tests/backend.test.js",
-    "dev": "node tests/dev-server.js"
+    "dev": "node tests/dev-server.js",
+    "icons": "node tools/make-icons.cjs android/app/src/main/res",
+    "build:web": "node tools/build-web.cjs",
+    "android:sync": "npm run build:web && npx cap sync android",
+    "android:apk": "npm run android:sync && node tools/build-apk.cjs"
   },
   "dependencies": {
-    "express": "^4.18.2",
-    "better-sqlite3": "^8.0.0",
-    "multer": "^1.4.5"
+    "@capacitor/android": "^8.5.0",
+    "@capacitor/app": "^8.1.0",
+    "@capacitor/core": "^8.5.0"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^8.5.0"
   }
 }
