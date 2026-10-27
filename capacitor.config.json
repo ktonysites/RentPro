@@ -1,0 +1,20 @@
+{
+  "appId": "com.rentpro.app",
+  "appName": "RentPro",
+  "webDir": "www",
+  "android": {
+    "allowMixedContent": false,
+    "backgroundColor": "#f4f5f9"
+  },
+  "plugins": {
+    "FirebaseAuthentication": {
+      "skipNativeAuth": true,
+      "providers": ["google.com"]
+    },
+    "SystemBars": {
+      "insetsHandling": "native",
+      "initialViewportFitValueHint": "cover",
+      "style": "DARK"
+    }
+  }
+}

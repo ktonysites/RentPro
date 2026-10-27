@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>RentPro — Expenses</title>
+
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link rel="stylesheet" href="styles/app.css">
+  <link rel="manifest" href="manifest.webmanifest">
+  <meta name="theme-color" content="#0c1022">
+  <link rel="icon" href="icons/icon-192.png">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+</head>
+<body data-page="expenses">
+  <script src="js/shell.js"></script>
+
+  <main class="content">
+    <div class="page-head">
+      <div>
+        <h2>Expenses</h2>
+        <p>Track maintenance and utility costs.</p>
+      </div>
+      <div class="page-actions">
+          <button id="generateGarbageBtn" class="btn btn-outline-secondary">
+            <i class="fa-solid fa-dumpster me-2"></i> Garbage Bills
+          </button>
+          <button onclick="downloadCSV()" class="btn btn-outline-secondary">
+            <i class="fa-solid fa-file-csv me-2"></i> Export
+          </button>
+          <button id="addExpenseBtn" class="btn btn-primary">
+            <i class="fa-solid fa-plus me-2"></i> Add Expense
+          </button>
+      </div>
+    </div>
+
+    <div class="row mb-2">
+        <div class="col-md-6 col-xl-4">
+            <div class="card-stat">
+                <div>
+                    <div class="card-label">Total Expenses</div>
+                    <h3 class="card-value" id="totalAmount">KES 0</h3>
+                </div>
+                <div class="icon-box bg-danger bg-opacity-10 text-danger">
+                    <i class="fa-solid fa-wallet"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-2 mb-3">
+        <div class="col-md-8">
+            <div class="input-group">
+                <span class="input-group-text bg-white border-end-0"><i class="fa-solid fa-magnifying-glass text-muted"></i></span>
+                <input type="text" id="searchInput" class="form-control border-start-0 ps-0" placeholder="Search description...">
+            </div>
+        </div>
+        <div class="col-md-4">
+            <select id="houseFilter" class="form-select">
+                <option value="all">All Houses</option>
+                <option value="General">General / Shared</option>
+            </select>
+        </div>
+    </div>
+
+    <div class="card-table">
+      <div class="table-responsive">
+        <table class="table table-stack table-hover mb-0">
+          <thead>
+            <tr>
+                <th>Date</th>
+                <th>House</th> <th>Category</th>
+                <th>Description</th>
+                <th>Amount</th>
+                <th class="text-end">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="expenseTableBody">
+             <tr><td colspan="6" class="text-center p-5 text-muted"><i class="fa-solid fa-circle-notch fa-spin fs-4 mb-2"></i><br>Loading expenses...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+
+  <div class="modal fade" id="expenseModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+      <form id="expenseForm" class="modal-content">
+        <div class="modal-header border-0 pb-0">
+          <h5 class="modal-title fw-bold" id="modalTitle">Add Expense</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body p-4">
+            <input type="hidden" id="expenseId">
+            
+            <div class="row g-3">
+                <div class="col-6">
+                    <label class="form-label small fw-bold">Date</label>
+                    <input type="date" id="expenseDate" class="form-control" required>
+                </div>
+                <div class="col-6">
+                    <label class="form-label small fw-bold">Amount (KES)</label>
+                    <input type="number" id="expenseAmount" class="form-control" placeholder="0" required>
+                </div>
+                
+                <div class="col-12">
+                    <label class="form-label small fw-bold">Assign to House</label>
+                    <select id="expenseHouse" class="form-select" required>
+                        <option value="General">General (Shared Cost)</option>
+                    </select>
+                </div>
+
+                <div class="col-12">
+                    <label class="form-label small fw-bold">Category</label>
+                    <select id="expenseCategory" class="form-select" required>
+                        <option value="Maintenance">Maintenance & Repairs</option>
+                        <option value="Utilities">Utilities</option>
+                        <option value="Cleaning">Cleaning</option>
+                        <option value="Tax">Taxes/Rates</option>
+                        <option value="Salary">Staff Salary</option>
+                        <option value="Other">Other</option>
+                    </select>
+                </div>
+                <div class="col-12">
+                    <label class="form-label small fw-bold">Description</label>
+                    <input type="text" id="expenseDesc" class="form-control" placeholder="e.g. Broken pipe fix" required>
+                </div>
+            </div>
+
+            <button type="submit" class="btn btn-primary w-100 fw-bold mt-4">Save Expense</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+
+    <script src="global.js"></script>
+    <script src="js/dev-auth.js"></script>
+    <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+    import { getAuth, onAuthStateChanged as firebaseOnAuthStateChanged, signOut as firebaseSignOut } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+
+    const firebaseConfig = {
+        apiKey: "AIzaSyBwJEOW3jVBHLizWiJjT4a_Tay-2yUCZwk",
+        authDomain: "rentpro-saas.firebaseapp.com",
+        projectId: "rentpro-saas",
+        storageBucket: "rentpro-saas.firebasestorage.app",
+        messagingSenderId: "120985965272",
+        appId: "1:120985965272:web:c86eae74aa75460b17fdad"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    let currentUserUID = null;
+    let currentExpenses = [];
+
+    // 🔴 YOUR WEB APP URL (Make sure Backend is updated!)
+    const WEB_APP_URL = window.API_URL;
+
+    // --- INIT ---
+    function initHouseDropdowns() {
+        const filterSelect = document.getElementById('houseFilter');
+        const modalSelect = document.getElementById('expenseHouse');
+        
+        for (let i = 1; i <= 25; i++) {
+            const opt1 = document.createElement("option"); opt1.value = i; opt1.text = "House " + i;
+            const opt2 = document.createElement("option"); opt2.value = i; opt2.text = "House " + i;
+            filterSelect.appendChild(opt1);
+            modalSelect.appendChild(opt2);
+        }
+    }
+    initHouseDropdowns();
+
+    RentProDevAuth.onAuthStateChanged(auth, (user) => {
+        if (user) {
+            currentUserUID = user.uid;
+            loadExpenses();
+        } else {
+            window.location.href = "index.html";
+        }
+    }, firebaseOnAuthStateChanged);
+
+    const money = (val) => new Intl.NumberFormat('en-KE', { style: 'currency', currency: 'KES', minimumFractionDigits:0 }).format(val).replace(/KES|Ksh/i,'').trim();
+
+    // --- LOAD DATA ---
+    async function loadExpenses() {
+        try {
+            const res = await fetch(`${WEB_APP_URL}?action=getExpenses&t=${Date.now()}`);
+            const json = await res.json();
+            const allData = Array.isArray(json) ? json : (json.data || []);
+            
+            currentExpenses = allData;
+            renderTable(currentExpenses);
+
+        } catch(e) {
+            console.error(e);
+            document.getElementById('expenseTableBody').innerHTML = `<tr><td colspan="6" class="text-center text-danger p-4">Error loading data.</td></tr>`;
+        }
+    }
+
+    // --- RENDER TABLE ---
+    function renderTable(data) {
+        const tbody = document.getElementById('expenseTableBody');
+        tbody.innerHTML = "";
+        let total = 0;
+
+        if(data.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="6" class="text-center p-5 text-muted">No expenses found.</td></tr>`;
+            document.getElementById('totalAmount').innerText = "KES 0";
+            return;
+        }
+
+        data.sort((a,b) => new Date(b.Date) - new Date(a.Date));
+
+        data.forEach(e => {
+            total += Number(e.Amount || 0);
+            let dateStr = e.Date;
+            try { dateStr = new Date(e.Date).toLocaleDateString('en-GB', {day:'numeric', month:'short', year:'numeric'}); } catch(err){}
+
+            let badgeClass = "cat-other";
+            const cat = (e.Category || "").toLowerCase();
+            if(cat.includes('maint')) badgeClass = "cat-maint";
+            if(cat.includes('util')) badgeClass = "cat-util";
+            if(cat.includes('clean')) badgeClass = "cat-clean";
+            if(cat.includes('tax')) badgeClass = "cat-tax";
+            if(cat.includes('salary')) badgeClass = "cat-salary";
+
+            let houseBadge = `<span class="badge bg-light text-dark border">General</span>`;
+            if (e.House && e.House != "General") {
+                houseBadge = `<span class="badge bg-info bg-opacity-10 text-info border border-info">House ${escapeHtml(e.House)}</span>`;
+            }
+
+            tbody.innerHTML += `
+                <tr>
+                    <td data-label="Date">${escapeHtml(dateStr)}</td>
+                    <td data-label="House">${houseBadge}</td>
+                    <td data-label="Category"><span class="badge-cat ${badgeClass}">${escapeHtml(e.Category)}</span></td>
+                    <td class="td-primary">${escapeHtml(e.Description)}</td>
+                    <td data-label="Amount" class="text-danger fw-bold">- KES ${money(e.Amount)}</td>
+                    <td class="text-end td-actions">
+                        <button class="btn btn-sm btn-light border" onclick="deleteExpense('${encodeURIComponent(e.ID).replace(/'/g, '%27')}')"><i class="fa-solid fa-trash text-danger"></i></button>
+                    </td>
+                </tr>
+            `;
+        });
+
+        document.getElementById('totalAmount').innerText = "KES " + money(total);
+    }
+
+    // --- FILTER LOGIC ---
+    function applyFilters() {
+        const searchVal = document.getElementById('searchInput').value.toLowerCase();
+        const houseVal = document.getElementById('houseFilter').value;
+
+        const filtered = currentExpenses.filter(item => {
+            const matchesText = (item.Description && item.Description.toLowerCase().includes(searchVal)) ||
+                                (item.Category && item.Category.toLowerCase().includes(searchVal));
+            let matchesHouse = true;
+            if (houseVal !== 'all') {
+                matchesHouse = (String(item.House) == String(houseVal));
+            }
+            return matchesText && matchesHouse;
+        });
+        renderTable(filtered);
+    }
+
+    document.getElementById('searchInput').addEventListener('input', applyFilters);
+    document.getElementById('houseFilter').addEventListener('change', applyFilters);
+
+    // --- ADD EXPENSE ---
+    document.getElementById('addExpenseBtn').addEventListener('click', () => {
+        document.getElementById('expenseForm').reset();
+        document.getElementById('expenseDate').value = new Date().toISOString().split('T')[0];
+        const modal = new bootstrap.Modal(document.getElementById('expenseModal'));
+        modal.show();
+    });
+
+    document.getElementById('expenseForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const btn = e.target.querySelector('button[type="submit"]');
+        btn.disabled = true; btn.innerText = "Saving...";
+
+        const payload = {
+            action: "addExpense",
+            uid: currentUserUID,
+            date: document.getElementById('expenseDate').value,
+            category: document.getElementById('expenseCategory').value,
+            desc: document.getElementById('expenseDesc').value,
+            amount: document.getElementById('expenseAmount').value,
+            house: document.getElementById('expenseHouse').value 
+        };
+
+        try {
+            await apiRequest(payload);
+            bootstrap.Modal.getInstance(document.getElementById('expenseModal')).hide();
+            loadExpenses();
+        } catch(err) { alert(`Unable to save expense: ${err.message}`); }
+        finally { btn.disabled = false; btn.innerText = "Save Expense"; }
+    });
+
+    // 🔥 GENERATE GARBAGE BILLS ONLY (Bulk)
+    document.getElementById('generateGarbageBtn').addEventListener('click', async () => {
+        if(!confirm("Generate Garbage Fees (150 KES) for ALL 25 houses?")) return;
+        
+        const btn = document.getElementById('generateGarbageBtn');
+        btn.disabled = true;
+        btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin me-2"></i> Generating...`;
+
+        const today = new Date().toISOString().split('T')[0];
+        const bills = [];
+
+        // Loop 1-25: Add ONLY Garbage Fee
+        for (let i = 1; i <= 25; i++) {
+            bills.push({
+                uid: currentUserUID,
+                date: today,
+                category: "Utilities",
+                desc: `Monthly Garbage Fee - House ${i}`,
+                amount: 150,
+                house: i
+            });
+        }
+
+        try {
+            // SEND BULK REQUEST
+            await apiRequest({ action: "addBulkExpenses", data: bills });
+            alert("Success! 25 Garbage bills generated.");
+            loadExpenses();
+        } catch(err) {
+            console.error(err);
+            alert("Error generating bills.");
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = `<i class="fa-solid fa-trash-can me-2"></i> Generate Garbage Bills`;
+        }
+    });
+
+    // --- DELETE ---
+    window.deleteExpense = async (id) => {
+        if(!confirm("Delete this expense?")) return;
+        try {
+            await apiRequest({ action: "deleteExpense", id: decodeURIComponent(id) });
+            loadExpenses();
+        } catch(e) { alert(`Unable to delete expense: ${e.message}`); }
+    };
+
+    // --- CSV EXPORT ---
+    window.downloadCSV = () => {
+        const searchVal = document.getElementById('searchInput').value.toLowerCase();
+        const houseVal = document.getElementById('houseFilter').value;
+        const dataToExport = currentExpenses.filter(item => {
+            const matchesText = (item.Description || "").toLowerCase().includes(searchVal);
+            const matchesHouse = (houseVal === 'all') || (String(item.House) == String(houseVal));
+            return matchesText && matchesHouse;
+        });
+
+        if(dataToExport.length === 0) { alert("No data to export."); return; }
+
+        const quote = (val) => `"${String(val ?? '').replace(/"/g, '""')}"`;
+        let csv = "Date,House,Category,Description,Amount\n";
+        dataToExport.forEach(e => {
+            let d = e.Date;
+            try { d = new Date(e.Date).toISOString().split('T')[0]; } catch(err){}
+            csv += [d, e.House || 'General', e.Category, e.Description, e.Amount].map(quote).join(",") + "\n";
+        });
+        const link = document.createElement("a");
+        link.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
+        link.download = "RentPro_Expenses.csv";
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    };
+
+    if(document.getElementById('logoutBtn')) document.getElementById('logoutBtn').addEventListener('click', () => RentProDevAuth.signOut(auth, firebaseSignOut));
+  </script>
+</body>
+</html>

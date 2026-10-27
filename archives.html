@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>RentPro — Archives</title>
+  
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link rel="stylesheet" href="styles/app.css">
+  <link rel="manifest" href="manifest.webmanifest">
+  <meta name="theme-color" content="#0c1022">
+  <link rel="icon" href="icons/icon-192.png">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <style>
+    .history-section-title { font-size: 0.78rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--rp-muted); margin-bottom: 14px; display: flex; align-items: center; gap: 8px; }
+    .history-card { background: var(--rp-surface); border: 1px solid var(--rp-border); border-radius: 12px; padding: 16px; height: 100%; }
+    .scroll-box { max-height: 300px; overflow-y: auto; }
+    .timeline-item { display: flex; justify-content: space-between; padding: 9px 0; border-bottom: 1px solid #f1f2f6; font-size: 0.9rem; }
+    .timeline-item:last-child { border-bottom: none; }
+    .timeline-date { color: var(--rp-subtle); font-size: 0.8rem; }
+  </style>
+</head>
+<body data-page="archives">
+  <script src="js/shell.js"></script>
+
+  <main class="content">
+    <div class="page-head">
+      <div>
+        <h2>Former Tenants</h2>
+        <p>Tenants who moved out. Tap a row to see their payment history.</p>
+      </div>
+            <div class="page-actions">
+                <button id="deleteSelectedBtn" class="btn btn-outline-danger" onclick="deleteSelectedArchives()" disabled>
+                    <i class="fa-solid fa-trash me-1"></i> Delete Selected
+                </button>
+                <button class="btn btn-outline-secondary" onclick="loadArchives()">
+                    <i class="fa-solid fa-rotate me-1"></i> Refresh
+                </button>
+            </div>
+    </div>
+
+    <div class="card-table">
+      <div class="table-responsive">
+        <table class="table table-stack table-hover mb-0">
+          <thead>
+            <tr>
+                            <th><input class="form-check-input" type="checkbox" id="selectAllArchives" aria-label="Select all archived tenants"></th>
+              <th>Tenant Name</th>
+              <th>National ID</th>
+              <th>House Occupied</th>
+              <th>Date Deleted</th>
+              <th>Balance Left</th>
+              <th class="text-end">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="archiveTableBody">
+             <tr><td colspan="7" class="text-center p-5 text-muted"><i class="fa-solid fa-spinner fa-spin me-2"></i>Loading archives...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+
+  <div class="modal fade" id="historyModal" tabindex="-1">
+    <div class="modal-dialog modal-xl"> <div class="modal-content">
+        <div class="modal-header">
+           <div>
+               <h5 class="modal-title fw-bold" id="modalTenantName">Tenant Name</h5>
+               <span class="badge bg-secondary" id="modalHouse">House ??</span>
+               <span class="text-muted small ms-2" id="modalDates">Deleted: ...</span>
+           </div>
+           <button class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body bg-light">
+           <div class="row g-4">
+               
+               <div class="col-md-6">
+                   <div class="history-section-title"><i class="fa-solid fa-money-bill-wave text-success"></i> Payment History</div>
+                   <div class="history-card scroll-box" id="paymentLog">
+                       </div>
+               </div>
+
+               <div class="col-md-6">
+                   <div class="history-section-title"><i class="fa-solid fa-screwdriver-wrench text-danger"></i> House Repairs</div>
+                   <div class="history-card scroll-box" id="repairLog">
+                        </div>
+               </div>
+
+           </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="global.js"></script>
+    <script src="js/dev-auth.js"></script>
+    <script type="module" src="js/require-auth.js"></script>
+
+  <script>
+    // 🔴 YOUR WEB APP URL
+    const API_URL = window.API_URL;
+
+    // Global Data Store
+    let allArchives = [];
+    let allPayments = [];
+    let allRepairs = [];
+
+    async function apiWrite(payload) {
+        const url = new URL(API_URL);
+        Object.entries(payload).forEach(([key, value]) => url.searchParams.set(key, value));
+        const response = await fetch(url.toString());
+        const result = await response.json();
+        if (!result.success) throw new Error(result.message || 'Request failed.');
+        return result;
+    }
+
+    function updateDeleteSelection() {
+        const selected = document.querySelectorAll('.archive-select:checked').length;
+        document.getElementById('deleteSelectedBtn').disabled = selected === 0;
+        document.getElementById('selectAllArchives').checked = allArchives.length > 0 && selected === allArchives.length;
+    }
+
+    // --- 1. LOAD DATA ---
+    async function loadArchives() {
+        try {
+            const tbody = document.getElementById('archiveTableBody');
+            tbody.innerHTML = '<tr><td colspan="7" class="text-center p-4"><div class="spinner-border text-primary" role="status"></div></td></tr>';
+
+            // Fetch everything in one go
+            const res = await fetch(`${API_URL}?action=getArchivedData`);
+            const json = await res.json();
+            
+            allArchives = json.archives || [];
+            allPayments = json.payments || [];
+            allRepairs = json.repairs || [];
+
+            renderTable();
+
+        } catch (e) {
+            console.error(e);
+            document.getElementById('archiveTableBody').innerHTML = `<tr><td colspan="6" class="text-center text-danger">Error loading data.</td></tr>`;
+        }
+    }
+
+    // --- 2. RENDER TABLE ---
+    function renderTable() {
+        const tbody = document.getElementById('archiveTableBody');
+        tbody.innerHTML = "";
+
+        if (allArchives.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="7" class="text-center p-5 text-muted">No archived tenants found.</td></tr>`;
+            document.getElementById('selectAllArchives').checked = false;
+            updateDeleteSelection();
+            return;
+        }
+
+        allArchives.forEach(t => {
+            // Calculate proper balance (Rent - Paid) if available in archive columns
+            // Adjust indices based on your exact Archive Sheet layout
+            // Assuming "Archived Date" is the last column pushed
+            const archivedOn = t.ArchivedDate || t['Archived Date'];
+            const delDate = archivedOn ? new Date(archivedOn).toLocaleDateString() : 'N/A';
+            const balance = (Number(t.Rent) || 0) - (Number(t.AmountPaid) || 0);
+            const enc = (val) => encodeURIComponent(val ?? '').replace(/'/g, '%27');
+
+            tbody.innerHTML += `
+                <tr onclick="openHistory('${enc(t.Name)}', '${enc(t.House)}', '${enc(delDate)}')">
+                    <td data-label="Select" onclick="event.stopPropagation()"><input class="form-check-input archive-select" type="checkbox" value="${escapeHtml(t.ID || '')}" aria-label="Select ${escapeHtml(t.Name)}" onchange="updateDeleteSelection()"></td>
+                    <td class="td-primary fw-bold">${escapeHtml(t.Name)}</td>
+                    <td data-label="National ID">${escapeHtml(t.NationalID || '-')}</td>
+                    <td data-label="House"><span class="badge bg-light text-dark border">House ${escapeHtml(t.House)}</span></td>
+                    <td data-label="Moved out" class="text-muted small">${delDate}</td>
+                    <td data-label="Balance" class="${balance > 0 ? 'text-danger fw-bold' : 'text-success'}">
+                        KES ${balance.toLocaleString()}
+                    </td>
+                    <td class="text-end td-actions">
+                        <button class="btn btn-sm btn-light border"><i class="fa-solid fa-eye"></i> Details</button>
+                    </td>
+                </tr>
+            `;
+        });
+        updateDeleteSelection();
+    }
+
+    document.getElementById('selectAllArchives').addEventListener('change', (event) => {
+        document.querySelectorAll('.archive-select').forEach(checkbox => { checkbox.checked = event.target.checked; });
+        updateDeleteSelection();
+    });
+
+    window.deleteSelectedArchives = async () => {
+        const ids = Array.from(document.querySelectorAll('.archive-select:checked')).map(checkbox => checkbox.value).filter(Boolean);
+        if (!ids.length) return;
+        if (!confirm(`Permanently delete ${ids.length} archived tenant record${ids.length === 1 ? '' : 's'}? This cannot be undone.`)) return;
+
+        const button = document.getElementById('deleteSelectedBtn');
+        button.disabled = true;
+        try {
+            await apiWrite({ action: 'deleteArchivedTenants', ids: ids.join(',') });
+            await loadArchives();
+        } catch (error) {
+            console.error('Delete archived tenants failed:', error);
+            alert(`Unable to delete archived tenants: ${error.message}`);
+            updateDeleteSelection();
+        }
+    };
+
+    // --- 3. OPEN MODAL & FILTER LOGS ---
+    window.openHistory = (name, house, date) => {
+        name = decodeURIComponent(name); house = decodeURIComponent(house); date = decodeURIComponent(date);
+        // Update Modal Header
+        document.getElementById('modalTenantName').innerText = name;
+        document.getElementById('modalHouse').innerText = "House " + house;
+        document.getElementById('modalDates').innerText = "Moved out: " + date;
+
+        // A. Payments recorded under this tenant's name (the house may have a new tenant now)
+        const tenantPayments = allPayments.filter(p =>
+            name && String(p.Tenant || '').trim().toLowerCase() === name.trim().toLowerCase()
+        );
+
+        // B. Filter Repairs (Strictly matching House)
+        const houseRepairs = allRepairs.filter(r => String(r.house) == String(house));
+
+        // Render Payments
+        const payContainer = document.getElementById('paymentLog');
+        payContainer.innerHTML = "";
+        if(tenantPayments.length === 0) {
+            payContainer.innerHTML = "<p class='text-muted small text-center mt-3'>No payments recorded.</p>";
+        } else {
+            tenantPayments.forEach(p => {
+                const pDate = new Date(p.Date).toLocaleDateString();
+                payContainer.innerHTML += `
+                    <div class="timeline-item">
+                        <div>
+                            <div class="fw-medium">${escapeHtml(p.Method || 'Cash')} ${p.Reference ? '· ' + escapeHtml(p.Reference) : ''}</div>
+                            <div class="timeline-date">${pDate}</div>
+                        </div>
+                        <div class="fw-bold text-success">+ ${Number(p.Amount).toLocaleString()}</div>
+                    </div>
+                `;
+            });
+        }
+
+        // Render Repairs
+        const repairContainer = document.getElementById('repairLog');
+        repairContainer.innerHTML = "";
+        if(houseRepairs.length === 0) {
+            repairContainer.innerHTML = "<p class='text-muted small text-center mt-3'>No repairs found for House " + house + ".</p>";
+        } else {
+            houseRepairs.forEach(r => {
+                const rDate = new Date(r.date).toLocaleDateString();
+                repairContainer.innerHTML += `
+                    <div class="timeline-item">
+                        <div>
+                            <div class="fw-medium">${r.item}</div>
+                            <div class="timeline-date">${rDate}</div>
+                        </div>
+                        <div class="fw-bold text-danger">- ${Number(r.cost).toLocaleString()}</div>
+                    </div>
+                `;
+            });
+        }
+
+        // Show Modal
+        new bootstrap.Modal(document.getElementById('historyModal')).show();
+    };
+
+    // Load on start
+    loadArchives();
+
+  </script>
+</body>
+</html>

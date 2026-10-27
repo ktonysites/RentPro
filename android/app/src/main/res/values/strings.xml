@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">RentPro</string>
+    <string name="title_activity_main">RentPro</string>
+    <string name="package_name">com.rentpro.app</string>
+    <string name="custom_url_scheme">com.rentpro.app</string>
+</resources>

@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>RentPro — Move Out</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="styles/app.css">
+    <link rel="manifest" href="manifest.webmanifest">
+    <meta name="theme-color" content="#0c1022">
+    <link rel="icon" href="icons/icon-192.png">
+    <link rel="apple-touch-icon" href="icons/icon-192.png">
+    <style>
+        .moveout-card { max-width: 620px; padding: 28px; }
+        .moveout-icon { width: 48px; height: 48px; border-radius: 14px; display: grid; place-items: center; background: var(--rp-danger-soft); color: var(--rp-danger); font-size: 1.2rem; }
+        #status:empty { display: none; }
+        #status { margin-top: 16px; padding: 12px 14px; border-radius: 12px; font-weight: 600; font-size: 0.9rem; }
+        .status-success { background: var(--rp-success-soft); color: #166534; }
+        .status-error { background: var(--rp-danger-soft); color: #991b1b; }
+    </style>
+</head>
+<body data-page="moveout">
+    <script src="js/shell.js"></script>
+
+    <main class="content">
+        <div class="page-head">
+            <div>
+                <a href="tenants.html" class="text-decoration-none text-muted small fw-semibold mb-1 d-none d-lg-inline-block"><i class="fa-solid fa-arrow-left me-1"></i> Tenants</a>
+                <h2>Process Move-Out</h2>
+                <p>Archive a tenant who is leaving. Their payment history is kept.</p>
+            </div>
+        </div>
+
+        <div class="rp-card moveout-card">
+            <div class="d-flex align-items-center gap-3 mb-4">
+                <div class="moveout-icon"><i class="fa-solid fa-door-open"></i></div>
+                <div>
+                    <div class="fw-bold text-dark">Tenant details</div>
+                    <div class="small text-muted">Name and house must both match the tenant.</div>
+                </div>
+            </div>
+
+            <div class="row g-3">
+                <div class="col-md-7">
+                    <label class="form-label" for="mName">Tenant Name</label>
+                    <input type="text" id="mName" class="form-control" placeholder="e.g. John Kamau">
+                </div>
+                <div class="col-md-5">
+                    <label class="form-label" for="mHouse">House Number</label>
+                    <input type="text" id="mHouse" class="form-control" placeholder="e.g. 7">
+                </div>
+                <div class="col-12">
+                    <label class="form-label" for="mReason">Reason for Moving</label>
+                    <textarea id="mReason" class="form-control" rows="3" placeholder="Brief explanation..."></textarea>
+                </div>
+                <div class="col-12">
+                    <label class="form-label" for="mDeposit">Deposit</label>
+                    <select id="mDeposit" class="form-select">
+                        <option value="Yes">Full refund</option>
+                        <option value="Partial">Partial refund (with deductions)</option>
+                        <option value="No">Forfeited / no refund</option>
+                    </select>
+                </div>
+            </div>
+
+            <button onclick="submitMoveOut()" class="btn btn-danger w-100 mt-4 btn-submit"><i class="fa-solid fa-box-archive me-2"></i>Confirm &amp; Archive Tenant</button>
+            <div id="status"></div>
+        </div>
+    </main>
+
+    <script src="global.js"></script>
+    <script src="js/dev-auth.js"></script>
+    <script type="module" src="js/require-auth.js"></script>
+    <script>
+        const SUBMIT_LABEL = '<i class="fa-solid fa-box-archive me-2"></i>Confirm &amp; Archive Tenant';
+
+        function submitMoveOut() {
+            const btn = document.querySelector('.btn-submit');
+            const statusDiv = document.getElementById('status');
+
+            // UI Reset
+            statusDiv.className = '';
+            statusDiv.innerText = '';
+            btn.disabled = true;
+            btn.innerText = "Processing Archive...";
+
+            const payload = {
+                action: 'moveOut',
+                id: new URLSearchParams(window.location.search).get('id') || '',
+                tenantName: document.getElementById('mName').value.trim(),
+                houseNumber: document.getElementById('mHouse').value.trim(),
+                reason: document.getElementById('mReason').value,
+                depositStatus: document.getElementById('mDeposit').value
+            };
+
+            if (!confirm(`Archive ${payload.tenantName || 'the tenant in house ' + payload.houseNumber}? They will be removed from the active tenant list.`)) {
+                btn.disabled = false;
+                btn.innerHTML = SUBMIT_LABEL;
+                return;
+            }
+
+            // A failed request comes back as { success: false } instead of throwing, so both paths show the server's message.
+            apiRequest(payload).catch(error => ({ success: false, message: error.message }))
+            .then(data => {
+                if(data.success) {
+                    statusDiv.className = 'status-success';
+                    statusDiv.innerText = "✓ " + data.message;
+
+                    // Clear fields on success
+                    document.getElementById('mName').value = "";
+                    document.getElementById('mHouse').value = "";
+                    document.getElementById('mReason').value = "";
+                    history.replaceState(null, "", "moveout.html");
+                } else {
+                    statusDiv.className = 'status-error';
+                    statusDiv.innerText = "⚠ " + data.message;
+                }
+                btn.disabled = false;
+                btn.innerHTML = SUBMIT_LABEL;
+            })
+            .catch(error => {
+                statusDiv.className = 'status-error';
+                statusDiv.innerText = "⚠ Network Error. Check connection.";
+                console.error('Error!', error.message);
+                btn.disabled = false;
+                btn.innerHTML = SUBMIT_LABEL;
+            });
+        }
+
+        // Prefill from the tenant profile's Move Out link (?id=...&name=...&house=...).
+        document.addEventListener('DOMContentLoaded', function() {
+            const urlParams = new URLSearchParams(window.location.search);
+            if (urlParams.get('name')) document.getElementById('mName').value = urlParams.get('name');
+            if (urlParams.get('house')) document.getElementById('mHouse').value = urlParams.get('house');
+        });
+    </script>
+</body>
+</html>

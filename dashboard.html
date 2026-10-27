@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>RentPro — Dashboard</title>
+  
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link rel="stylesheet" href="styles/app.css">
+  <link rel="manifest" href="manifest.webmanifest">
+  <meta name="theme-color" content="#0c1022">
+  <link rel="icon" href="icons/icon-192.png">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+</head>
+<body data-page="dashboard">
+  <script src="js/shell.js"></script>
+
+
+  <main class="content">
+    <div class="welcome-banner">
+        <div style="position: relative; z-index: 2;">
+            <h2 class="fw-bold mb-1" id="welcomeHeader">Dashboard</h2>
+            <p class="mb-0 opacity-75" id="currentDate">Overview</p>
+        </div>
+        <i class="fa-solid fa-city welcome-bg"></i>
+    </div>
+    
+    <div class="row g-4 mb-4">
+      <div class="col-6 col-xl-3">
+          <div class="card-hero">
+              <div class="d-flex justify-content-between">
+                  <div><div class="card-label">Active Tenants</div><h3 id="totalTenants" class="card-value">0</h3></div>
+                  <div class="icon-box bg-blue-light"><i class="fa-solid fa-users"></i></div>
+              </div>
+          </div>
+      </div>
+      <div class="col-6 col-xl-3">
+          <div class="card-hero">
+              <div class="d-flex justify-content-between">
+                  <div><div class="card-label">Expected Rent</div><h3 id="totalRent" class="card-value">0</h3></div>
+                  <div class="icon-box bg-purple-light"><i class="fa-solid fa-bullseye"></i></div>
+              </div>
+          </div>
+      </div>
+      <div class="col-6 col-xl-3">
+          <div class="card-hero">
+              <div class="d-flex justify-content-between">
+                  <div><div class="card-label">Collected</div><h3 id="totalCollected" class="card-value text-success">0</h3></div>
+                  <div class="icon-box bg-green-light"><i class="fa-solid fa-wallet"></i></div>
+              </div>
+          </div>
+      </div>
+      <div class="col-6 col-xl-3">
+          <div class="card-hero">
+              <div class="d-flex justify-content-between">
+                  <div><div class="card-label">Transactions</div><h3 id="totalPayments" class="card-value">0</h3></div>
+                  <div class="icon-box bg-orange-light"><i class="fa-solid fa-receipt"></i></div>
+              </div>
+          </div>
+      </div>
+    </div>
+
+    <div class="row g-4">
+        <div class="col-lg-8">
+            <div class="card-hero">
+                <h6 class="fw-bold mb-4" id="chartTitle">Main Property Analysis</h6>
+                <div style="height: 300px;"><canvas id="revenueChart"></canvas></div>
+            </div>
+        </div>
+        <div class="col-lg-4">
+            <div class="card-hero" style="height: 400px; overflow-y: auto;">
+                <h6 class="fw-bold mb-4">Recent Payments</h6>
+                <ul class="activity-list" id="recentActivityList">
+                    <li class="text-center text-muted py-5 small">Loading...</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+  </main>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+
+<script src="global.js"></script>
+<script src="js/dev-auth.js"></script>
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+    import { getAuth, signOut as firebaseSignOut, onAuthStateChanged as firebaseOnAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+
+    const firebaseConfig = {
+        apiKey: "AIzaSyBwJEOW3jVBHLizWiJjT4a_Tay-2yUCZwk", 
+        authDomain: "rentpro-saas.firebaseapp.com",
+        projectId: "rentpro-saas",
+        storageBucket: "rentpro-saas.firebasestorage.app",
+        messagingSenderId: "120985965272",
+        appId: "1:120985965272:web:c86eae74aa75460b17fdad"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    let currentUserUID = null;
+    let globalTenants = [];
+    let globalPayments = [];
+
+    // 🔴 REPLACE WITH YOUR NEW WEB APP URL
+    const WEB_APP_URL = window.API_URL;
+
+    RentProDevAuth.onAuthStateChanged(auth, (user) => {
+        if (!user) { window.location.href = "index.html"; } 
+        else {
+            currentUserUID = user.uid;
+            const displayName = user.displayName || user.email.split('@')[0];
+            const formattedName = displayName.charAt(0).toUpperCase() + displayName.slice(1);
+            document.getElementById('welcomeHeader').innerText = `Welcome, ${formattedName}!`;
+            document.getElementById('currentDate').innerText = new Date().toLocaleDateString('en-GB', { dateStyle: 'full' });
+            loadDashboard();
+        }
+    }, firebaseOnAuthStateChanged);
+
+    const $ = (id) => document.getElementById(id);
+    const money = (val) => new Intl.NumberFormat('en-KE', { style: 'currency', currency: 'KES', minimumFractionDigits: 0 }).format(Number(val)||0).replace('KES','').trim();
+
+    async function apiFetch(params = {}) {
+        const url = new URL(WEB_APP_URL);
+        params.t = new Date().getTime(); 
+        Object.keys(params).forEach(key => url.searchParams.append(key, params[key]));
+        try {
+            const response = await fetch(url);
+            return await response.json();
+        } catch (error) { console.error(error); return []; }
+    }
+
+    let revenueChartInstance = null;
+
+    // --- MAIN DASHBOARD LOGIC ---
+    window.loadDashboard = async function() {
+        if(!currentUserUID) return;
+        
+        const [tenantsRes, paymentsRes] = await Promise.all([
+            apiFetch({ action: 'getTenants' }),
+            apiFetch({ action: 'getPayments' })
+        ]);
+        
+        globalTenants = tenantsRes.data || [];
+        // Every row in the Payments sheet is money received for this property.
+        globalPayments = (paymentsRes.data || []).map(p => ({
+            ...p,
+            assignedProperty: String(p.Notes || '').toLowerCase().includes('unmatched') ? 'Unmatched' : ''
+        }));
+
+        renderPropertyAnalysis();
+    }
+
+    function renderPropertyAnalysis() {
+        const fTenants = globalTenants;
+        const fPayments = globalPayments;
+        $('chartTitle').innerText = 'Main Property Analysis';
+
+        // Calculate Stats
+        const tRent = fTenants.reduce((s, t) => s + Number(t.Rent || 0), 0);
+        const tColl = fPayments.reduce((s, p) => s + Number(p.Amount || 0), 0);
+
+        $('totalTenants').innerText = fTenants.length;
+        $('totalRent').innerText = money(tRent);
+        $('totalPayments').innerText = fPayments.length; 
+        $('totalCollected').innerText = money(tColl);
+
+        renderChart(fPayments);
+        renderRecentActivity(fPayments);
+    }
+
+    function renderRecentActivity(payments) {
+        const list = $('recentActivityList');
+        if (!payments.length) {
+            list.innerHTML = `<li class="text-center text-muted py-5 small">No activity found.</li>`;
+            return;
+        }
+        
+        const sorted = [...payments].sort((a, b) => new Date(b.Date || b.date) - new Date(a.Date || a.date));
+
+        list.innerHTML = sorted.slice(0, 10).map(p => {
+            const name = String(p.Tenant || p.Payer || 'Unknown');
+            const initial = escapeHtml(name.charAt(0).toUpperCase());
+
+            let dStr = p.Date || p.date || 'Today';
+            try { dStr = new Date(dStr).toLocaleDateString('en-GB', {month:'short', day:'numeric'}); } catch(e){}
+
+            const amount = p.Amount || p.amount || 0;
+            const propLabel = p.assignedProperty
+                ? `<a href="reconcile.html" class="badge bg-warning-subtle text-warning-emphasis border ms-2 text-decoration-none" style="font-size:0.6rem">${p.assignedProperty}</a>`
+                : (p.House ? `<span class="badge bg-light text-dark border ms-2" style="font-size:0.6rem">House ${escapeHtml(p.House)}</span>` : '');
+
+            return `
+            <li class="activity-item">
+                <div class="d-flex align-items-center">
+                    <div class="avatar-circle">${initial}</div>
+                    <div>
+                        <div class="fw-bold text-dark small">${escapeHtml(name)} ${propLabel}</div>
+                        <div class="text-muted" style="font-size:0.75rem">${dStr}</div>
+                    </div>
+                </div>
+                <div class="fw-bold text-success">+${money(amount)}</div>
+            </li>`;
+        }).join('');
+    }
+
+    function renderChart(payments) {
+        const ctx = document.getElementById('revenueChart').getContext('2d');
+        // Last 6 calendar months, oldest first, so the same month in different years never merges.
+        const now = new Date();
+        const months = [];
+        for (let i = 5; i >= 0; i--) {
+            const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+            months.push({ year: d.getFullYear(), month: d.getMonth(), label: d.toLocaleString('en-GB', { month: 'short', year: '2-digit' }), total: 0 });
+        }
+        payments.forEach(p => {
+            const d = new Date(p.Date || p.date || p.Timestamp);
+            if (isNaN(d)) return;
+            const bucket = months.find(m => m.year === d.getFullYear() && m.month === d.getMonth());
+            if (bucket) bucket.total += Number(p.Amount || p.amount || 0);
+        });
+
+        const labels = months.map(m => m.label);
+        const data = months.map(m => m.total);
+
+        if (revenueChartInstance) revenueChartInstance.destroy();
+
+        revenueChartInstance = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: labels.length ? labels : ['No Data'],
+                datasets: [{
+                    label: 'Monthly Rent Collection',
+                    data: data.length ? data : [0],
+                    backgroundColor: '#4f46e5',
+                    borderRadius: 8,
+                    barThickness: 25
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: {
+                    y: { beginAtZero: true, grid: { borderDash: [4, 4] } },
+                    x: { grid: { display: false } }
+                }
+            }
+        });
+    }
+
+    if($('logoutBtn')) $('logoutBtn').addEventListener('click', () => RentProDevAuth.signOut(auth, firebaseSignOut));
+</script>
+</body>
+</html>

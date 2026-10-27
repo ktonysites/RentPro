@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>RentPro — Tenants</title>
+  
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link rel="stylesheet" href="styles/app.css">
+  <link rel="manifest" href="manifest.webmanifest">
+  <meta name="theme-color" content="#0c1022">
+  <link rel="icon" href="icons/icon-192.png">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+</head>
+<body data-page="tenants">
+  <script src="js/shell.js"></script>
+
+
+  <main class="content">
+    <div class="page-head">
+      <div>
+        <h2 class="fw-bold text-dark mb-1">Tenant Management</h2>
+        <p class="text-muted small mb-0">Manage leases and payments.</p>
+      </div>
+      
+      <div class="page-actions">
+        <button class="btn btn-outline-success" onclick="downloadCSV()">
+            <i class="fa-solid fa-file-csv me-2"></i> Export
+        </button>
+
+        <button class="btn btn-outline-danger" onclick="deleteAllTenants()">
+          <i class="fa-solid fa-trash-can me-2"></i> Delete All
+        </button>
+
+        <a href="archives.html" class="btn btn-outline-secondary" style="border-color: #cbd5e1; color: #475569;">
+            <i class="fa-solid fa-box-archive me-2"></i> Archives
+        </a>
+
+        <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addTenantModal">
+            <i class="fa-solid fa-plus me-2"></i> New Tenant
+        </button>
+      </div>
+    </div>
+
+    <div class="card-table">
+      <div class="table-responsive">
+        <table class="table table-stack table-hover mb-0 align-middle">
+          <thead>
+            <tr>
+              <th>Tenant</th>
+              <th>House</th>
+              <th>Rent</th>
+              <th>Paid</th>
+              <th>Balance</th>
+              <th>Status</th>
+              <th class="text-end">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="tenantTableBody">
+             <tr><td colspan="7" class="text-center p-5 text-muted"><i class="fa-solid fa-spinner fa-spin me-2"></i>Loading data...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+
+  <div class="modal fade" id="addTenantModal" tabindex="-1">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+            <h5 class="modal-title fw-bold">Add New Tenant</h5>
+            <button class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <form id="addTenantForm">
+            <div class="row g-3">
+                <div class="col-12"><label class="form-label">Full Name</label><input type="text" id="tName" class="form-control" required></div>
+                <div class="col-6"><label class="form-label">Phone</label><input type="number" id="tPhone" class="form-control" required></div>
+                <div class="col-6"><label class="form-label">ID Number</label><input type="text" id="tNatID" class="form-control" required></div>
+                <div class="col-4"><label class="form-label">House</label><input type="text" id="tHouse" class="form-control" required></div>
+                <div class="col-4"><label class="form-label">Rent</label><input type="number" id="tRent" class="form-control" required></div>
+                <div class="col-4"><label class="form-label">Due Day</label><input type="number" id="tDate" class="form-control" placeholder="15" value="15" max="31" required></div>
+                <div class="col-6"><label class="form-label">Next of Kin</label><input type="text" id="tNextOfKin" class="form-control"></div>
+                <div class="col-6"><label class="form-label">Relation</label><input type="text" id="tKinRelation" class="form-control" placeholder="e.g. Spouse"></div>
+                <div class="col-6"><label class="form-label">Next of Kin Phone</label><input type="tel" id="tKinPhone" class="form-control"></div>
+                
+                <div class="col-12 mt-3"><button type="submit" id="saveBtn" class="btn btn-primary w-100">Save Tenant</button></div>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal fade" id="payModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header border-0 pb-0">
+            <h5 class="modal-title fw-bold">Record Payment</h5>
+            <button class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body pt-2">
+          <p class="small text-muted mb-3">Payment for: <span id="payTenantName" class="fw-bold text-dark"></span></p>
+          <form id="payForm">
+             <input type="hidden" id="payTenantId">
+             <div class="mb-3">
+                <label class="form-label small fw-bold">Amount (KES)</label>
+                <div class="input-group"><span class="input-group-text bg-light">KES</span><input type="number" id="payAmount" class="form-control" placeholder="e.g. 5000" required></div>
+             </div>
+             <div class="mb-3">
+                 <label class="form-label small fw-bold">Method</label>
+                 <select id="payMethod" class="form-select" required>
+                     <option value="M-Pesa">M-Pesa</option><option value="Bank">Bank Deposit</option><option value="Cash">Cash</option>
+                 </select>
+             </div>
+             <div class="mb-3"><label class="form-label small fw-bold">Reference</label><textarea id="payMessage" class="form-control" rows="2" placeholder="e.g. Ref No..."></textarea></div>
+             <button type="submit" id="confirmPayBtn" class="btn btn-success w-100">Confirm Payment</button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+
+
+  <script src="global.js"></script>
+  <script src="js/dev-auth.js"></script>
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+    import { getAuth, onAuthStateChanged as firebaseOnAuthStateChanged, signOut as firebaseSignOut } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+
+    const firebaseConfig = { apiKey: "AIzaSyBwJEOW3jVBHLizWiJjT4a_Tay-2yUCZwk", authDomain: "rentpro-saas.firebaseapp.com", projectId: "rentpro-saas" };
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    let currentUserUID = null;
+    let currentTenants = [];
+
+    // 🔴 YOUR WEB APP URL
+    const WEB_APP_URL = window.API_URL;
+
+    async function apiWrite(payload) {
+      const url = new URL(WEB_APP_URL);
+      Object.entries(payload).forEach(([key, value]) => url.searchParams.set(key, value));
+      const response = await fetch(url.toString());
+      const result = await response.json();
+      if (!result.success) throw new Error(result.message || 'Request failed.');
+      return result;
+    }
+
+    RentProDevAuth.onAuthStateChanged(auth, (user) => {
+        if (user) { currentUserUID = user.uid; loadData(); startLiveUpdates(); } 
+        else window.location.href = "index.html";
+    }, firebaseOnAuthStateChanged);
+
+    async function loadData() {
+        try {
+            const tRes = await fetch(`${WEB_APP_URL}?action=getTenants&t=${Date.now()}`).then(r=>r.json());
+
+            // This installation serves one property, so the roster is not split by SaaS account.
+            const allTenants = tRes.data || [];
+            currentTenants = allTenants;
+            renderTable(currentTenants);
+
+        } catch(e) { console.error(e); }
+    }
+
+    function renderTable(data) {
+        const tbody = document.getElementById('tenantTableBody'); tbody.innerHTML = "";
+        if(data.length === 0) { tbody.innerHTML = `<tr><td colspan="7" class="text-center p-5 text-muted">No tenants found.</td></tr>`; return; }
+
+        data.forEach(t => {
+            const rent = Number(t.Rent||0), paid = Number(t.AmountPaid||0), bal = rent - paid;
+            // encodeURIComponent leaves apostrophes alone, which would break the quoted onclick arguments.
+            const uniqueId = encodeURIComponent(t.ID).replace(/'/g, '%27');
+            const encodedName = encodeURIComponent(t.Name || '').replace(/'/g, '%27');
+            let status = bal<=0 ? '<span class="status-badge status-paid">PAID</span>' : (paid>0 ? '<span class="status-badge status-partial">PARTIAL</span>' : '<span class="status-badge status-unpaid">UNPAID</span>');
+
+            tbody.innerHTML += `<tr onclick="window.location.href='tenant-profile.html?id=${uniqueId}'">
+                <td class="td-primary"><div class="fw-bold text-dark">${escapeHtml(t.Name)}</div><div class="small text-muted">${escapeHtml(t.Phone)}</div></td>
+                <td data-label="House"><span class="badge bg-light text-dark border">${escapeHtml(t.House)}</span></td>
+                <td data-label="Rent" class="fw-medium">${rent.toLocaleString()}</td>
+                <td data-label="Paid" class="text-success fw-medium">${paid.toLocaleString()}</td>
+                <td data-label="Balance" class="fw-bold text-danger">${bal.toLocaleString()}</td>
+                <td data-label="Status">${status}</td>
+                <td class="text-end td-actions">
+                    <button class="btn btn-sm btn-outline-success me-1" onclick="event.stopPropagation(); openPayModal('${uniqueId}', '${encodedName}')"><i class="fa-solid fa-hand-holding-dollar"></i> Pay</button>
+                    <button class="btn btn-sm btn-outline-danger delete-tenant-btn" onclick="event.stopPropagation(); deleteTenant('${uniqueId}', this)"><i class="fa-solid fa-trash"></i></button>
+                </td>
+            </tr>`;
+        });
+    }
+
+    // LIVE UPDATE POLLER
+    function startLiveUpdates() { setInterval(() => loadData(), 15000); }
+
+    // UTILS
+    window.downloadCSV = () => {
+      let csv = "Name,Phone,National ID,House,Rent,Paid,Balance,Next of Kin,Relation,Next of Kin Phone,Property\n";
+      currentTenants.forEach(t => { csv += [t.Name, t.Phone, t.NationalID, t.House, t.Rent, t.AmountPaid, Number(t.Rent || 0) - Number(t.AmountPaid || 0), t.NextOfKin, t.KinRelation, t.NextOfKinPhone, t.Property].map(csvValue).join(",") + "\n"; });
+        const link = document.createElement("a"); link.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" })); link.download = "RentPro_Tenants.csv"; document.body.appendChild(link); link.click();
+    };
+
+    function csvValue(value) {
+      return `"${String(value ?? "").replace(/"/g, '""')}"`;
+    }
+
+    window.openPayModal = (id, name) => {
+        document.getElementById('payTenantId').value = decodeURIComponent(id); document.getElementById('payTenantName').innerText = decodeURIComponent(name);
+        new bootstrap.Modal(document.getElementById('payModal')).show();
+    };
+
+    window.deleteTenant = async (id, button) => {
+      if(!confirm("Permanently delete this tenant? This cannot be undone and will not create an archive record.")) return;
+      if (button) {
+        button.disabled = true;
+        button.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
+      }
+
+      try {
+        await apiWrite({ action: "deleteTenant", id: decodeURIComponent(id) });
+        await loadData();
+      } catch (error) {
+        console.error("Delete tenant failed:", error);
+        alert("Unable to delete this tenant. Please try again.");
+        if (button) {
+          button.disabled = false;
+          button.innerHTML = '<i class="fa-solid fa-trash"></i>';
+        }
+      }
+    };
+
+    window.deleteAllTenants = async () => {
+      if (!currentTenants.length) {
+        alert("There are no active tenants to delete.");
+        return;
+      }
+      if (!confirm(`Permanently delete all ${currentTenants.length} active tenants? This cannot be undone and will not create archive records.`)) return;
+
+      try {
+        await apiWrite({ action: "deleteAllTenants" });
+        await loadData();
+      } catch (error) {
+        console.error("Delete all tenants failed:", error);
+        alert("Unable to delete all tenants. Please try again.");
+      }
+    };
+
+    // FORM SUBMIT
+    document.getElementById('addTenantForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const btn = document.getElementById('saveBtn'); btn.disabled=true; btn.innerText="Saving...";
+        const payload = {
+            action: "addTenant", uid: currentUserUID, name: document.getElementById('tName').value, phone: document.getElementById('tPhone').value, natID: document.getElementById('tNatID').value, house: document.getElementById('tHouse').value, rent: document.getElementById('tRent').value, date: document.getElementById('tDate').value, nextOfKin: document.getElementById('tNextOfKin').value, kinRelation: document.getElementById('tKinRelation').value, nextOfKinPhone: document.getElementById('tKinPhone').value,
+            property: "Main Property"
+        };
+        try {
+          await apiWrite(payload);
+          bootstrap.Modal.getInstance(document.getElementById('addTenantModal')).hide();
+          await loadData();
+        } catch(e) { alert(`Unable to save tenant: ${e.message}`); }
+        finally { btn.disabled=false; btn.innerText="Save Tenant"; }
+    });
+
+    document.getElementById('payForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const btn = document.getElementById('confirmPayBtn'); btn.disabled=true; btn.innerText="Processing...";
+        const payload = { action: "recordPayment", id: document.getElementById('payTenantId').value, amount: document.getElementById('payAmount').value, method: document.getElementById('payMethod').value, message: document.getElementById('payMessage').value };
+        try {
+          await apiWrite(payload);
+          bootstrap.Modal.getInstance(document.getElementById('payModal')).hide();
+          document.getElementById('payForm').reset();
+          await loadData();
+        } catch(e) { alert(`Unable to record payment: ${e.message}`); }
+        finally { btn.disabled=false; btn.innerText="Confirm Payment"; }
+    });
+
+    if(document.getElementById('logoutBtn')) document.getElementById('logoutBtn').addEventListener('click', () => RentProDevAuth.signOut(auth, firebaseSignOut));
+  </script>
+</body>
+</html>
