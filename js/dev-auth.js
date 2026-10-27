@@ -15,7 +15,7 @@
 
     // Google sign-in lets any Google account create a Firebase user, so only these addresses may use it.
     // Email/password accounts are created in the Firebase console and are not limited by this list.
-    const GOOGLE_ALLOWED_EMAILS = ['ken05462@gmail.com'];
+    const GOOGLE_ALLOWED_EMAILS = ['ken05462@gmail.com', 'nancyngari2@gmail.com'];
 
     function signedInWithGoogle(user) {
         return (user.providerData || []).some((profile) => profile.providerId === 'google.com');

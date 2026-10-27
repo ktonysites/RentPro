@@ -44,7 +44,7 @@ The **Sign in with Google** button is built in, but Google only accepts it after
 [Firebase console](https://console.firebase.google.com/) for the **rentpro-saas** project.
 
 **Who can use it:** only the Google accounts listed in `GOOGLE_ALLOWED_EMAILS` in `js/dev-auth.js`
-(currently `ken05462@gmail.com`). Any other Google account is signed straight back out with a message.
+(currently `ken05462@gmail.com` and `nancyngari2@gmail.com`). Any other Google account is signed straight back out with a message.
 To allow another person, add their address to that list, then deploy the website and rebuild the APK.
 
 ### Website (laptop / phone browser)
