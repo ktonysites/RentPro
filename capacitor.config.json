@@ -7,6 +7,10 @@
     "backgroundColor": "#f4f5f9"
   },
   "plugins": {
+    "FirebaseAuthentication": {
+      "skipNativeAuth": true,
+      "providers": ["google.com"]
+    },
     "SystemBars": {
       "insetsHandling": "native",
       "initialViewportFitValueHint": "cover",

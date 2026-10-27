@@ -38,6 +38,43 @@ npm run dev            # local preview with test data on http://localhost:5501
 npm test               # backend tests
 ```
 
+## Sign in with Google – one-time Firebase setup
+
+The **Sign in with Google** button is built in, but Google only accepts it after these steps in the
+[Firebase console](https://console.firebase.google.com/) for the **rentpro-saas** project.
+
+**Who can use it:** only the Google accounts listed in `GOOGLE_ALLOWED_EMAILS` in `js/dev-auth.js`
+(currently `ken05462@gmail.com`). Any other Google account is signed straight back out with a message.
+To allow another person, add their address to that list, then deploy the website and rebuild the APK.
+
+### Website (laptop / phone browser)
+
+1. **Authentication → Sign-in method → Add new provider → Google → Enable**. Pick a support email, then **Save**.
+2. **Authentication → Settings → Authorized domains → Add domain**: add the website's address,
+   for example `ktonysites.github.io` (and any custom domain). `localhost` is already on the list.
+
+### Android app (APK)
+
+Google blocks its sign-in page inside apps, so the app uses Android's own Google sign-in. That needs the app
+registered in Firebase:
+
+1. **Project settings (gear) → General → Your apps → Add app → Android**.
+   - Android package name: `com.rentpro.app`
+   - App nickname: `RentPro Android`
+   - Debug signing certificate SHA-1: `B3:64:AF:E5:C6:CF:5A:1D:F8:5D:26:A8:86:13:0C:41:DE:6A:EE:74`
+2. Click **Register app**, then on the same app card **Add fingerprint** and also add the SHA-256:
+   `32:78:74:1A:84:D8:AD:61:2F:F8:74:82:10:DA:11:69:E0:E3:3D:14:8B:20:F0:3B:AD:13:BB:D9:71:B6:4C:AB`
+3. **Download `google-services.json`** (download it *after* adding the fingerprints) and save it as
+   `android/app/google-services.json`.
+4. Rebuild and reinstall: `npm run android:apk`, then install the new `dist/RentPro.apk`.
+
+Until `google-services.json` is in place, tapping the Google button in the app shows
+"Google sign-in isn't set up in this app yet" and email/password keeps working.
+
+> The fingerprints above belong to this PC's debug signing key (`~/.android/debug.keystore`). If you build the
+> APK on another computer, or switch to a release key for the Play Store, add that key's SHA-1/SHA-256 in
+> Firebase too (`keytool -list -v -keystore <keystore> -alias <alias>`).
+
 ## Notes
 
 - **Sign-in:** the APK uses the same Firebase account as the website. The local test login (`dev@rentpro.local`)
