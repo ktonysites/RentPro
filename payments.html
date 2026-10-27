@@ -192,6 +192,9 @@
         <p class="text-muted small m-0">Real-time log of incoming transactions.</p>
       </div>
       <div class="d-flex gap-2 page-actions">
+          <a href="reconcile.html" class="btn btn-outline-warning" id="unmatchedBtn">
+            <i class="fa-solid fa-triangle-exclamation me-2"></i> Unmatched <span id="unmatchedCount" class="badge bg-warning text-dark ms-1">0</span>
+          </a>
           <button onclick="downloadCSV()" class="btn btn-outline-success">
             <i class="fa-solid fa-file-csv me-2"></i> Export
           </button>
@@ -311,6 +314,7 @@
             
             // Store for CSV Export
             currentPayments = payments;
+            document.getElementById('unmatchedCount').innerText = payments.filter(p => /unmatched|unassigned/i.test(p.notes || '')).length;
 
             // Sort by Date (Newest First)
             payments.sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
@@ -330,17 +334,21 @@
                     if(!isNaN(d)) dateDisplay = d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute:'2-digit' });
                 } catch(e){}
 
-                const name = p.mpesaname || p.tenantname || p.name || 'Unknown';
-                const ref = p.refcode || p.reference || p.ref || 'MANUAL';
-                const status = p.matchstatus || 'Confirmed';
+                const name = p.tenant || p.payer || 'Unknown';
+                const ref = p.reference || p.method || 'MANUAL';
+                const status = p.notes || 'Confirmed';
                 const amount = p.amount || 0;
+                const house = p.house ? `<div class="small text-muted">House ${escapeHtml(p.house)}</div>` : '';
+                const statusBadge = /unmatched|unassigned/i.test(status)
+                    ? `<a href="reconcile.html" class="badge-status text-decoration-none" style="background:#fef3c7;color:#92400e">${escapeHtml(status)}</a>`
+                    : `<span class="badge-status">${escapeHtml(status)}</span>`;
 
                 tbody.innerHTML += `
                     <tr>
                         <td class="text-muted small fw-bold">${dateDisplay}</td>
-                        <td><span class="badge-ref">${ref}</span></td>
-                        <td class="fw-bold text-dark">${name}</td>
-                        <td><span class="badge-status">${status}</span></td>
+                        <td><span class="badge-ref">${escapeHtml(ref)}</span></td>
+                        <td class="fw-bold text-dark">${escapeHtml(name)}${house}</td>
+                        <td>${statusBadge}</td>
                         <td class="text-end fw-bold text-success">${money(amount)}</td>
                     </tr>`;
             });
@@ -355,26 +363,18 @@
     window.downloadCSV = () => {
         if(currentPayments.length === 0) { alert("No data to export."); return; }
 
-        let csvContent = "data:text/csv;charset=utf-8,";
-        csvContent += "Date,Reference,Payer Name,Amount,Status\n";
+        const quote = (val) => `"${String(val ?? '').replace(/"/g, '""')}"`;
+        let csvContent = "Date,Reference,Tenant,House,Payer,Method,Amount,Status\n";
 
         currentPayments.forEach(p => {
             let dateStr = p.date || '';
             try { dateStr = new Date(p.date).toISOString().split('T')[0]; } catch(e){}
-            
-            const name = p.mpesaname || p.tenantname || p.name || '';
-            const ref = p.refcode || p.reference || p.ref || '';
-            const amount = p.amount || 0;
-            const status = p.matchstatus || 'Confirmed';
-
-            // Wrap text in quotes to handle commas
-            const row = `"${dateStr}","${ref}","${name}",${amount},"${status}"`;
-            csvContent += row + "\n";
+            csvContent += [dateStr, p.reference, p.tenant, p.house, p.payer, p.method, p.amount || 0, p.notes || 'Confirmed'].map(quote).join(",") + "\n";
         });
 
-        const encodedUri = encodeURI(csvContent);
+        // A Blob keeps '#' in references from truncating the file, which a data: URI would.
         const link = document.createElement("a");
-        link.setAttribute("href", encodedUri);
+        link.setAttribute("href", URL.createObjectURL(new Blob([csvContent], { type: "text/csv" })));
         link.setAttribute("download", "RentPro_Payments.csv");
         document.body.appendChild(link);
         link.click();

@@ -285,7 +285,7 @@
         }
     }, firebaseOnAuthStateChanged);
 
-    const money = (val) => new Intl.NumberFormat('en-KE', { style: 'currency', currency: 'KES', minimumFractionDigits:0 }).format(val).replace('KES','').trim();
+    const money = (val) => new Intl.NumberFormat('en-KE', { style: 'currency', currency: 'KES', minimumFractionDigits:0 }).format(val).replace(/KES|Ksh/i,'').trim();
 
     // --- LOAD DATA ---
     async function loadExpenses() {
@@ -332,18 +332,18 @@
 
             let houseBadge = `<span class="badge bg-light text-dark border">General</span>`;
             if (e.House && e.House != "General") {
-                houseBadge = `<span class="badge bg-info bg-opacity-10 text-info border border-info">House ${e.House}</span>`;
+                houseBadge = `<span class="badge bg-info bg-opacity-10 text-info border border-info">House ${escapeHtml(e.House)}</span>`;
             }
 
             tbody.innerHTML += `
                 <tr>
-                    <td>${dateStr}</td>
+                    <td>${escapeHtml(dateStr)}</td>
                     <td>${houseBadge}</td>
-                    <td><span class="badge-cat ${badgeClass}">${e.Category}</span></td>
-                    <td>${e.Description}</td>
+                    <td><span class="badge-cat ${badgeClass}">${escapeHtml(e.Category)}</span></td>
+                    <td>${escapeHtml(e.Description)}</td>
                     <td class="text-danger fw-bold">- KES ${money(e.Amount)}</td>
                     <td class="text-end">
-                        <button class="btn btn-sm btn-light border" onclick="deleteExpense('${e.ID}')"><i class="fa-solid fa-trash text-danger"></i></button>
+                        <button class="btn btn-sm btn-light border" onclick="deleteExpense('${encodeURIComponent(e.ID).replace(/'/g, '%27')}')"><i class="fa-solid fa-trash text-danger"></i></button>
                     </td>
                 </tr>
             `;
@@ -396,10 +396,10 @@
         };
 
         try {
-            await fetch(WEB_APP_URL, { method: 'POST', body: JSON.stringify(payload) });
+            await apiRequest(payload);
             bootstrap.Modal.getInstance(document.getElementById('expenseModal')).hide();
             loadExpenses();
-        } catch(err) { alert("Error saving."); }
+        } catch(err) { alert(`Unable to save expense: ${err.message}`); }
         finally { btn.disabled = false; btn.innerText = "Save Expense"; }
     });
 
@@ -428,10 +428,7 @@
 
         try {
             // SEND BULK REQUEST
-            await fetch(WEB_APP_URL, { 
-                method: 'POST', 
-                body: JSON.stringify({ action: "addBulkExpenses", data: bills }) 
-            });
+            await apiRequest({ action: "addBulkExpenses", data: bills });
             alert("Success! 25 Garbage bills generated.");
             loadExpenses();
         } catch(err) {
@@ -447,9 +444,9 @@
     window.deleteExpense = async (id) => {
         if(!confirm("Delete this expense?")) return;
         try {
-            await fetch(WEB_APP_URL, { method: 'POST', body: JSON.stringify({ action: "deleteExpense", id: id }) });
+            await apiRequest({ action: "deleteExpense", id: decodeURIComponent(id) });
             loadExpenses();
-        } catch(e) { alert("Error deleting."); }
+        } catch(e) { alert(`Unable to delete expense: ${e.message}`); }
     };
 
     // --- CSV EXPORT ---
@@ -464,14 +461,15 @@
 
         if(dataToExport.length === 0) { alert("No data to export."); return; }
 
-        let csv = "data:text/csv;charset=utf-8,Date,House,Category,Description,Amount\n";
+        const quote = (val) => `"${String(val ?? '').replace(/"/g, '""')}"`;
+        let csv = "Date,House,Category,Description,Amount\n";
         dataToExport.forEach(e => {
-            let d = e.Date; 
+            let d = e.Date;
             try { d = new Date(e.Date).toISOString().split('T')[0]; } catch(err){}
-            csv += `"${d}","${e.House || 'General'}","${e.Category}","${e.Description}",${e.Amount}\n`;
+            csv += [d, e.House || 'General', e.Category, e.Description, e.Amount].map(quote).join(",") + "\n";
         });
         const link = document.createElement("a");
-        link.href = encodeURI(csv);
+        link.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
         link.download = "RentPro_Expenses.csv";
         document.body.appendChild(link);
         link.click();

@@ -83,6 +83,7 @@
     <a href="tenants.html" class="brand-logo"><i class="fa-solid fa-building me-2"></i> RentPro</a>
     <nav>
         <a href="tenants.html" class="nav-btn"><i class="fa-solid fa-arrow-left me-1"></i> Back to Tenants</a>
+        <a href="#" id="logoutBtn" class="nav-btn ms-2"><i class="fa-solid fa-right-from-bracket me-1"></i> Logout</a>
     </nav>
   </header>
 
@@ -157,6 +158,8 @@
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
     <script src="global.js"></script>
+    <script src="js/dev-auth.js"></script>
+    <script type="module" src="js/require-auth.js"></script>
 
   <script>
     // 🔴 YOUR WEB APP URL
@@ -220,16 +223,17 @@
             // Calculate proper balance (Rent - Paid) if available in archive columns
             // Adjust indices based on your exact Archive Sheet layout
             // Assuming "Archived Date" is the last column pushed
-            const delDate = t['Archived Date'] ? new Date(t['Archived Date']).toLocaleDateString() : 'N/A';
+            const archivedOn = t.ArchivedDate || t['Archived Date'];
+            const delDate = archivedOn ? new Date(archivedOn).toLocaleDateString() : 'N/A';
             const balance = (Number(t.Rent) || 0) - (Number(t.AmountPaid) || 0);
-            
-            // We use encodeURIComponent to pass safe data
+            const enc = (val) => encodeURIComponent(val ?? '').replace(/'/g, '%27');
+
             tbody.innerHTML += `
-                <tr onclick="openHistory('${t.Name}', '${t.House}', '${delDate}')">
-                    <td onclick="event.stopPropagation()"><input class="form-check-input archive-select" type="checkbox" value="${t.ID || ''}" aria-label="Select ${t.Name}" onchange="updateDeleteSelection()"></td>
-                    <td class="fw-bold">${t.Name}</td>
-                    <td>${t.NationalID || '-'}</td>
-                    <td><span class="badge bg-light text-dark border">House ${t.House}</span></td>
+                <tr onclick="openHistory('${enc(t.Name)}', '${enc(t.House)}', '${enc(delDate)}')">
+                    <td onclick="event.stopPropagation()"><input class="form-check-input archive-select" type="checkbox" value="${escapeHtml(t.ID || '')}" aria-label="Select ${escapeHtml(t.Name)}" onchange="updateDeleteSelection()"></td>
+                    <td class="fw-bold">${escapeHtml(t.Name)}</td>
+                    <td>${escapeHtml(t.NationalID || '-')}</td>
+                    <td><span class="badge bg-light text-dark border">House ${escapeHtml(t.House)}</span></td>
                     <td class="text-muted small">${delDate}</td>
                     <td class="${balance > 0 ? 'text-danger fw-bold' : 'text-success'}">
                         KES ${balance.toLocaleString()}
@@ -267,15 +271,15 @@
 
     // --- 3. OPEN MODAL & FILTER LOGS ---
     window.openHistory = (name, house, date) => {
+        name = decodeURIComponent(name); house = decodeURIComponent(house); date = decodeURIComponent(date);
         // Update Modal Header
         document.getElementById('modalTenantName').innerText = name;
         document.getElementById('modalHouse').innerText = "House " + house;
-        document.getElementById('modalDates').innerText = "Deleted: " + date;
+        document.getElementById('modalDates').innerText = "Moved out: " + date;
 
-        // A. Filter Payments (Matching Name or House)
-        const tenantPayments = allPayments.filter(p => 
-            String(p.tenant || '').toLowerCase().includes(name.toLowerCase()) ||
-            String(p.house) == String(house) // Loose match for house
+        // A. Payments recorded under this tenant's name (the house may have a new tenant now)
+        const tenantPayments = allPayments.filter(p =>
+            name && String(p.Tenant || '').trim().toLowerCase() === name.trim().toLowerCase()
         );
 
         // B. Filter Repairs (Strictly matching House)
@@ -288,14 +292,14 @@
             payContainer.innerHTML = "<p class='text-muted small text-center mt-3'>No payments recorded.</p>";
         } else {
             tenantPayments.forEach(p => {
-                const pDate = new Date(p.date).toLocaleDateString();
+                const pDate = new Date(p.Date).toLocaleDateString();
                 payContainer.innerHTML += `
                     <div class="timeline-item">
                         <div>
-                            <div class="fw-medium">${p.method || 'Cash'}</div>
+                            <div class="fw-medium">${escapeHtml(p.Method || 'Cash')} ${p.Reference ? '· ' + escapeHtml(p.Reference) : ''}</div>
                             <div class="timeline-date">${pDate}</div>
                         </div>
-                        <div class="fw-bold text-success">+ ${Number(p.amount).toLocaleString()}</div>
+                        <div class="fw-bold text-success">+ ${Number(p.Amount).toLocaleString()}</div>
                     </div>
                 `;
             });

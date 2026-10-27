@@ -52,3 +52,25 @@ function loadLocal(key, fallback = []) {
 function formatMoney(amount) {
 	return Number(amount || 0).toLocaleString("en-KE");
 }
+
+// Escapes sheet values before they are placed in innerHTML.
+function escapeHtml(input) {
+	return String(input ?? "").replace(/[&<>"']/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
+}
+
+// Sends any API action as a GET (POSTs to Apps Script fail CORS in the browser).
+// Nested data such as bulk rows travels as a JSON "payload" parameter.
+async function apiRequest(params) {
+	const url = new URL(window.API_URL);
+	const nested = Object.values(params).some((item) => item !== null && typeof item === "object");
+	if (nested) {
+		url.searchParams.set("payload", JSON.stringify(params));
+	} else {
+		Object.entries(params).forEach(([key, item]) => url.searchParams.set(key, item ?? ""));
+	}
+	url.searchParams.set("t", Date.now());
+	const response = await fetch(url.toString());
+	const result = await response.json();
+	if (result && result.success === false) throw new Error(result.message || "Request failed.");
+	return result;
+}

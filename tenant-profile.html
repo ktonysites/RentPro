@@ -62,6 +62,7 @@
           
           <button class="btn btn-primary btn-sm shadow-sm" data-bs-toggle="modal" data-bs-target="#editModal" aria-label="Edit tenant" title="Edit tenant"><i class="fa-solid fa-pen-to-square me-2"></i> Edit</button>
           <button class="btn btn-info btn-sm text-white shadow-sm" data-bs-toggle="modal" data-bs-target="#meterModal" aria-label="Record meter reading" title="Record reading"><i class="fa-solid fa-faucet me-2"></i> Reading</button>
+          <a id="moveOutBtn" href="moveout.html" class="btn btn-outline-danger btn-sm shadow-sm" aria-label="Move tenant out" title="Move out"><i class="fa-solid fa-door-open me-2"></i> Move Out</a>
       </div>
     </div>
 
@@ -269,6 +270,7 @@
             const tenant = tenants.find(t => String(t.ID) === String(tenantId) || String(t.Name) === String(tenantId));
             if (!tenant) return alert("Tenant not found");
             tenantData = tenant;
+            document.getElementById('moveOutBtn').href = `moveout.html?id=${encodeURIComponent(tenant.ID)}&name=${encodeURIComponent(tenant.Name || '')}&house=${encodeURIComponent(tenant.House || '')}`;
 
             // 1. FILL WEB UI
             document.getElementById('pHeaderName').innerText = tenant.Name;
@@ -330,9 +332,9 @@
                     const status = u.Status === "Paid" ? '<span class="badge bg-success">Paid</span>' : '<span class="badge bg-danger">Unpaid</span>';
                     
                     // Web Row
-                    uBody.innerHTML += `<tr><td>${u.Month}</td><td>${u.PrevRead} &rarr; <b>${u.CurrRead}</b></td><td>${u.UnitsUsed}</td><td>${total}</td><td>${status}</td></tr>`;
+                    uBody.innerHTML += `<tr><td>${escapeHtml(u.Month)}</td><td>${escapeHtml(u.PrevRead)} &rarr; <b>${escapeHtml(u.CurrRead)}</b></td><td>${escapeHtml(u.UnitsUsed)}</td><td>${total}</td><td>${status}</td></tr>`;
                     // PDF Row
-                    pdfUBody.innerHTML += `<tr><td>${u.Month}</td><td>${u.PrevRead}-${u.CurrRead}</td><td>${u.UnitsUsed}</td><td>${total}</td><td>${u.Status}</td></tr>`;
+                    pdfUBody.innerHTML += `<tr><td>${escapeHtml(u.Month)}</td><td>${escapeHtml(u.PrevRead)}-${escapeHtml(u.CurrRead)}</td><td>${escapeHtml(u.UnitsUsed)}</td><td>${total}</td><td>${escapeHtml(u.Status)}</td></tr>`;
                 });
             } else {
                 uBody.innerHTML = `<tr><td colspan="5" class="text-center text-muted p-3">No readings.</td></tr>`;
@@ -342,10 +344,12 @@
             const allPayments = (pRes.data || []);
             const tenantName = String(tenant.Name || '').toLowerCase();
             const tenantHouse = String(tenant.House || '');
+            // Same name, or same house since this tenant moved in (earlier tenants of the house are excluded).
+            const movedIn = new Date(tenant.DateAdded);
             const myPayments = allPayments.filter(p => {
-                const paymentTenant = String(p.Tenant || '').toLowerCase();
-                const paymentHouse = String(p.House || '');
-                return paymentTenant.includes(tenantName) || (tenantHouse && paymentHouse === tenantHouse);
+                if (/unmatched|unassigned/i.test(p.Notes || '')) return false;
+                if (tenantName && String(p.Tenant || '').trim().toLowerCase() === tenantName.trim()) return true;
+                return tenantHouse && String(p.House || '') === tenantHouse && !isNaN(movedIn) && new Date(p.Date) >= movedIn;
             });
             const hBody = document.getElementById('historyBody');
             const pdfHBody = document.getElementById('pdfHistoryBody'); // PDF Table
@@ -355,9 +359,10 @@
             myPayments.forEach(p => {
                 let dStr = new Date(p.Date).toLocaleDateString();
                 // Web Row
-                hBody.innerHTML += `<tr><td>${dStr}</td><td>${p.Method}</td><td class="fw-bold text-success">+${Number(p.Amount).toLocaleString()}</td></tr>`;
+                const ref = p.Reference ? ` <span class="text-muted small">${escapeHtml(p.Reference)}</span>` : '';
+                hBody.innerHTML += `<tr><td>${dStr}</td><td>${escapeHtml(p.Method)}${ref}</td><td class="fw-bold text-success">+${Number(p.Amount).toLocaleString()}</td></tr>`;
                 // PDF Row
-                pdfHBody.innerHTML += `<tr><td>${dStr}</td><td>Payment</td><td>${p.Method}</td><td>${Number(p.Amount).toLocaleString()}</td></tr>`;
+                pdfHBody.innerHTML += `<tr><td>${dStr}</td><td>Payment</td><td>${escapeHtml(p.Method)} ${escapeHtml(p.Reference || '')}</td><td>${Number(p.Amount).toLocaleString()}</td></tr>`;
             });
 
         } catch(e) {

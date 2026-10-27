@@ -4,7 +4,9 @@
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
-    "migrate": "node migrate.js"
+    "migrate": "node migrate.js",
+    "test": "node --test tests/backend.test.js",
+    "dev": "node tests/dev-server.js"
   },
   "dependencies": {
     "express": "^4.18.2",

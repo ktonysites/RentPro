@@ -252,18 +252,20 @@
 
         data.forEach(t => {
             const rent = Number(t.Rent||0), paid = Number(t.AmountPaid||0), bal = rent - paid;
-            const uniqueId = encodeURIComponent(t.ID);
+            // encodeURIComponent leaves apostrophes alone, which would break the quoted onclick arguments.
+            const uniqueId = encodeURIComponent(t.ID).replace(/'/g, '%27');
+            const encodedName = encodeURIComponent(t.Name || '').replace(/'/g, '%27');
             let status = bal<=0 ? '<span class="status-badge status-paid">PAID</span>' : (paid>0 ? '<span class="status-badge status-partial">PARTIAL</span>' : '<span class="status-badge status-unpaid">UNPAID</span>');
 
             tbody.innerHTML += `<tr onclick="window.location.href='tenant-profile.html?id=${uniqueId}'">
-                <td><div class="fw-bold text-dark">${t.Name}</div><div class="small text-muted">${t.Phone}</div></td>
-                <td><span class="badge bg-light text-dark border">${t.House}</span></td>
+                <td><div class="fw-bold text-dark">${escapeHtml(t.Name)}</div><div class="small text-muted">${escapeHtml(t.Phone)}</div></td>
+                <td><span class="badge bg-light text-dark border">${escapeHtml(t.House)}</span></td>
                 <td class="fw-medium">${rent.toLocaleString()}</td>
                 <td class="text-success fw-medium">${paid.toLocaleString()}</td>
                 <td class="fw-bold text-danger">${bal.toLocaleString()}</td>
                 <td>${status}</td>
                 <td class="text-end">
-                    <button class="btn btn-sm btn-outline-success me-1" onclick="event.stopPropagation(); openPayModal('${uniqueId}', '${t.Name}')"><i class="fa-solid fa-hand-holding-dollar"></i> Pay</button>
+                    <button class="btn btn-sm btn-outline-success me-1" onclick="event.stopPropagation(); openPayModal('${uniqueId}', '${encodedName}')"><i class="fa-solid fa-hand-holding-dollar"></i> Pay</button>
                     <button class="btn btn-sm btn-outline-danger delete-tenant-btn" onclick="event.stopPropagation(); deleteTenant('${uniqueId}', this)"><i class="fa-solid fa-trash"></i></button>
                 </td>
             </tr>`;
@@ -277,7 +279,7 @@
     window.downloadCSV = () => {
       let csv = "Name,Phone,National ID,House,Rent,Paid,Balance,Next of Kin,Relation,Next of Kin Phone,Property\n";
       currentTenants.forEach(t => { csv += [t.Name, t.Phone, t.NationalID, t.House, t.Rent, t.AmountPaid, Number(t.Rent || 0) - Number(t.AmountPaid || 0), t.NextOfKin, t.KinRelation, t.NextOfKinPhone, t.Property].map(csvValue).join(",") + "\n"; });
-        const link = document.createElement("a"); link.href = encodeURI("data:text/csv;charset=utf-8,"+csv); link.download = "RentPro_Tenants.csv"; document.body.appendChild(link); link.click();
+        const link = document.createElement("a"); link.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" })); link.download = "RentPro_Tenants.csv"; document.body.appendChild(link); link.click();
     };
 
     function csvValue(value) {
@@ -285,7 +287,7 @@
     }
 
     window.openPayModal = (id, name) => {
-        document.getElementById('payTenantId').value = id; document.getElementById('payTenantName').innerText = name;
+        document.getElementById('payTenantId').value = decodeURIComponent(id); document.getElementById('payTenantName').innerText = decodeURIComponent(name);
         new bootstrap.Modal(document.getElementById('payModal')).show();
     };
 
@@ -348,6 +350,7 @@
         try {
           await apiWrite(payload);
           bootstrap.Modal.getInstance(document.getElementById('payModal')).hide();
+          document.getElementById('payForm').reset();
           await loadData();
         } catch(e) { alert(`Unable to record payment: ${e.message}`); }
         finally { btn.disabled=false; btn.innerText="Confirm Payment"; }

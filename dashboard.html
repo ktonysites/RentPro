@@ -218,25 +218,11 @@
         ]);
         
         globalTenants = tenantsRes.data || [];
-        let rawPayments = (paymentsRes.data || []);
-
-        const tenantMap = {}; 
-        globalTenants.forEach(t => {
-            let p = String(t.Phone).replace(/\D/g, '');
-            if(p) tenantMap[p] = t.Property || "Main Property"; 
-        });
-
-        globalPayments = rawPayments.filter(p => {
-            const pPhone = String(p.MSISDN || p.Phone || "").replace(/\D/g, '');
-            return Object.keys(tenantMap).some(tp => pPhone.includes(tp));
-        }).map(p => {
-            const pPhone = String(p.MSISDN || p.Phone || "").replace(/\D/g, '');
-            let foundProp = "Unassigned";
-            for(let tp in tenantMap) { 
-                if(pPhone.includes(tp)) { foundProp = tenantMap[tp]; break; }
-            }
-            return { ...p, assignedProperty: foundProp };
-        });
+        // Every row in the Payments sheet is money received for this property.
+        globalPayments = (paymentsRes.data || []).map(p => ({
+            ...p,
+            assignedProperty: String(p.Notes || '').toLowerCase().includes('unmatched') ? 'Unmatched' : ''
+        }));
 
         renderPropertyAnalysis();
     }
@@ -269,23 +255,23 @@
         const sorted = [...payments].sort((a, b) => new Date(b.Date || b.date) - new Date(a.Date || a.date));
 
         list.innerHTML = sorted.slice(0, 10).map(p => {
-            const name = p['M-Pesa Name'] || p['TenantName'] || p['Name'] || 'Unknown';
-            const initial = name.charAt(0).toUpperCase();
-            
+            const name = String(p.Tenant || p.Payer || 'Unknown');
+            const initial = escapeHtml(name.charAt(0).toUpperCase());
+
             let dStr = p.Date || p.date || 'Today';
             try { dStr = new Date(dStr).toLocaleDateString('en-GB', {month:'short', day:'numeric'}); } catch(e){}
 
             const amount = p.Amount || p.amount || 0;
-            const propLabel = p.assignedProperty && p.assignedProperty !== "Unassigned" 
-                ? `<span class="badge bg-light text-dark border ms-2" style="font-size:0.6rem">${p.assignedProperty}</span>` 
-                : '';
+            const propLabel = p.assignedProperty
+                ? `<a href="reconcile.html" class="badge bg-warning-subtle text-warning-emphasis border ms-2 text-decoration-none" style="font-size:0.6rem">${p.assignedProperty}</a>`
+                : (p.House ? `<span class="badge bg-light text-dark border ms-2" style="font-size:0.6rem">House ${escapeHtml(p.House)}</span>` : '');
 
             return `
             <li class="activity-item">
                 <div class="d-flex align-items-center">
                     <div class="avatar-circle">${initial}</div>
                     <div>
-                        <div class="fw-bold text-dark small">${name} ${propLabel}</div>
+                        <div class="fw-bold text-dark small">${escapeHtml(name)} ${propLabel}</div>
                         <div class="text-muted" style="font-size:0.75rem">${dStr}</div>
                     </div>
                 </div>
@@ -296,21 +282,22 @@
 
     function renderChart(payments) {
         const ctx = document.getElementById('revenueChart').getContext('2d');
-        const monthlyData = {};
-        
+        // Last 6 calendar months, oldest first, so the same month in different years never merges.
+        const now = new Date();
+        const months = [];
+        for (let i = 5; i >= 0; i--) {
+            const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+            months.push({ year: d.getFullYear(), month: d.getMonth(), label: d.toLocaleString('en-GB', { month: 'short', year: '2-digit' }), total: 0 });
+        }
         payments.forEach(p => {
-            try {
-                const dateVal = p.Date || p.date || p.Timestamp;
-                if(dateVal) {
-                    const d = new Date(dateVal);
-                    const key = d.toLocaleString('default', { month: 'short' });
-                    monthlyData[key] = (monthlyData[key] || 0) + Number(p.Amount || p.amount || 0);
-                }
-            } catch(e) {}
+            const d = new Date(p.Date || p.date || p.Timestamp);
+            if (isNaN(d)) return;
+            const bucket = months.find(m => m.year === d.getFullYear() && m.month === d.getMonth());
+            if (bucket) bucket.total += Number(p.Amount || p.amount || 0);
         });
 
-        const labels = Object.keys(monthlyData);
-        const data = Object.values(monthlyData);
+        const labels = months.map(m => m.label);
+        const data = months.map(m => m.total);
 
         if (revenueChartInstance) revenueChartInstance.destroy();
 

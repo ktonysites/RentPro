@@ -540,12 +540,15 @@
             }));
         } else if (type === 'payments') {
             if(!filteredPayments.length) return alert("No payment data for selected period.");
-            headers = ['Date', 'Payer', 'Amount', 'Reference'];
+            headers = ['Date', 'Tenant', 'House', 'Payer', 'Amount', 'Reference', 'Status'];
             data = filteredPayments.map(p => ({
-                Date: new Date(p.Date).toLocaleDateString(), 
-                Payer: p.Name || p.TenantName, 
-                Amount: p.Amount, 
-                Reference: p.Reference || "MANUAL"
+                Date: new Date(p.Date).toLocaleDateString(),
+                Tenant: p.Tenant,
+                House: p.House,
+                Payer: p.Payer || p.Tenant,
+                Amount: p.Amount,
+                Reference: p.Reference || "MANUAL",
+                Status: p.Notes
             }));
         } else if (type === 'expenses') {
             if(!filteredExpenses.length) return alert("No expense data for selected period.");
