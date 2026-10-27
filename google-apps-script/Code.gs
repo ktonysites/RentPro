@@ -8,6 +8,12 @@ var SHEET_PAYMENTS = "Payments";
 var SHEET_EXPENSES = "Expenses";
 var SHEET_ARCHIVES = "Archives";
 var SHEET_UTILITIES = "UtilityBills";
+var SHEET_DELETED_PAYMENTS = "DeletedPayments";
+
+// Cleared payments stay in DeletedPayments this long (about 3 months), then are removed for good.
+var PAYMENT_RETENTION_DAYS = 90;
+var PAYMENT_HEADERS = ["Date", "Amount", "Tenant", "Reference", "Method", "House", "Notes", "Payer", "SmsText", "ID"];
+var PAYMENT_ID_COLUMN = 10;
 
 var WATER_RATE = 120;
 var GARBAGE_FEE = 150;
@@ -19,7 +25,7 @@ var SMS_TOKEN_PROPERTY = "SMS_WEBHOOK_TOKEN";
 
 var READ_ACTIONS = {
   getTenants: true, getPayments: true, getExpenses: true, getUtilityBills: true,
-  getArchivedData: true, getUnmatched: true
+  getArchivedData: true, getUnmatched: true, getDeletedPayments: true
 };
 
 function doGet(e) {
@@ -86,6 +92,10 @@ function routeAction(action, params) {
       case "moveOut": return moveOut(params);
       case "getUnmatched": return getUnmatched();
       case "manualAssign": return manualAssign(params);
+      case "deletePayments": return deletePayments(params);
+      case "getDeletedPayments": return getDeletedPayments();
+      case "restorePayments": return restorePayments(params);
+      case "purgeDeletedPayments": return purgeDeletedPayments(params);
       default: return response(false, "Unknown action: " + action);
     }
 }
@@ -268,11 +278,150 @@ function deleteAllTenants() {
 }
 
 function getPayments() {
+  maintainPayments();
   return response(true, "Payments loaded", rowsAsObjects(SHEET_PAYMENTS));
 }
 
-function recordPayment(data) {
+// Appends a payment row, padded to the full width, with a fresh ID in the last column.
+function appendPayment(values) {
+  var row = values.slice(0, PAYMENT_ID_COLUMN - 1);
+  while (row.length < PAYMENT_ID_COLUMN - 1) row.push("");
+  row.push(id("PAY"));
+  sheet(SHEET_PAYMENTS).appendRow(row);
+}
+
+/* ---------- Payment history: clear, restore, and the 3-month bin ---------- */
+
+// Housekeeping run when payments are read: give older rows an ID and drop bin entries past retention.
+// Reads skip the script lock, so this only runs when the lock is free right now.
+function maintainPayments() {
+  var lock = LockService.getScriptLock();
+  if (!lock.tryLock(0)) return;
+  try {
+    ensurePaymentIds();
+    purgeExpiredPayments();
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function ensurePaymentIds() {
   var paymentSheet = sheet(SHEET_PAYMENTS);
+  var lastRow = paymentSheet.getLastRow();
+  if (lastRow <= 1) return;
+  var ids = paymentSheet.getRange(2, PAYMENT_ID_COLUMN, lastRow - 1, 1).getValues();
+  var changed = false;
+  ids.forEach(function(cell) {
+    if (!String(cell[0]).trim()) { cell[0] = id("PAY"); changed = true; }
+  });
+  if (changed) paymentSheet.getRange(2, PAYMENT_ID_COLUMN, ids.length, 1).setValues(ids);
+}
+
+// All data rows of a sheet, each padded to the given width.
+function dataRows(name, width) {
+  var currentSheet = sheet(name);
+  var lastRow = currentSheet.getLastRow();
+  if (lastRow <= 1) return [];
+  return currentSheet.getRange(2, 1, lastRow - 1, width).getValues();
+}
+
+// Replaces a sheet's data rows in one write (much faster than deleting rows one by one).
+function replaceRows(name, rows, width) {
+  var currentSheet = sheet(name);
+  var lastRow = currentSheet.getLastRow();
+  if (lastRow > 1) currentSheet.getRange(2, 1, lastRow - 1, width).clearContent();
+  if (rows.length) currentSheet.getRange(2, 1, rows.length, width).setValues(rows);
+}
+
+function idSet(data) {
+  var wanted = {};
+  String(value(data || {}, ["ids"], "")).split(",").forEach(function(item) {
+    var trimmed = item.trim();
+    if (trimmed) wanted[trimmed] = true;
+  });
+  return wanted;
+}
+
+// Moves the selected payments to the bin. Tenant balances are not changed: this only tidies the history.
+function deletePayments(data) {
+  var wanted = idSet(data);
+  if (!Object.keys(wanted).length) return response(false, "No payments selected");
+  ensurePaymentIds();
+
+  var width = PAYMENT_HEADERS.length;
+  var kept = [];
+  var moved = [];
+  var now = new Date();
+  dataRows(SHEET_PAYMENTS, width).forEach(function(row) {
+    if (wanted[String(row[PAYMENT_ID_COLUMN - 1])]) moved.push(row.concat([now]));
+    else kept.push(row);
+  });
+  if (!moved.length) return response(false, "Those payments were not found. Refresh and try again.");
+
+  var bin = sheet(SHEET_DELETED_PAYMENTS);
+  bin.getRange(bin.getLastRow() + 1, 1, moved.length, width + 1).setValues(moved);
+  replaceRows(SHEET_PAYMENTS, kept, width);
+  return response(true, moved.length + " payment" + (moved.length === 1 ? "" : "s") + " moved to Recently deleted", { deleted: moved.length });
+}
+
+function getDeletedPayments() {
+  maintainPayments();
+  var dayMs = 24 * 60 * 60 * 1000;
+  var items = rowsAsObjects(SHEET_DELETED_PAYMENTS).map(function(item) {
+    var deletedAt = new Date(item.DeletedAt);
+    var purgeOn = new Date(deletedAt.getTime() + PAYMENT_RETENTION_DAYS * dayMs);
+    item.PurgeOn = purgeOn;
+    item.DaysLeft = Math.max(0, Math.ceil((purgeOn.getTime() - Date.now()) / dayMs));
+    return item;
+  });
+  return response(true, "Deleted payments loaded", items);
+}
+
+function restorePayments(data) {
+  var wanted = idSet(data);
+  if (!Object.keys(wanted).length) return response(false, "No payments selected");
+  var width = PAYMENT_HEADERS.length;
+  var kept = [];
+  var restored = [];
+  dataRows(SHEET_DELETED_PAYMENTS, width + 1).forEach(function(row) {
+    if (wanted[String(row[PAYMENT_ID_COLUMN - 1])]) restored.push(row.slice(0, width));
+    else kept.push(row);
+  });
+  if (!restored.length) return response(false, "Those payments were not found in Recently deleted");
+
+  var paymentSheet = sheet(SHEET_PAYMENTS);
+  paymentSheet.getRange(paymentSheet.getLastRow() + 1, 1, restored.length, width).setValues(restored);
+  replaceRows(SHEET_DELETED_PAYMENTS, kept, width + 1);
+  return response(true, restored.length + " payment" + (restored.length === 1 ? "" : "s") + " restored", { restored: restored.length });
+}
+
+// Permanently removes the selected bin entries now instead of waiting for the 3 months.
+function purgeDeletedPayments(data) {
+  var wanted = idSet(data);
+  if (!Object.keys(wanted).length) return response(false, "No payments selected");
+  var width = PAYMENT_HEADERS.length + 1;
+  var rows = dataRows(SHEET_DELETED_PAYMENTS, width);
+  var kept = rows.filter(function(row) { return !wanted[String(row[PAYMENT_ID_COLUMN - 1])]; });
+  var removed = rows.length - kept.length;
+  if (!removed) return response(false, "Those payments were not found in Recently deleted");
+  replaceRows(SHEET_DELETED_PAYMENTS, kept, width);
+  return response(true, removed + " payment" + (removed === 1 ? "" : "s") + " permanently deleted", { purged: removed });
+}
+
+function purgeExpiredPayments() {
+  var width = PAYMENT_HEADERS.length + 1;
+  var rows = dataRows(SHEET_DELETED_PAYMENTS, width);
+  if (!rows.length) return 0;
+  var cutoff = Date.now() - PAYMENT_RETENTION_DAYS * 24 * 60 * 60 * 1000;
+  var kept = rows.filter(function(row) {
+    var deletedAt = new Date(row[width - 1]).getTime();
+    return isNaN(deletedAt) || deletedAt > cutoff;
+  });
+  if (kept.length !== rows.length) replaceRows(SHEET_DELETED_PAYMENTS, kept, width);
+  return rows.length - kept.length;
+}
+
+function recordPayment(data) {
   var tenantId = value(data, ["id", "tenantId"], "");
   var amount = Number(value(data, ["amount"], 0));
   var reference = String(value(data, ["message", "reference"], "")).trim();
@@ -285,7 +434,7 @@ function recordPayment(data) {
 
   var tenant = creditTenant(function(row) { return String(row[0]) === String(tenantId); }, amount);
   if (!tenant) return response(false, "Tenant not found");
-  paymentSheet.appendRow([
+  appendPayment([
     new Date(), amount, tenant.name, reference,
     value(data, ["method"], "Manual"), tenant.house, "Manual"
   ]);
@@ -318,19 +467,22 @@ function findMpesaCode(text) {
 }
 
 // True when any payment's Reference contains this code (manual entries may hold the full SMS).
+// Cleared payments still count, so a re-sent SMS for a payment in the bin is not credited twice.
 function paymentReferenceExists(reference) {
   var wanted = String(reference || "").trim().toUpperCase();
   if (!wanted) return false;
-  var values = sheet(SHEET_PAYMENTS).getDataRange().getValues();
-  for (var i = 1; i < values.length; i++) {
-    if (String(values[i][3]).toUpperCase().indexOf(wanted) >= 0) return true;
-  }
-  return false;
+  return [SHEET_PAYMENTS, SHEET_DELETED_PAYMENTS].some(function(name) {
+    var values = sheet(name).getDataRange().getValues();
+    for (var i = 1; i < values.length; i++) {
+      if (String(values[i][3]).toUpperCase().indexOf(wanted) >= 0) return true;
+    }
+    return false;
+  });
 }
 
 function addPayment(data) {
   var payment = data.payment || data;
-  sheet(SHEET_PAYMENTS).appendRow([
+  appendPayment([
     value(payment, ["date", "Date"], new Date()), Number(value(payment, ["amount", "Amount"], 0)),
     value(payment, ["tenant", "Tenant", "tenantName"], ""), value(payment, ["reference", "Reference"], ""),
     value(payment, ["method", "Method"], "Manual"), value(payment, ["house", "House"], ""), "Manual"
@@ -540,6 +692,15 @@ function getUnmatched() {
 function manualAssign(data) {
   var currentSheet = sheet(SHEET_PAYMENTS);
   var rowNumber = Number(value(data, ["rowIndex"], 0));
+  // Prefer the payment ID: row numbers shift when payments are cleared.
+  var paymentId = String(value(data, ["paymentId"], ""));
+  if (paymentId) {
+    var paymentIds = currentSheet.getLastRow() > 1 ? currentSheet.getRange(2, PAYMENT_ID_COLUMN, currentSheet.getLastRow() - 1, 1).getValues() : [];
+    rowNumber = 0;
+    for (var p = 0; p < paymentIds.length; p++) {
+      if (String(paymentIds[p][0]) === paymentId) { rowNumber = p + 2; break; }
+    }
+  }
   var tenantId = String(value(data, ["tenantId", "id"], ""));
   var house = String(value(data, ["houseNumber"], ""));
   if (!rowNumber || rowNumber < 2 || rowNumber > currentSheet.getLastRow()) return response(false, "Payment row not found");
@@ -593,7 +754,7 @@ function processIncomingPayment(data) {
     tenant = creditTenant(function(row) { return String(row[0]) === String(match.id); }, parsed.amount);
   }
 
-  sheet(SHEET_PAYMENTS).appendRow([
+  appendPayment([
     parsed.date || new Date(),
     parsed.amount,
     tenant ? tenant.name : parsed.payer,
@@ -749,7 +910,8 @@ function initSheets() {
   var spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
   var definitions = [
     { name: SHEET_TENANTS, headers: ["ID", "UID", "Name", "Phone", "NationalID", "House", "Rent", "DueDate", "DateAdded", "AmountPaid", "Balance", "Property", "NextOfKin", "KinRelation", "NextOfKinPhone"] },
-    { name: SHEET_PAYMENTS, headers: ["Date", "Amount", "Tenant", "Reference", "Method", "House", "Notes", "Payer", "SmsText"] },
+    { name: SHEET_PAYMENTS, headers: PAYMENT_HEADERS },
+    { name: SHEET_DELETED_PAYMENTS, headers: PAYMENT_HEADERS.concat(["DeletedAt"]) },
     { name: SHEET_EXPENSES, headers: ["ID", "UID", "Date", "Category", "Description", "Amount", "House"] },
     { name: SHEET_ARCHIVES, headers: ["ID", "UID", "Name", "Phone", "NationalID", "House", "Rent", "DueDate", "DateAdded", "AmountPaid", "Balance", "Property", "NextOfKin", "KinRelation", "NextOfKinPhone", "MoveOutReason", "DepositStatus", "ArchivedDate"] },
     { name: SHEET_UTILITIES, headers: ["ID", "Month", "House", "TenantName", "Water", "Garbage", "Status", "DatePaid", "PrevRead", "CurrRead", "UnitsUsed"] }

@@ -37,7 +37,8 @@
     /* M-PESA BOX */
     .mpesa-box { background: #fff; border: 2px solid var(--mpesa-green); border-radius: 16px; overflow: hidden; margin-top: 20px; }
     .mpesa-header { background: var(--mpesa-green); color: white; padding: 12px 20px; display: flex; justify-content: space-between; align-items: center; }
-    .mpesa-logo { height: 24px; background: white; padding: 2px 6px; border-radius: 4px; }
+    /* Text badge instead of an external logo image, so nothing breaks offline or when the image host is blocked. */
+    .mpesa-logo { background: white; color: var(--mpesa-green); padding: 3px 9px; border-radius: 6px; font-weight: 800; font-size: 0.78rem; letter-spacing: 0.06em; display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; flex-shrink: 0; }
     .mpesa-details { padding: 20px; background: #f0fff4; }
     
     .copy-row {
@@ -99,7 +100,7 @@
                 <div class="mpesa-box">
                     <div class="mpesa-header">
                         <span class="fw-bold small">PAYMENT INSTRUCTIONS</span>
-                        <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/1/15/M-PESA_LOGO-01.svg/320px-M-PESA_LOGO-01.svg.png" class="mpesa-logo">
+                        <span class="mpesa-logo"><i class="fa-solid fa-mobile-screen-button"></i>M-PESA</span>
                     </div>
                     <div class="mpesa-details">
                         

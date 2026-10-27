@@ -34,8 +34,18 @@ function createSheet(name) {
         rows[row - 1 + r][col - 1 + c] = store(cell);
       }));
     },
-    setValue: (cell) => { ensure(row, col); rows[row - 1][col - 1] = store(cell); }
+    setValue: (cell) => { ensure(row, col); rows[row - 1][col - 1] = store(cell); },
+    clearContent: () => {
+      for (let r = 0; r < numRows; r++) for (let c = 0; c < numCols; c++) {
+        if (rows[row - 1 + r] && rows[row - 1 + r].length >= col + c) rows[row - 1 + r][col - 1 + c] = "";
+      }
+      trimTrailing();
+    }
   });
+  // Google Sheets ignores empty rows at the bottom when reporting the last row.
+  const trimTrailing = () => {
+    while (rows.length && rows[rows.length - 1].every((cell) => cell === "" || cell === null || cell === undefined)) rows.pop();
+  };
 
   return {
     name,
@@ -50,6 +60,8 @@ function createSheet(name) {
     getRange: range,
     appendRow: (line) => { rows.push(line.map(store)); },
     deleteRow: (row) => { rows.splice(row - 1, 1); },
+    // Test helper: write rows exactly as given (e.g. legacy rows without newer columns).
+    _pushRaw: (line) => { rows.push(line); },
     deleteRows: (row, count) => { rows.splice(row - 1, count); }
   };
 }

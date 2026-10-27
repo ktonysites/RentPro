@@ -237,3 +237,112 @@ test("setupSmsWebhook creates a token once and logs the URL", () => {
   api.context.rotateSmsWebhookToken();
   assert.notEqual(api.properties.SMS_WEBHOOK_TOKEN, before);
 });
+
+// ---------- Payment history: clear, restore, 3-month bin ----------
+
+const smsFor = (code, account, payer = "THADAYO BRIAN MASIKA") =>
+  SAMPLE_SMS.replace("UJH7UAL03Q", code).replace("275515 7", account).replace("THADAYO BRIAN MASIKA", payer);
+
+test("every payment gets an ID, including rows recorded before IDs existed", () => {
+  const api = setup();
+  api.post({ message: SAMPLE_SMS }, { action: "incoming_sms", token: TOKEN });
+  // A legacy row in the old 7-column layout, with no ID.
+  api.sheets.Payments._pushRaw([new Date(2026, 5, 1), 500, "Old Tenant", "OLD-REF", "Cash", "3", "Manual"]);
+  const list = payments(api);
+  assert.equal(list.length, 2);
+  assert.ok(list.every((p) => /^PAY-/.test(p.ID)), "every payment has an ID");
+  assert.notEqual(list[0].ID, list[1].ID);
+});
+
+test("clearing payments moves them to the bin without touching balances", () => {
+  const api = setup();
+  api.post({ message: SAMPLE_SMS }, { action: "incoming_sms", token: TOKEN });
+  api.post({ message: smsFor("UJK2BBB77X", "275515 12", "MARY WAMBUI") }, { action: "incoming_sms", token: TOKEN });
+  const [first] = payments(api);
+  const before = tenants(api).map((t) => [t.Name, t.AmountPaid, t.Balance]);
+
+  const result = api.get({ action: "deletePayments", ids: first.ID });
+  assert.equal(result.success, true, result.message);
+  assert.equal(result.data.deleted, 1);
+  assert.equal(payments(api).length, 1);
+  assert.deepEqual(tenants(api).map((t) => [t.Name, t.AmountPaid, t.Balance]), before);
+
+  const bin = api.get({ action: "getDeletedPayments" }).data;
+  assert.equal(bin.length, 1);
+  assert.equal(bin[0].ID, first.ID);
+  assert.equal(bin[0].Reference, first.Reference);
+  assert.ok(bin[0].DeletedAt);
+  assert.ok(bin[0].DaysLeft >= 89 && bin[0].DaysLeft <= 90);
+});
+
+test("clear all, then restore brings payments back intact", () => {
+  const api = setup();
+  api.post({ message: SAMPLE_SMS }, { action: "incoming_sms", token: TOKEN });
+  api.post({ message: smsFor("UJK2BBB77X", "275515 12", "MARY WAMBUI") }, { action: "incoming_sms", token: TOKEN });
+  const original = payments(api);
+  api.get({ action: "deletePayments", ids: original.map((p) => p.ID).join(",") });
+  assert.equal(payments(api).length, 0);
+  assert.equal(api.sheetRows("Payments").length, 1, "only the header row is left");
+
+  const restored = api.get({ action: "restorePayments", ids: original.map((p) => p.ID).join(",") });
+  assert.equal(restored.data.restored, 2);
+  assert.equal(api.get({ action: "getDeletedPayments" }).data.length, 0);
+  const back = payments(api).sort((a, b) => a.ID.localeCompare(b.ID));
+  const orig = original.sort((a, b) => a.ID.localeCompare(b.ID));
+  assert.deepEqual(back.map((p) => [p.ID, p.Amount, p.Reference, p.Tenant, p.SmsText]), orig.map((p) => [p.ID, p.Amount, p.Reference, p.Tenant, p.SmsText]));
+});
+
+test("delete forever removes bin entries immediately", () => {
+  const api = setup();
+  api.post({ message: SAMPLE_SMS }, { action: "incoming_sms", token: TOKEN });
+  const [p] = payments(api);
+  api.get({ action: "deletePayments", ids: p.ID });
+  const purged = api.get({ action: "purgeDeletedPayments", ids: p.ID });
+  assert.equal(purged.data.purged, 1);
+  assert.equal(api.get({ action: "getDeletedPayments" }).data.length, 0);
+  assert.equal(api.get({ action: "restorePayments", ids: p.ID }).success, false);
+});
+
+test("bin entries older than 3 months are purged automatically", () => {
+  const api = setup();
+  api.post({ message: SAMPLE_SMS }, { action: "incoming_sms", token: TOKEN });
+  api.post({ message: smsFor("UJK2BBB77X", "275515 12", "MARY WAMBUI") }, { action: "incoming_sms", token: TOKEN });
+  const ids = payments(api).map((p) => p.ID);
+  api.get({ action: "deletePayments", ids: ids.join(",") });
+  // Backdate one entry to 91 days ago (DeletedAt is the 11th column).
+  const bin = api.sheetRows("DeletedPayments");
+  bin[1][10] = new Date(Date.now() - 91 * 24 * 60 * 60 * 1000);
+  const remaining = api.get({ action: "getDeletedPayments" }).data;
+  assert.equal(remaining.length, 1);
+  assert.equal(api.sheetRows("DeletedPayments").length, 2, "header + one entry left");
+});
+
+test("a re-sent SMS for a cleared payment is not credited again", () => {
+  const api = setup();
+  api.post({ message: SAMPLE_SMS }, { action: "incoming_sms", token: TOKEN });
+  api.get({ action: "deletePayments", ids: payments(api)[0].ID });
+  const again = api.post({ message: SAMPLE_SMS }, { action: "incoming_sms", token: TOKEN });
+  assert.equal(again.data.duplicate, true);
+  assert.equal(tenantIn(api, "7").AmountPaid, 8700);
+  assert.equal(payments(api).length, 0);
+});
+
+test("assigning an unmatched payment by ID still works after rows shift", () => {
+  const api = setup();
+  api.post({ message: SAMPLE_SMS }, { action: "incoming_sms", token: TOKEN });
+  api.post({ message: smsFor("UJK9ZZZ11Q", "275515 99", "PETER OTIENO") }, { action: "incoming_sms", token: TOKEN });
+  const [item] = api.get({ action: "getUnmatched" }).data;
+  const staleRow = item.rowIndex;
+  // Clearing the earlier payment moves the unmatched one up a row.
+  api.get({ action: "deletePayments", ids: payments(api).find((p) => p.Reference === "UJH7UAL03Q").ID });
+  const mary = tenantIn(api, "House 12");
+  const assigned = api.get({ action: "manualAssign", paymentId: item.ID, rowIndex: staleRow, tenantId: mary.ID });
+  assert.equal(assigned.success, true, assigned.message);
+  assert.equal(tenantIn(api, "House 12").AmountPaid, 8700);
+});
+
+test("clearing with no selection or unknown IDs is refused", () => {
+  const api = setup();
+  assert.equal(api.get({ action: "deletePayments", ids: "" }).success, false);
+  assert.equal(api.get({ action: "deletePayments", ids: "PAY-nope" }).success, false);
+});

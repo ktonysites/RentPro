@@ -148,7 +148,7 @@
             btn.disabled = true;
             btn.innerText = "Processing...";
             try {
-                const result = await apiRequest({ action: 'manualAssign', rowIndex: selectedPayment.rowIndex, tenantId });
+                const result = await apiRequest({ action: 'manualAssign', paymentId: selectedPayment.ID || '', rowIndex: selectedPayment.rowIndex, tenantId });
                 alert("✅ " + result.message);
                 location.reload();
             } catch (e) {

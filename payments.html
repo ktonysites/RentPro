@@ -4,8 +4,8 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>RentPro — Payments</title>
-  
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <link rel="stylesheet" href="styles/app.css">
@@ -13,60 +13,174 @@
   <meta name="theme-color" content="#0c1022">
   <link rel="icon" href="icons/icon-192.png">
   <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <style>
+    /* Summary tiles */
+    .pay-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; margin-bottom: 20px; }
+    .pay-stat { background: var(--rp-surface); border: 1px solid var(--rp-border); border-radius: var(--rp-radius); padding: 16px 18px; box-shadow: var(--rp-shadow); text-decoration: none; color: inherit; display: block; }
+    .pay-stat .card-label { margin-bottom: 4px; }
+    .pay-stat .value { font-size: 1.35rem; font-weight: 800; color: var(--rp-ink); letter-spacing: -0.02em; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .pay-stat.is-alert { border-color: #fcd34d; background: #fffbeb; }
+    .pay-stat.is-alert .value { color: #b45309; }
+
+    /* Tabs + toolbar */
+    .pay-toolbar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 14px; }
+    .pay-tabs { display: inline-flex; background: #e9ebf2; border-radius: 12px; padding: 4px; gap: 2px; }
+    .pay-tabs button { border: 0; background: transparent; padding: 7px 14px; border-radius: 9px; font-weight: 600; font-size: 0.86rem; color: var(--rp-muted); display: inline-flex; align-items: center; gap: 7px; }
+    .pay-tabs button.active { background: #fff; color: var(--rp-ink); box-shadow: 0 1px 3px rgba(15, 23, 42, 0.12); }
+    .pay-tabs .count { background: #dfe2ec; color: #475569; border-radius: 999px; padding: 0 7px; font-size: 0.72rem; }
+    .pay-tabs button.active .count { background: var(--rp-primary-soft); color: var(--rp-primary); }
+    .pay-search { position: relative; flex: 1 1 220px; }
+    .pay-search i { position: absolute; left: 13px; top: 50%; transform: translateY(-50%); color: var(--rp-subtle); font-size: 0.85rem; }
+    .pay-search input { padding-left: 36px; }
+    .pay-filter { width: auto; min-width: 168px; padding-right: 2.4rem; flex: 0 0 auto; }
+
+    /* Payment list */
+    .pay-list { background: var(--rp-surface); border: 1px solid var(--rp-border); border-radius: var(--rp-radius); box-shadow: var(--rp-shadow); overflow: hidden; }
+    .pay-month { display: flex; justify-content: space-between; align-items: center; padding: 10px 18px; background: var(--rp-surface-2); border-bottom: 1px solid var(--rp-border); font-size: 0.74rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--rp-muted); }
+    .pay-month:not(:first-child) { border-top: 1px solid var(--rp-border); }
+    .pay-row { display: grid; grid-template-columns: 22px 40px minmax(0, 1fr) auto auto; gap: 14px; align-items: center; padding: 13px 18px; border-bottom: 1px solid #f0f1f5; cursor: pointer; transition: background 0.12s; user-select: none; }
+    .pay-row:last-child { border-bottom: 0; }
+    .pay-row:hover { background: #f8f9fd; }
+    .pay-row.selected { background: var(--rp-primary-soft); }
+    .pay-row .form-check-input { margin: 0; width: 1.1em; height: 1.1em; cursor: pointer; }
+    .pay-avatar { width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; font-weight: 700; background: var(--rp-primary-soft); color: var(--rp-primary); }
+    .pay-avatar.is-warning { background: var(--rp-warning-soft); color: #b45309; }
+    .pay-avatar.is-muted { background: #eef0f5; color: var(--rp-muted); }
+    .min-w-0 { min-width: 0; }
+    .pay-name { font-weight: 600; color: var(--rp-ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .pay-meta { font-size: 0.8rem; color: var(--rp-muted); display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: center; margin-top: 2px; }
+    .pay-meta .badge-ref { font-size: 0.72rem; padding: 1px 6px; }
+    .pay-house { font-weight: 600; color: #475569; }
+    .pay-amount { font-weight: 800; color: var(--rp-success); font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
+    .pay-status { justify-self: end; }
+    .pay-expiry { font-size: 0.76rem; color: var(--rp-muted); white-space: nowrap; }
+    .pay-expiry.is-soon { color: var(--rp-danger); font-weight: 600; }
+    .pay-empty { text-align: center; padding: 56px 20px; color: var(--rp-muted); }
+    .pay-empty i { font-size: 2rem; color: #c7cbe0; margin-bottom: 12px; display: block; }
+    .bin-note { display: flex; gap: 10px; align-items: flex-start; background: #f5f3ff; border: 1px solid #e0dbff; color: #4c3fa8; border-radius: 12px; padding: 11px 14px; font-size: 0.85rem; margin-bottom: 14px; }
+
+    /* Floating selection bar */
+    .select-bar { position: sticky; bottom: 20px; z-index: 20; margin-top: 16px; display: none; align-items: center; gap: 10px; flex-wrap: wrap; background: var(--rp-sidebar); color: #fff; border-radius: 16px; padding: 10px 12px 10px 18px; box-shadow: 0 16px 40px rgba(12, 16, 34, 0.35); }
+    .select-bar.show { display: flex; }
+    .select-bar .summary { font-weight: 600; margin-right: auto; font-size: 0.9rem; }
+    .select-bar .summary small { color: #a3abc4; font-weight: 500; margin-left: 6px; }
+    .select-bar .btn { border-radius: 10px; }
+    .select-bar .btn-ghost { color: #c7cbe0; background: transparent; border: 0; }
+    .select-bar .btn-ghost:hover { color: #fff; background: rgba(255, 255, 255, 0.08); }
+
+    /* Toasts */
+    .rp-toast-wrap { position: fixed; top: 20px; right: 20px; z-index: 1100; display: flex; flex-direction: column; gap: 8px; }
+    .rp-toast { background: var(--rp-ink); color: #fff; padding: 11px 16px; border-radius: 12px; box-shadow: var(--rp-shadow-lg); font-size: 0.88rem; font-weight: 500; display: flex; gap: 10px; align-items: center; animation: toastIn 0.2s ease-out; }
+    .rp-toast.is-error { background: #991b1b; }
+    @keyframes toastIn { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
+
+    @media (max-width: 991.98px) {
+      .select-bar { bottom: calc(var(--rp-tabbar-h) + var(--rp-safe-bottom) + 12px); }
+      .rp-toast-wrap { top: calc(70px + var(--rp-safe-top)); left: 16px; right: 16px; }
+    }
+    @media (max-width: 767.98px) {
+      .pay-stats { gap: 10px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .pay-stats .pay-stat:first-child { grid-column: 1 / -1; }
+      .pay-stat { padding: 12px 14px; }
+      .pay-stat .value { font-size: 1.1rem; }
+      .pay-stat .card-label { font-size: 0.64rem; }
+      .pay-tabs { width: 100%; }
+      .pay-tabs button { flex: 1; justify-content: center; }
+      .pay-filter { flex: 1 1 100%; width: 100%; }
+      .pay-row { grid-template-columns: 22px minmax(0, 1fr) auto; gap: 12px; padding: 12px 14px; }
+      .pay-row .pay-avatar { display: none; }
+      .pay-row .pay-status { grid-column: 2; justify-self: start; }
+      .pay-row .pay-amount { grid-row: 1; grid-column: 3; }
+      .select-bar .summary { flex: 1 1 100%; margin: 0 0 2px; }
+      .select-bar .btn { flex: 1; }
+    }
+  </style>
 </head>
 <body data-page="payments">
   <script src="js/shell.js"></script>
 
-
   <main class="content">
     <div class="page-head">
       <div>
-        <h2 class="fw-bold mb-1 text-dark">Payment History</h2>
-        <p class="text-muted small m-0">Real-time log of incoming transactions.</p>
+        <h2>Payments</h2>
+        <p>Every rent payment received, newest first. Select payments to clear them from the history.</p>
       </div>
       <div class="page-actions">
-          <a href="reconcile.html" class="btn btn-outline-warning" id="unmatchedBtn">
-            <i class="fa-solid fa-triangle-exclamation me-2"></i> Unmatched <span id="unmatchedCount" class="badge bg-warning text-dark ms-1">0</span>
-          </a>
-          <button onclick="downloadCSV()" class="btn btn-outline-success">
+          <button onclick="downloadCSV()" class="btn btn-outline-secondary">
             <i class="fa-solid fa-file-csv me-2"></i> Export
           </button>
-          <button onclick="loadPayments()" class="btn btn-outline-primary">
+          <button onclick="reloadAll()" class="btn btn-outline-secondary">
             <i class="fa-solid fa-rotate me-2"></i> Refresh
           </button>
       </div>
     </div>
 
-    <div class="card-table">
-      <div class="table-responsive">
-        <table class="table table-stack table-hover mb-0">
-          <thead>
-            <tr>
-              <th>Date</th>
-              <th>Reference</th>
-              <th>Payer Name</th>
-              <th>Match Status</th>
-              <th class="text-end">Amount</th>
-            </tr>
-          </thead>
-          <tbody id="paymentTableBody">
-             <tr>
-               <td colspan="5" class="text-center p-5 text-muted">
-                 <i class="fa-solid fa-circle-notch fa-spin fs-4 mb-2"></i><br>Syncing transactions...
-               </td>
-             </tr>
-          </tbody>
-        </table>
+    <div class="pay-stats">
+      <div class="pay-stat"><div class="card-label">This month</div><div class="value" id="statMonth">–</div></div>
+      <div class="pay-stat"><div class="card-label">Payments</div><div class="value" id="statCount">–</div></div>
+      <a href="reconcile.html" class="pay-stat" id="statUnmatchedCard"><div class="card-label">Unmatched</div><div class="value" id="unmatchedCount">–</div></a>
+    </div>
+
+    <div class="pay-toolbar">
+      <div class="pay-tabs" role="tablist">
+        <button type="button" class="active" data-tab="history" role="tab"><i class="fa-solid fa-clock-rotate-left"></i>History</button>
+        <button type="button" data-tab="bin" role="tab"><i class="fa-solid fa-trash-can"></i><span class="d-none d-sm-inline">Recently deleted</span><span class="d-sm-none">Deleted</span> <span class="count" id="binCount">0</span></button>
       </div>
+      <div class="pay-search">
+        <i class="fa-solid fa-magnifying-glass"></i>
+        <input type="search" id="searchInput" class="form-control" placeholder="Search name, house or M-Pesa code">
+      </div>
+      <select id="statusFilter" class="form-select pay-filter" aria-label="Filter by status">
+        <option value="all">All payments</option>
+        <option value="matched">Matched</option>
+        <option value="unmatched">Unmatched</option>
+      </select>
+    </div>
+
+    <div id="binNote" class="bin-note d-none">
+      <i class="fa-solid fa-circle-info mt-1"></i>
+      <div>Cleared payments are kept here for <strong>3 months</strong>, then deleted permanently. Restore one to put it back in the history. Clearing or restoring never changes tenant balances.</div>
+    </div>
+
+    <div class="pay-list" id="payList">
+      <div class="pay-empty"><i class="fa-solid fa-circle-notch fa-spin"></i>Loading payments...</div>
+    </div>
+
+    <div class="select-bar" id="selectBar" role="region" aria-label="Selected payments">
+      <div class="summary"><span id="selCount">0 selected</span><small id="selTotal"></small></div>
+      <button type="button" class="btn btn-ghost btn-sm" id="selAllBtn">Select all</button>
+      <button type="button" class="btn btn-ghost btn-sm" id="selNoneBtn">Cancel</button>
+      <button type="button" class="btn btn-light btn-sm d-none" id="restoreBtn"><i class="fa-solid fa-rotate-left me-1"></i>Restore</button>
+      <button type="button" class="btn btn-danger btn-sm" id="clearBtn"><i class="fa-solid fa-trash-can me-1"></i>Clear</button>
     </div>
   </main>
 
+  <div class="modal fade" id="confirmModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-body p-4">
+          <div class="d-flex gap-3">
+            <div class="icon-box bg-danger bg-opacity-10 text-danger" id="confirmIcon"><i class="fa-solid fa-trash-can"></i></div>
+            <div>
+              <h5 class="fw-bold mb-1" id="confirmTitle">Clear payments?</h5>
+              <p class="text-muted mb-0 small" id="confirmText"></p>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer border-0 pt-0">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="button" class="btn btn-danger" id="confirmOk">Clear</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="rp-toast-wrap" id="toasts" aria-live="polite"></div>
+
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
-
-
-    <script src="global.js"></script>
-    <script src="js/dev-auth.js"></script>
-    <script type="module">
+  <script src="global.js"></script>
+  <script src="js/dev-auth.js"></script>
+  <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
     import { getAuth, onAuthStateChanged as firebaseOnAuthStateChanged, signOut as firebaseSignOut } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 
@@ -82,126 +196,281 @@
 
     const app = initializeApp(firebaseConfig);
     const auth = getAuth(app);
-    let currentUserUID = null;
-    let currentPayments = []; // Store for Export
 
-    // 🔴 YOUR WEB APP URL 🔴
-    const WEB_APP_URL = window.API_URL;
+    const state = { tab: 'history', payments: [], deleted: [], selected: new Set() };
+    const $ = (id) => document.getElementById(id);
+    const money = (amount) => 'KES ' + Number(amount || 0).toLocaleString('en-KE');
+    const isUnmatched = (p) => /unmatched|unassigned/i.test(p.Notes || '');
+    const confirmModal = new bootstrap.Modal($('confirmModal'));
 
     RentProDevAuth.onAuthStateChanged(auth, (user) => {
-        if (user) {
-            currentUserUID = user.uid;
-            loadPayments();
-        } else {
-            window.location.href = "index.html";
-        }
+        if (user) reloadAll();
+        else window.location.href = "index.html";
     }, firebaseOnAuthStateChanged);
 
-    const money = (amount) => {
-        return new Intl.NumberFormat('en-KE', { 
-            style: 'currency', currency: 'KES', minimumFractionDigits: 0 
-        }).format(amount).replace('KES', '').trim();
+    function toast(message, isError = false) {
+        const el = document.createElement('div');
+        el.className = 'rp-toast' + (isError ? ' is-error' : '');
+        el.innerHTML = `<i class="fa-solid ${isError ? 'fa-circle-exclamation' : 'fa-circle-check'}"></i><span>${escapeHtml(message)}</span>`;
+        $('toasts').appendChild(el);
+        setTimeout(() => el.remove(), 4000);
+    }
+
+    window.reloadAll = async function() {
+        state.selected.clear();
+        $('payList').innerHTML = `<div class="pay-empty"><i class="fa-solid fa-circle-notch fa-spin"></i>Loading payments...</div>`;
+        try {
+            // The bin needs the updated Apps Script backend; history still loads if it isn't deployed yet.
+            const [paymentsRes, deletedRes] = await Promise.all([
+                apiRequest({ action: 'getPayments' }),
+                apiRequest({ action: 'getDeletedPayments' }).catch(error => ({ data: [], unavailable: error.message }))
+            ]);
+            state.payments = (paymentsRes.data || []).sort(byDateDesc);
+            state.deleted = (deletedRes.data || []).sort((a, b) => new Date(b.DeletedAt) - new Date(a.DeletedAt));
+            state.binUnavailable = deletedRes.unavailable || '';
+            renderStats();
+            render();
+        } catch (error) {
+            console.error(error);
+            $('payList').innerHTML = `<div class="pay-empty"><i class="fa-solid fa-triangle-exclamation"></i>Couldn't load payments. ${escapeHtml(error.message)}</div>`;
+        }
     };
 
-    // Helper: Normalize keys to handle case sensitivity
-    function normalizeData(item) {
-        const newItem = {};
-        Object.keys(item).forEach(key => {
-            const cleanKey = key.toLowerCase().replace(/[^a-z0-9]/g, ''); 
-            newItem[cleanKey] = item[key];
+    const byDateDesc = (a, b) => (new Date(b.Date) || 0) - (new Date(a.Date) || 0);
+
+    function renderStats() {
+        const now = new Date();
+        const thisMonth = state.payments.filter(p => { const d = new Date(p.Date); return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear(); });
+        $('statMonth').innerText = money(thisMonth.reduce((sum, p) => sum + Number(p.Amount || 0), 0));
+        $('statCount').innerText = state.payments.length.toLocaleString();
+        const unmatched = state.payments.filter(isUnmatched).length;
+        $('unmatchedCount').innerText = unmatched;
+        $('statUnmatchedCard').classList.toggle('is-alert', unmatched > 0);
+        $('binCount').innerText = state.deleted.length;
+        updateUnmatchedBadge(unmatched);
+    }
+
+    function visibleItems() {
+        const query = $('searchInput').value.trim().toLowerCase();
+        const status = $('statusFilter').value;
+        const source = state.tab === 'bin' ? state.deleted : state.payments;
+        return source.filter(p => {
+            if (status === 'matched' && isUnmatched(p)) return false;
+            if (status === 'unmatched' && !isUnmatched(p)) return false;
+            if (!query) return true;
+            return [p.Tenant, p.Payer, p.House, p.Reference, p.Method].some(v => String(v || '').toLowerCase().includes(query));
         });
-        return newItem;
     }
 
-    window.loadPayments = async function() {
-        const tbody = document.getElementById('paymentTableBody');
-        tbody.innerHTML = `<tr><td colspan="5" class="text-center p-5 text-muted"><i class="fa-solid fa-circle-notch fa-spin fs-4 mb-2"></i><br>Syncing transactions...</td></tr>`;
+    function render() {
+        const items = visibleItems();
+        const list = $('payList');
+        $('binNote').classList.toggle('d-none', state.tab !== 'bin');
 
-        try {
-            const res = await fetch(`${WEB_APP_URL}?action=getPayments&t=${new Date().getTime()}`);
-            const json = await res.json();
-            const rawData = Array.isArray(json) ? json : (json.data || []);
-
-            // Normalize
-            let payments = rawData.map(normalizeData);
-
-            // 🔴 FILTER BY USER ID 🔴
-            // This installation contains one property's payment history.
-            
-            // Store for CSV Export
-            currentPayments = payments;
-            const unmatchedCount = payments.filter(p => /unmatched|unassigned/i.test(p.notes || '')).length;
-            document.getElementById('unmatchedCount').innerText = unmatchedCount;
-            updateUnmatchedBadge(unmatchedCount);
-
-            // Sort by Date (Newest First)
-            payments.sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
-
-            tbody.innerHTML = "";
-
-            if (payments.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="5" class="text-center p-5 text-muted">No payment history found.</td></tr>`;
-                return;
-            }
-
-            payments.forEach(p => {
-                // Access normalized keys
-                let dateDisplay = p.date || '-';
-                try { 
-                    const d = new Date(p.date);
-                    if(!isNaN(d)) dateDisplay = d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute:'2-digit' });
-                } catch(e){}
-
-                const name = p.tenant || p.payer || 'Unknown';
-                const ref = p.reference || p.method || 'MANUAL';
-                const status = p.notes || 'Confirmed';
-                const amount = p.amount || 0;
-                const house = p.house ? `<div class="small text-muted">House ${escapeHtml(p.house)}</div>` : '';
-                const statusBadge = /unmatched|unassigned/i.test(status)
-                    ? `<a href="reconcile.html" class="badge-status is-warning text-decoration-none">${escapeHtml(status)}</a>`
-                    : `<span class="badge-status">${escapeHtml(status)}</span>`;
-
-                tbody.innerHTML += `
-                    <tr>
-                        <td data-label="Date" class="text-muted small fw-bold">${dateDisplay}</td>
-                        <td data-label="Reference"><span class="badge-ref">${escapeHtml(ref)}</span></td>
-                        <td class="td-primary fw-bold text-dark">${escapeHtml(name)}${house}</td>
-                        <td data-label="Status">${statusBadge}</td>
-                        <td data-label="Amount" class="text-end fw-bold text-success">${money(amount)}</td>
-                    </tr>`;
-            });
-
-        } catch(e) {
-            console.error(e);
-            tbody.innerHTML = `<tr><td colspan="5" class="text-center text-danger p-4">Error loading data.</td></tr>`;
+        if (state.tab === 'bin' && state.binUnavailable) {
+            list.innerHTML = `<div class="pay-empty"><i class="fa-solid fa-plug-circle-exclamation"></i>Recently deleted needs the latest Apps Script update (paste the new Code.gs and deploy a new version).</div>`;
+            updateSelectBar();
+            return;
         }
+        if (!items.length) {
+            const searching = $('searchInput').value.trim() || $('statusFilter').value !== 'all';
+            list.innerHTML = state.tab === 'bin'
+                ? `<div class="pay-empty"><i class="fa-regular fa-trash-can"></i>${searching ? 'No deleted payments match.' : 'Nothing here. Cleared payments appear here for 3 months.'}</div>`
+                : `<div class="pay-empty"><i class="fa-regular fa-folder-open"></i>${searching ? 'No payments match your search.' : 'No payments recorded yet.'}</div>`;
+            updateSelectBar();
+            return;
+        }
+
+        // Group by month of the payment date.
+        let html = '';
+        let currentMonth = null;
+        const monthTotals = {};
+        items.forEach(p => { const key = monthKey(p.Date); monthTotals[key] = (monthTotals[key] || 0) + Number(p.Amount || 0); });
+        items.forEach(p => {
+            const key = monthKey(p.Date);
+            if (key !== currentMonth) {
+                currentMonth = key;
+                html += `<div class="pay-month"><span>${escapeHtml(monthLabel(p.Date))}</span><span>${money(monthTotals[key])}</span></div>`;
+            }
+            html += rowHtml(p);
+        });
+        list.innerHTML = html;
+        updateSelectBar();
     }
 
-    // --- CSV EXPORT FUNCTION ---
-    window.downloadCSV = () => {
-        if(currentPayments.length === 0) { alert("No data to export."); return; }
+    const monthKey = (value) => { const d = new Date(value); return isNaN(d) ? 'unknown' : `${d.getFullYear()}-${d.getMonth()}`; };
+    const monthLabel = (value) => { const d = new Date(value); return isNaN(d) ? 'Unknown date' : d.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' }); };
 
+    function rowHtml(p) {
+        const id = String(p.ID || '');
+        const selectable = !!id;
+        const checked = state.selected.has(id);
+        const name = String(p.Tenant || p.Payer || 'Unknown');
+        const unmatched = isUnmatched(p);
+        const d = new Date(p.Date);
+        const when = isNaN(d) ? '' : d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) + ', ' + d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+        const house = p.House ? `<span class="pay-house">House ${escapeHtml(p.House)}</span>` : '';
+        const ref = p.Reference ? `<span class="badge-ref">${escapeHtml(p.Reference)}</span>` : `<span>${escapeHtml(p.Method || 'Manual')}</span>`;
+
+        let status;
+        if (state.tab === 'bin') {
+            const days = Number(p.DaysLeft);
+            const deletedOn = new Date(p.DeletedAt);
+            status = `<span class="pay-expiry ${days <= 7 ? 'is-soon' : ''}" title="Cleared ${isNaN(deletedOn) ? '' : deletedOn.toLocaleDateString('en-GB')}">${days <= 0 ? 'Deletes today' : `Deletes in ${days} day${days === 1 ? '' : 's'}`}</span>`;
+        } else if (unmatched) {
+            status = `<a href="reconcile.html" class="badge-status is-warning text-decoration-none" onclick="event.stopPropagation()">Unmatched</a>`;
+        } else {
+            status = `<span class="badge-status">${escapeHtml(/auto-matched/i.test(p.Notes || '') ? 'Auto-matched' : (p.Notes || 'Confirmed'))}</span>`;
+        }
+
+        return `
+          <div class="pay-row ${checked ? 'selected' : ''}" data-id="${escapeHtml(id)}" ${selectable ? '' : 'title="This payment can be cleared after the next refresh"'}>
+            <input class="form-check-input" type="checkbox" ${checked ? 'checked' : ''} ${selectable ? '' : 'disabled'} aria-label="Select payment from ${escapeHtml(name)}">
+            <div class="pay-avatar ${state.tab === 'bin' ? 'is-muted' : (unmatched ? 'is-warning' : '')}">${escapeHtml(name.charAt(0).toUpperCase())}</div>
+            <div class="min-w-0">
+              <div class="pay-name">${escapeHtml(name)}</div>
+              <div class="pay-meta">${house}${ref}<span>${when}</span></div>
+            </div>
+            <div class="pay-status">${status}</div>
+            <div class="pay-amount">${money(p.Amount)}</div>
+          </div>`;
+    }
+
+    // Tap a row (or its checkbox) to select it.
+    $('payList').addEventListener('click', (event) => {
+        const row = event.target.closest('.pay-row');
+        if (!row || !row.dataset.id) return;
+        const id = row.dataset.id;
+        if (state.selected.has(id)) state.selected.delete(id); else state.selected.add(id);
+        row.classList.toggle('selected', state.selected.has(id));
+        row.querySelector('.form-check-input').checked = state.selected.has(id);
+        updateSelectBar();
+    });
+
+    function selectedItems() {
+        const source = state.tab === 'bin' ? state.deleted : state.payments;
+        return source.filter(p => state.selected.has(String(p.ID)));
+    }
+
+    function updateSelectBar() {
+        const items = selectedItems();
+        $('selectBar').classList.toggle('show', items.length > 0);
+        $('selCount').innerText = `${items.length} selected`;
+        $('selTotal').innerText = items.length ? money(items.reduce((s, p) => s + Number(p.Amount || 0), 0)) : '';
+        const allVisible = visibleItems().filter(p => p.ID);
+        $('selAllBtn').innerHTML = allVisible.length && allVisible.every(p => state.selected.has(String(p.ID)))
+            ? 'All selected'
+            : `<span class="d-none d-sm-inline">Select all</span><span class="d-sm-none">All</span> (${allVisible.length})`;
+        $('restoreBtn').classList.toggle('d-none', state.tab !== 'bin');
+        $('clearBtn').innerHTML = state.tab === 'bin'
+            ? '<i class="fa-solid fa-trash-can me-1"></i>Delete forever'
+            : '<i class="fa-solid fa-trash-can me-1"></i>Clear';
+    }
+
+    $('selAllBtn').addEventListener('click', () => {
+        visibleItems().forEach(p => { if (p.ID) state.selected.add(String(p.ID)); });
+        render();
+    });
+    $('selNoneBtn').addEventListener('click', () => { state.selected.clear(); render(); });
+
+    document.querySelectorAll('.pay-tabs button').forEach(button => button.addEventListener('click', () => {
+        document.querySelectorAll('.pay-tabs button').forEach(b => b.classList.toggle('active', b === button));
+        state.tab = button.dataset.tab;
+        state.selected.clear();
+        render();
+    }));
+    $('searchInput').addEventListener('input', render);
+    $('statusFilter').addEventListener('change', render);
+
+    // Confirm, then run one of: clear (to bin), restore, delete forever.
+    let pendingAction = null;
+    function ask({ title, text, okLabel, danger, icon, action }) {
+        $('confirmTitle').innerText = title;
+        $('confirmText').innerText = text;
+        $('confirmOk').innerText = okLabel;
+        $('confirmOk').className = 'btn ' + (danger ? 'btn-danger' : 'btn-primary');
+        $('confirmIcon').className = 'icon-box ' + (danger ? 'bg-danger bg-opacity-10 text-danger' : 'bg-blue-light');
+        $('confirmIcon').innerHTML = `<i class="fa-solid ${icon}"></i>`;
+        pendingAction = action;
+        confirmModal.show();
+    }
+
+    $('confirmOk').addEventListener('click', async () => {
+        if (!pendingAction) return;
+        const button = $('confirmOk');
+        const label = button.innerText;
+        button.disabled = true;
+        button.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i>';
+        try {
+            const result = await pendingAction();
+            confirmModal.hide();
+            toast(result.message);
+            await reloadAll();
+        } catch (error) {
+            toast(error.message, true);
+        } finally {
+            button.disabled = false;
+            button.innerText = label;
+            pendingAction = null;
+        }
+    });
+
+    const plural = (n) => `${n} payment${n === 1 ? '' : 's'}`;
+
+    $('clearBtn').addEventListener('click', () => {
+        const items = selectedItems();
+        if (!items.length) return;
+        const ids = items.map(p => p.ID).join(',');
+        const total = money(items.reduce((s, p) => s + Number(p.Amount || 0), 0));
+        if (state.tab === 'bin') {
+            ask({
+                title: `Delete ${plural(items.length)} forever?`,
+                text: `${total} of payment records will be erased now and can't be restored.`,
+                okLabel: 'Delete forever', danger: true, icon: 'fa-trash-can',
+                action: () => apiRequest({ action: 'purgeDeletedPayments', ids })
+            });
+        } else {
+            ask({
+                title: `Clear ${plural(items.length)}?`,
+                text: `${total} of payments will move to Recently deleted. You can restore them for 3 months; after that they're deleted permanently. Tenant balances won't change.`,
+                okLabel: 'Clear', danger: true, icon: 'fa-trash-can',
+                action: () => apiRequest({ action: 'deletePayments', ids })
+            });
+        }
+    });
+
+    $('restoreBtn').addEventListener('click', () => {
+        const items = selectedItems();
+        if (!items.length) return;
+        ask({
+            title: `Restore ${plural(items.length)}?`,
+            text: 'They go back into the payment history. Tenant balances won\'t change.',
+            okLabel: 'Restore', danger: false, icon: 'fa-rotate-left',
+            action: () => apiRequest({ action: 'restorePayments', ids: items.map(p => p.ID).join(',') })
+        });
+    });
+
+    // --- CSV EXPORT (current tab, current filters) ---
+    window.downloadCSV = () => {
+        const items = visibleItems();
+        if (!items.length) { toast('Nothing to export.', true); return; }
         const quote = (val) => `"${String(val ?? '').replace(/"/g, '""')}"`;
         let csvContent = "Date,Reference,Tenant,House,Payer,Method,Amount,Status\n";
-
-        currentPayments.forEach(p => {
-            let dateStr = p.date || '';
-            try { dateStr = new Date(p.date).toISOString().split('T')[0]; } catch(e){}
-            csvContent += [dateStr, p.reference, p.tenant, p.house, p.payer, p.method, p.amount || 0, p.notes || 'Confirmed'].map(quote).join(",") + "\n";
+        items.forEach(p => {
+            let dateStr = p.Date || '';
+            try { dateStr = new Date(p.Date).toISOString().split('T')[0]; } catch(e){}
+            csvContent += [dateStr, p.Reference, p.Tenant, p.House, p.Payer, p.Method, p.Amount || 0, p.Notes || 'Confirmed'].map(quote).join(",") + "\n";
         });
-
         // A Blob keeps '#' in references from truncating the file, which a data: URI would.
         const link = document.createElement("a");
-        link.setAttribute("href", URL.createObjectURL(new Blob([csvContent], { type: "text/csv" })));
-        link.setAttribute("download", "RentPro_Payments.csv");
+        link.href = URL.createObjectURL(new Blob([csvContent], { type: "text/csv" }));
+        link.download = state.tab === 'bin' ? "RentPro_Deleted_Payments.csv" : "RentPro_Payments.csv";
         document.body.appendChild(link);
         link.click();
-        document.body.removeChild(link);
+        link.remove();
     };
 
-    if(document.getElementById('logoutBtn')) {
-        document.getElementById('logoutBtn').addEventListener('click', () => RentProDevAuth.signOut(auth, firebaseSignOut));
-    }
+    if ($('logoutBtn')) $('logoutBtn').addEventListener('click', () => RentProDevAuth.signOut(auth, firebaseSignOut));
   </script>
 </body>
 </html>
