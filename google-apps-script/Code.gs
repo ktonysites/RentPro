@@ -934,8 +934,10 @@ function initSheets() {
 
 /* ---------- AI assistant ----------
  * Free by default: the built-in assistant (freeAssistant, below) answers from the sheet data with no API key.
- * Optional upgrade: add ANTHROPIC_API_KEY in Apps Script → Project Settings → Script properties to use Claude
- * for free-form questions. The key stays on Google's side; the website and app never see it.
+ * Optional upgrades, in Apps Script → Project Settings → Script properties, for free-form questions:
+ *   GEMINI_API_KEY    - Google Gemini (free tier from aistudio.google.com)
+ *   ANTHROPIC_API_KEY - Claude (paid; used instead of Gemini when both are set)
+ * Keys stay on Google's side; the website and app never see them. If the model fails, the free assistant answers.
  * Tenant phone numbers, ID numbers and raw SMS text are never sent to the model.
  *
  * Modes:
@@ -965,14 +967,18 @@ var AI_PAGE_GUIDES = {
 };
 
 function aiAssist(data) {
-  var apiKey = PropertiesService.getScriptProperties().getProperty("ANTHROPIC_API_KEY");
+  var properties = PropertiesService.getScriptProperties();
+  var apiKey = properties.getProperty("ANTHROPIC_API_KEY");
+  var geminiKey = apiKey ? "" : properties.getProperty("GEMINI_API_KEY");
+  var engine = apiKey ? "claude" : geminiKey ? "gemini" : "free";
+  var engineName = engine === "claude" ? "Claude" : "Gemini";
   var mode = String(value(data, ["mode"], "ask"));
   if (["ask", "insights", "reminder", "matchSuggest", "categorize"].indexOf(mode) < 0) return response(false, "Unknown AI mode");
   var page = AI_PAGE_GUIDES[String(value(data, ["page"], ""))] ? String(data.page) : "assistant";
   var question = String(value(data, ["question"], "")).slice(0, 2000);
   if (mode === "categorize" && !question) return response(false, "Enter a description first");
   var context = aiContext(String(value(data, ["tenantId"], "")));
-  if (mode === "matchSuggest" && !context.unmatched.length) return response(true, "No unmatched payments", { suggestions: [], engine: apiKey ? "claude" : "free" });
+  if (mode === "matchSuggest" && !context.unmatched.length) return response(true, "No unmatched payments", { suggestions: [], engine: engine });
   var language = String(value(data, ["language"], "")).toLowerCase() === "kiswahili" ? "Kiswahili" : "English";
 
   var answerFree = function(notice) {
@@ -981,10 +987,12 @@ function aiAssist(data) {
     if (notice) result.notice = notice;
     return response(true, "OK", result);
   };
-  if (!apiKey) return answerFree();
+  if (engine === "free") return answerFree();
 
   var base = "You are RentPro's assistant for a Kenyan landlord managing one property. Amounts are in KES. " +
-    "Use only the property data provided; if it doesn't contain the answer, say so plainly. Be concise and practical.";
+    "Use only the property data provided; if it doesn't contain the answer, say so plainly. Be concise and practical. " +
+    "The 'calculated' section holds exact figures worked out by RentPro (late payments, due dates, totals): prefer them over your own arithmetic. " +
+    "If asked how to use the app, answer from the 'appHelp' notes.";
   var request;
   if (mode === "ask") {
     request = {
@@ -1049,23 +1057,42 @@ function aiAssist(data) {
     };
   }
 
-  var body = {
-    model: AI_MODEL,
-    max_tokens: request.maxTokens || 4000,
-    output_config: { effort: "low" },
-    fallbacks: "default",
-    system: request.system + "\n\nProperty data (JSON):\n" + JSON.stringify(context),
-    messages: (mode === "ask" ? aiHistory(data) : []).concat([{ role: "user", content: request.question }])
-  };
-  if (request.schema) body.output_config.format = { type: "json_schema", schema: request.schema };
+  // Exact figures from the built-in calculator, so the model doesn't have to do the arithmetic itself.
+  var calculated = {};
+  if (mode === "ask" || mode === "insights") {
+    calculated.briefing = freeBriefing(freeFacts(context));
+    var help = mode === "ask" && freeAppHelp(question.toLowerCase());
+    if (help) calculated.appHelp = help;
+  }
+  var system = request.system + "\n\nProperty data (JSON):\n" + JSON.stringify(context) +
+    (calculated.briefing ? "\n\ncalculated (JSON):\n" + JSON.stringify(calculated) : "");
+  var history = mode === "ask" ? aiHistory(data) : [];
 
   var reply;
-  try { reply = callClaude(apiKey, body); } catch (error) { reply = { ok: false, message: "Couldn't reach Claude." }; }
+  try {
+    if (engine === "claude") {
+      var body = {
+        model: AI_MODEL,
+        max_tokens: request.maxTokens || 4000,
+        output_config: { effort: "low" },
+        fallbacks: "default",
+        system: system,
+        messages: history.concat([{ role: "user", content: request.question }])
+      };
+      if (request.schema) body.output_config.format = { type: "json_schema", schema: request.schema };
+      reply = callClaude(apiKey, body);
+    } else {
+      reply = callGemini(geminiKey, system, history, request.question, request.schema, request.maxTokens || 4000);
+    }
+  } catch (error) {
+    reply = { ok: false, message: "Couldn't reach " + engineName + "." };
+  }
   if (!reply.ok) return answerFree(reply.message + " Answered with the free assistant instead.");
-  if (!request.schema) return response(true, "OK", { text: reply.text, engine: "claude" });
+  if (!request.schema) return response(true, "OK", { text: reply.text, engine: engine });
 
   var parsed;
-  try { parsed = JSON.parse(reply.text); } catch (error) { return answerFree("Claude's reply couldn't be read. Answered with the free assistant instead."); }
+  try { parsed = JSON.parse(reply.text.replace(/^```(?:json)?\s*|\s*```$/g, "")); } catch (error) { parsed = null; }
+  if (!parsed || typeof parsed !== "object") return answerFree(engineName + "'s reply couldn't be read. Answered with the free assistant instead.");
   if (mode === "matchSuggest") {
     // Keep only suggestions that point at real unmatched payments and real tenants.
     var tenantIds = {};
@@ -1075,11 +1102,14 @@ function aiAssist(data) {
     parsed.suggestions = (parsed.suggestions || []).filter(function(s) { return paymentIds[s.paymentId]; }).map(function(s) {
       var tenant = tenantIds[s.tenantId];
       return { paymentId: s.paymentId, tenantId: tenant ? s.tenantId : "", tenantName: tenant ? tenant.name : "", house: tenant ? tenant.house : "",
-        confidence: tenant ? s.confidence : "low", reason: s.reason };
+        confidence: tenant && ["high", "medium", "low"].indexOf(s.confidence) >= 0 ? s.confidence : "low", reason: String(s.reason || "") };
     });
   }
-  if (mode === "categorize" && EXPENSE_CATEGORIES.indexOf(parsed.category) < 0) parsed.category = "Other";
-  parsed.engine = "claude";
+  if (mode === "categorize") {
+    if (EXPENSE_CATEGORIES.indexOf(parsed.category) < 0) parsed.category = "Other";
+    parsed = { category: parsed.category, house: String(parsed.house || "General"), reason: String(parsed.reason || "") };
+  }
+  parsed.engine = engine;
   return response(true, "OK", parsed);
 }
 
@@ -1093,7 +1123,7 @@ function aiContext(tenantId) {
   };
   var context = {
     today: Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyy-MM-dd"),
-    paybill: "Equity paybill 247247, account 275515 <house number>",
+    paybill: "Equity paybill 247247, account 275515#<house number>",
     tenants: tenants.map(function(t) {
       return { id: String(t.ID), name: t.Name, house: t.House, rent: t.Rent, paid: t.AmountPaid, balance: t.Balance,
         dueDay: t.DueDate, since: t.DateAdded, hasNextOfKin: !!String(t.NextOfKin || "").trim() };
@@ -1146,6 +1176,44 @@ function callClaude(apiKey, body) {
   if (result.stop_reason === "refusal") return { ok: false, message: "The AI declined this request. Try rephrasing it." };
   if (result.stop_reason === "max_tokens") return { ok: false, message: "The AI reply was too long. Try a narrower question." };
   var text = (result.content || []).filter(function(b) { return b.type === "text"; }).map(function(b) { return b.text; }).join("\n").trim();
+  return { ok: true, text: text };
+}
+
+// One Gemini generateContent call (Google AI Studio key; the free tier covers this model).
+// history uses the Claude roles (user/assistant); Gemini calls the assistant "model".
+// Returns { ok, text } or { ok: false, message }.
+var GEMINI_MODEL = "gemini-3.8-flash";
+
+function callGemini(apiKey, system, history, question, schema, maxTokens) {
+  var contents = history.map(function(turn) {
+    return { role: turn.role === "assistant" ? "model" : "user", parts: [{ text: turn.content }] };
+  }).concat([{ role: "user", parts: [{ text: question }] }]);
+  var body = {
+    systemInstruction: { parts: [{ text: system + (schema ? "\n\nReply with JSON only, matching this JSON schema:\n" + JSON.stringify(schema) : "") }] },
+    contents: contents,
+    generationConfig: { maxOutputTokens: maxTokens || 4000 }
+  };
+  if (schema) body.generationConfig.responseMimeType = "application/json";
+  var res = UrlFetchApp.fetch("https://generativelanguage.googleapis.com/v1beta/models/" + GEMINI_MODEL + ":generateContent", {
+    method: "post",
+    contentType: "application/json",
+    headers: { "x-goog-api-key": apiKey },
+    payload: JSON.stringify(body),
+    muteHttpExceptions: true
+  });
+  var code = res.getResponseCode();
+  var result;
+  try { result = JSON.parse(res.getContentText()); } catch (error) { return { ok: false, message: "Gemini returned an unexpected reply (" + code + ")" }; }
+  if (code === 429) return { ok: false, message: "Gemini's free limit is used up for now." };
+  if (code !== 200) return { ok: false, message: "Gemini error: " + ((result.error && result.error.message) || code) };
+  if (result.promptFeedback && result.promptFeedback.blockReason) return { ok: false, message: "Gemini declined this request. Try rephrasing it." };
+  var candidate = (result.candidates || [])[0];
+  var text = candidate && candidate.content ? (candidate.content.parts || []).filter(function(p) { return typeof p.text === "string" && !p.thought; })
+    .map(function(p) { return p.text; }).join("").trim() : "";
+  if (!text) {
+    var reason = candidate && candidate.finishReason;
+    return { ok: false, message: reason === "MAX_TOKENS" ? "Gemini's reply was too long. Try a narrower question." : "Gemini returned no answer" + (reason ? " (" + reason + ")" : "") + "." };
+  }
   return { ok: true, text: text };
 }
 
@@ -2204,13 +2272,20 @@ function freeMoveOutReasons(f) {
 }
 
 /*
- * Optional (Claude only): run this once from the Apps Script editor (select it, click Run) after adding ANTHROPIC_API_KEY.
+ * Run this once from the Apps Script editor (select it, click Run) after adding GEMINI_API_KEY (or ANTHROPIC_API_KEY).
  * It makes one tiny Claude call and writes the result to the Execution log.
  */
 function testAiConnection() {
-  var apiKey = PropertiesService.getScriptProperties().getProperty("ANTHROPIC_API_KEY");
+  var properties = PropertiesService.getScriptProperties();
+  var apiKey = properties.getProperty("ANTHROPIC_API_KEY");
+  var geminiKey = properties.getProperty("GEMINI_API_KEY");
+  if (!apiKey && geminiKey) {
+    var gemini = callGemini(geminiKey, "You are a connection test.", [], "Reply with exactly: RentPro AI is connected to Gemini.", null, 200);
+    Logger.log(gemini.ok ? "✅ " + gemini.text : "❌ " + gemini.message);
+    return gemini.ok ? "connected" : gemini.message;
+  }
   if (!apiKey) {
-    Logger.log("ℹ️ No Claude key set, so RentPro uses the free built-in assistant. To use Claude, add ANTHROPIC_API_KEY under Project Settings → Script properties.");
+    Logger.log("ℹ️ No AI key set, so RentPro uses the free built-in assistant. To use Gemini, add GEMINI_API_KEY under Project Settings → Script properties.");
     return "missing key";
   }
   var reply = callClaude(apiKey, {

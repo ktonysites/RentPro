@@ -102,13 +102,30 @@ methods, and an M-Pesa reference lookup (e.g. "where is UJH7UAL03Q?"). **How-do-
 deleted payment?", "how do I add a meter reading?") get step-by-step help for the right screen.
 Questions outside all that get a page summary plus suggestions.
 
-### Optional: Claude for open-ended questions
+### Optional: Google Gemini for open-ended questions (free tier)
 
-If you ever want answers to any free-form question, add an Anthropic API key (paid per question):
-Apps Script → **Project Settings → Script properties** → `ANTHROPIC_API_KEY` = your `sk-ant-…` key, then run
-`testAiConnection` once from the editor. With a key set, Claude answers; if Claude is unavailable, the free
-assistant answers instead and says so. Remove the property to go back to free only. Tenant phone numbers,
-national ID numbers and raw SMS text are never sent to Claude.
+Gemini answers any free-form question about your property in its own words, using the same data plus RentPro's
+calculated briefing (late payments, due dates, totals), so the figures stay exact.
+
+1. Go to **aistudio.google.com**, sign in with a Google account, and choose **Get API key → Create API key**.
+   No card is needed for the free tier.
+2. In Apps Script: **Project Settings (gear) → Script properties → Add script property**
+   - Property: `GEMINI_API_KEY`
+   - Value: your key (starts with `AIza`)
+3. Paste the latest `Code.gs`, **Deploy → Manage deployments → ✏️ → New version**.
+4. In the editor, pick `testAiConnection` and click **Run**. The Execution log should say
+   "✅ RentPro AI is connected to Gemini."
+
+The AI Assistant page then shows **Powered by Google Gemini**. If Gemini fails or the free daily limit runs
+out, the built-in assistant answers instead and says why. Delete the property to go back to the built-in
+assistant only. Model: `gemini-3.8-flash` (`GEMINI_MODEL` in Code.gs).
+
+Privacy: on the free tier, Google may use what is sent to improve its products. RentPro sends tenant names, houses,
+rent, balances, payments, expenses and utility bills; it never sends phone numbers, national ID numbers or raw SMS
+text. If that's a concern, keep the built-in assistant or enable billing on the Google project (paid tier data
+isn't used for that).
+
+Claude also works: add `ANTHROPIC_API_KEY` instead (paid per question). If both keys are set, Claude is used.
 
 ## Notes
 

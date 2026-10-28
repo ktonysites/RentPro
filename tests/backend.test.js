@@ -524,3 +524,84 @@ test("testAiConnection reports a missing key, success and API errors", () => {
   const bad = aiBackend({ code: 401, body: { type: "error", error: { message: "invalid x-api-key" } } });
   assert.match(bad.api.context.testAiConnection(), /invalid x-api-key/);
 });
+
+// ---------- Google Gemini (optional, GEMINI_API_KEY) ----------
+
+const geminiText = (text, extra = {}) => ({ code: 200, body: Object.assign({ candidates: [{ content: { role: "model", parts: [{ text }] }, finishReason: "STOP" }] }, extra) });
+
+function geminiBackend(reply = geminiText("Mary Wambui owes **KES 3,500**."), properties = {}) {
+  const calls = [];
+  const api = createBackend({
+    properties: Object.assign({ SMS_WEBHOOK_TOKEN: TOKEN, GEMINI_API_KEY: "AIza-test" }, properties),
+    urlFetch: (url, params) => { calls.push({ url, params, body: JSON.parse(params.payload) }); return typeof reply === "function" ? reply() : reply; }
+  });
+  api.get({ action: "addTenant", name: "Mary Wambui", phone: "0722000111", natID: "22223333", house: "12", rent: "6500" });
+  api.get({ action: "recordPayment", id: api.get({ action: "getTenants" }).data[0].ID, amount: "3000", method: "Cash" });
+  return { api, calls };
+}
+
+test("Gemini answers questions with the property data, calculated briefing and history", () => {
+  const { api, calls } = geminiBackend();
+  const history = [{ role: "user", content: "Who owes rent?" }, { role: "assistant", content: "Mary owes KES 3,500." }];
+  const result = api.get({ payload: JSON.stringify({ action: "aiAssist", mode: "ask", page: "tenants", question: "How do I add a tenant?", history }) });
+  assert.equal(result.success, true, result.message);
+  assert.deepEqual([result.data.engine, result.data.text], ["gemini", "Mary Wambui owes **KES 3,500**."]);
+
+  const { url, params, body } = calls[0];
+  assert.equal(url, "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent");
+  assert.equal(params.headers["x-goog-api-key"], "AIza-test");
+  assert.doesNotMatch(url, /AIza/, "the key is sent in a header, not the URL");
+  assert.deepEqual(body.contents, [
+    { role: "user", parts: [{ text: "Who owes rent?" }] },
+    { role: "model", parts: [{ text: "Mary owes KES 3,500." }] },
+    { role: "user", parts: [{ text: "How do I add a tenant?" }] }
+  ]);
+  const system = body.systemInstruction.parts[0].text;
+  assert.match(system, /on the Tenants list/);
+  assert.match(system, /"balance":3500/);
+  assert.match(system, /calculated \(JSON\)[\s\S]*briefing/);
+  assert.match(system, /appHelp[\s\S]*Add New Tenant/);
+  assert.doesNotMatch(JSON.stringify(body), /0722000111|22223333/, "no phone or ID numbers");
+});
+
+test("Gemini structured replies are validated, and Claude wins when both keys are set", () => {
+  const { api, calls } = geminiBackend(geminiText('```json\n{"category":"Maintenance","house":"7","reason":"Plumbing","extra":"dropped"}\n```'));
+  const result = api.get({ action: "aiAssist", mode: "categorize", question: "Fixed leaking pipe in house 7" });
+  assert.deepEqual(result.data, { category: "Maintenance", house: "7", reason: "Plumbing", engine: "gemini" });
+  assert.equal(calls[0].body.generationConfig.responseMimeType, "application/json");
+  assert.match(calls[0].body.systemInstruction.parts[0].text, /Reply with JSON only[\s\S]*"enum":\["Maintenance"/);
+
+  const both = geminiBackend(undefined, { ANTHROPIC_API_KEY: "sk-test" });
+  both.calls.length = 0;
+  try { both.api.get({ action: "aiAssist", mode: "ask", question: "hi" }); } catch (error) { /* fake reply shape doesn't matter */ }
+  assert.equal(both.calls[0].url, "https://api.anthropic.com/v1/messages");
+});
+
+test("Gemini limits, blocks and errors fall back to the free assistant with a clear notice", () => {
+  const cases = [
+    [{ code: 429, body: { error: { code: 429, message: "Resource exhausted", status: "RESOURCE_EXHAUSTED" } } }, /free limit is used up/],
+    [{ code: 400, body: { error: { code: 400, message: "API key not valid", status: "INVALID_ARGUMENT" } } }, /Gemini error: API key not valid/],
+    [{ code: 200, body: { promptFeedback: { blockReason: "SAFETY" } } }, /Gemini declined/],
+    [{ code: 200, body: { candidates: [{ content: { parts: [] }, finishReason: "MAX_TOKENS" }] } }, /too long/],
+    [() => { throw new Error("DNS"); }, /Couldn't reach Gemini/]
+  ];
+  cases.forEach(([reply, notice]) => {
+    const { api } = geminiBackend(reply);
+    const result = api.get({ action: "aiAssist", mode: "ask", question: "Who owes rent?" });
+    assert.equal(result.success, true);
+    assert.equal(result.data.engine, "free");
+    assert.match(result.data.notice, notice);
+    assert.match(result.data.text, /Mary Wambui/);
+  });
+  const { api } = geminiBackend(geminiText("not json"));
+  const suggest = api.get({ action: "aiAssist", mode: "categorize", question: "Painted door, house 3" });
+  assert.deepEqual([suggest.data.engine, suggest.data.category], ["free", "Maintenance"]);
+  assert.match(suggest.data.notice, /Gemini's reply couldn't be read/);
+});
+
+test("Gemini skips thinking parts and testAiConnection checks Gemini", () => {
+  const { api } = geminiBackend({ code: 200, body: { candidates: [{ content: { parts: [{ text: "thinking…", thought: true }, { text: "RentPro AI is connected to Gemini." }] } }] } });
+  assert.equal(api.get({ action: "aiAssist", mode: "insights" }).data.text, "RentPro AI is connected to Gemini.");
+  assert.equal(api.context.testAiConnection(), "connected");
+  assert.match(api.logs.join("\n"), /✅ RentPro AI is connected to Gemini\./);
+});

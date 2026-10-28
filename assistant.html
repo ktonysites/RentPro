@@ -67,7 +67,7 @@
   <main class="content">
     <div class="page-head">
       <div>
-        <div class="eyebrow"><i class="fa-solid fa-wand-magic-sparkles me-1"></i>Free · works from your records</div>
+        <div class="eyebrow"><i class="fa-solid fa-wand-magic-sparkles me-1"></i><span id="engineLabel">Works from your records</span></div>
         <h2>AI Assistant</h2>
         <p>Ask about your tenants, rent, payments and expenses in plain language.</p>
       </div>
@@ -167,6 +167,8 @@
         typing.remove();
         const text = ((result.data && result.data.text) || 'No answer came back. Please try again.') +
             (result.data && result.data.notice ? '\n\n_' + result.data.notice + '_' : '');
+        const engines = { gemini: 'Powered by Google Gemini', claude: 'Powered by Claude', free: 'Free built-in assistant' };
+        if (result.data && engines[result.data.engine]) document.getElementById('engineLabel').innerText = engines[result.data.engine];
         addMessage('assistant', text);
         history.push({ role: 'user', content: question }, { role: 'assistant', content: text });
         save();
