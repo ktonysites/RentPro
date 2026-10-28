@@ -497,7 +497,20 @@
         const taken = house && currentTenants.filter(t => String(t.House).trim().toLowerCase() === house);
         $('houseWarning').classList.toggle('d-none', !taken || !taken.length);
         if (taken && taken.length) $('houseWarning').firstElementChild.innerText = `House ${$('tHouse').value.trim()} already has ${taken.map(t => t.Name).join(', ')}. Check the house number, or move them out first.`;
+        // Fill in the usual rent for the house, unless the landlord has typed one.
+        if (!rentTyped) $('tRent').value = standardRent(house);
     });
+
+    // Usual rent: houses 1-20 and S 1 are KES 9,500; houses 21 and up are KES 16,000.
+    const standardRent = (house) => {
+        const n = Number(house);
+        if (house === 's1' || house === 's 1' || (Number.isInteger(n) && n >= 1 && n <= 20)) return 9500;
+        if (Number.isInteger(n) && n > 20) return 16000;
+        return '';
+    };
+    let rentTyped = false;
+    $('tRent').addEventListener('input', () => { rentTyped = $('tRent').value !== ''; });
+    $('newTenantBtn').addEventListener('click', () => { rentTyped = false; });
 
     $('addTenantForm').addEventListener('submit', async (e) => {
         e.preventDefault();
