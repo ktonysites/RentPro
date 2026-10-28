@@ -1,0 +1,62 @@
+{
+  "voice": "en-KE-AsiliaNeural",
+  "rate": "-4%",
+  "scenes": [
+    { "id": "intro", "card": { "title": "RentPro", "subtitle": "Smart rent management for Kenyan landlords" },
+      "narration": "Welcome to RentPro, the smart rent management system built for Kenyan landlords. In the next few minutes, we'll walk through everything it can do: tenants, M-Pesa payments, utilities, expenses, reports, and a built-in AI assistant." },
+
+    { "id": "login", "label": "Secure sign-in",
+      "narration": "RentPro runs in any browser, and as an Android app. Sign in securely with Google, or with your email and password. Only approved accounts can get in, so your records stay private." },
+
+    { "id": "dashboard", "label": "Dashboard",
+      "narration": "After a quick loading screen, the dashboard gives you the big picture: active tenants, rent expected this month, how much has been collected, and the number of transactions. The chart tracks your income month by month, and the latest payments appear right below." },
+
+    { "id": "insights", "label": "AI insights",
+      "narration": "Tap Generate on AI insights, and RentPro writes you a briefing. It flags late payments with the number of days overdue, tenants to keep an eye on, unmatched payments, a sudden jump in water use, and spending that's higher than usual. It ends with a short to-do list, in order of priority." },
+
+    { "id": "tenants", "label": "Tenants",
+      "narration": "The Tenants page lists everyone at a glance, with totals for rent, money owed, and tenants who are paid up. Search by name or phone, or type a house number to jump straight to it. Filter chips show who is owing, overdue, paid up or in credit, and you can sort by balance to see the biggest debts first." },
+
+    { "id": "add-tenant", "label": "Add a tenant",
+      "narration": "Adding a tenant takes seconds. Enter their name, phone number, ID, house and monthly rent, plus a next of kin. RentPro checks the phone number, and warns you if the house is already occupied." },
+
+    { "id": "cash-payment", "label": "Record a cash payment",
+      "narration": "Cash payments are just as easy. Tap Pay next to a tenant, and the amount is filled in with their balance. Peter has brought seven thousand shillings, so we adjust the amount, confirm, and his balance updates immediately." },
+
+    { "id": "profile", "label": "Tenant profile & reminders",
+      "narration": "Open any tenant to see their full profile: contact details, rent, balance, next of kin, payment history and water bills. Tap Reminder, and the AI drafts a polite rent reminder in English or Kiswahili, with the exact balance and paybill details. Send it by SMS or WhatsApp, straight from your phone." },
+
+    { "id": "sms", "label": "Automatic M-Pesa payments",
+      "narration": "Here's where RentPro saves the most time. When a tenant pays to paybill two four seven two four seven, with their house number as the account, the M-Pesa message on the landlord's phone is forwarded to RentPro automatically. Watch: Faith in house four has just paid six thousand shillings. Seconds later, the payment is recorded and her rent is cleared, with no typing at all." },
+
+    { "id": "payments", "label": "Payment history & recovery",
+      "narration": "The Payments page keeps every transaction, with search and filters. Made a mistake? Select payments and clear them. They move to Recently deleted, where you can restore them at any time within three months." },
+
+    { "id": "unmatched", "label": "Unmatched payments",
+      "narration": "Sometimes a tenant types the wrong account number. Those payments land in Unmatched, instead of getting lost. Tap AI suggest, and RentPro works out who most likely paid, using the payer's name, account number typos and the amount. Check the suggestion, assign it, and the tenant is credited." },
+
+    { "id": "utilities", "label": "Water & garbage bills",
+      "narration": "Utilities handles water and garbage bills. Generate this month's bills for every tenant in one tap, record water meter readings from a tenant's profile, and mark bills as paid when tenants settle them." },
+
+    { "id": "expenses", "label": "Expenses",
+      "narration": "Track every shilling you spend on the property. Describe the expense, tap Suggest category and house, and RentPro fills them in for you. It even understands Kiswahili words, like fundi, maji and nyumba." },
+
+    { "id": "reports", "label": "Reports",
+      "narration": "Reports turns all of this into clear numbers: expected rent, money collected, collection rate, expenses, profit, and what's still owed, each compared with the previous period. Switch to the last three months, this year, or any custom range. There's a breakdown by house, a monthly summary, and you can print or save it all as a PDF." },
+
+    { "id": "former", "label": "Move-outs & former tenants",
+      "narration": "When a tenant leaves, process the move-out with the reason and the deposit status. Their records move to Former tenants, so you can always see what they paid, and any balance they left behind." },
+
+    { "id": "pay-lookup", "label": "Payment lookup",
+      "narration": "Tenants can also check how to pay. Enter a house number, and the Payment Lookup page shows the exact paybill and account number to use." },
+
+    { "id": "assistant", "label": "AI assistant",
+      "narration": "Every page has an Ask AI button, with quick actions for that page. And the full AI Assistant answers questions in plain language, like who is late with rent, or how much you collected last month. It understands Kiswahili too. The assistant is free and built in, and you can connect Google Gemini for even more natural answers." },
+
+    { "id": "mobile", "label": "Android app",
+      "narration": "On the go? Install RentPro on your Android phone. You get the same features, designed for a small screen, with a handy tab bar at the bottom." },
+
+    { "id": "outro", "card": { "title": "RentPro", "subtitle": "Less paperwork. Faster rent collection. A clear view of your property." },
+      "narration": "RentPro. Less paperwork, faster rent collection, and a clear view of your property, all in one place. Thank you for watching." }
+  ]
+}

@@ -48,7 +48,7 @@
       <div class="col-6 col-xl-3">
           <div class="card-hero">
               <div class="d-flex justify-content-between">
-                  <div><div class="card-label">Collected</div><h3 id="totalCollected" class="card-value text-success">0</h3></div>
+                  <div><div class="card-label">Collected this month</div><h3 id="totalCollected" class="card-value text-success">0</h3></div>
                   <div class="icon-box bg-green-light"><i class="fa-solid fa-wallet"></i></div>
               </div>
           </div>
@@ -56,7 +56,7 @@
       <div class="col-6 col-xl-3">
           <div class="card-hero">
               <div class="d-flex justify-content-between">
-                  <div><div class="card-label">Transactions</div><h3 id="totalPayments" class="card-value">0</h3></div>
+                  <div><div class="card-label">Payments this month</div><h3 id="totalPayments" class="card-value">0</h3></div>
                   <div class="icon-box bg-orange-light"><i class="fa-solid fa-receipt"></i></div>
               </div>
           </div>
@@ -217,13 +217,18 @@
         const fPayments = globalPayments;
         $('chartTitle').innerText = 'Main Property Analysis';
 
-        // Calculate Stats
+        // Calculate Stats: expected rent is monthly, so collections and transactions are this month's too.
+        const now = new Date();
+        const thisMonth = fPayments.filter(p => {
+            const d = new Date(p.Date);
+            return !isNaN(d) && d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
+        });
         const tRent = fTenants.reduce((s, t) => s + Number(t.Rent || 0), 0);
-        const tColl = fPayments.reduce((s, p) => s + Number(p.Amount || 0), 0);
+        const tColl = thisMonth.reduce((s, p) => s + Number(p.Amount || 0), 0);
 
         $('totalTenants').innerText = fTenants.length;
         $('totalRent').innerText = money(tRent);
-        $('totalPayments').innerText = fPayments.length; 
+        $('totalPayments').innerText = thisMonth.length;
         $('totalCollected').innerText = money(tColl);
 
         renderChart(fPayments);

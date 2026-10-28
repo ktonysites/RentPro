@@ -74,3 +74,6 @@ node_modules/
 # Capacitor / Android build output
 www/
 dist/
+
+# Demo video work files
+tools/demo-video/out/

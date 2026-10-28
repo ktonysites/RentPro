@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>RentPro title card</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+<style>
+  html, body { margin: 0; height: 100%; overflow: hidden; font-family: Inter, "Segoe UI", sans-serif; }
+  body { background: radial-gradient(circle at 20% 15%, #6d5dfc 0%, #4338ca 40%, #1e1b4b 100%); color: #fff; display: grid; place-items: center; }
+  .blob { position: absolute; border-radius: 50%; filter: blur(40px); opacity: .45; animation: drift 9s ease-in-out infinite alternate; }
+  .b1 { width: 420px; height: 420px; background: #a78bfa; top: -80px; right: -60px; }
+  .b2 { width: 360px; height: 360px; background: #22d3ee; bottom: -120px; left: -80px; animation-delay: -3s; opacity: .3; }
+  @keyframes drift { to { transform: translate(-40px, 30px) scale(1.08); } }
+  .wrap { text-align: center; position: relative; z-index: 1; }
+  .logo { width: 108px; height: 108px; border-radius: 30px; margin: 0 auto 28px; display: grid; place-items: center; font-size: 50px;
+          background: linear-gradient(135deg, #8b5cf6, #4f46e5); box-shadow: 0 20px 60px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.3); }
+  h1 { font-size: 92px; font-weight: 800; letter-spacing: -2px; margin: 0; }
+  p { font-size: 30px; font-weight: 400; opacity: .9; margin: 14px 0 0; max-width: 980px; }
+  .tags { margin-top: 34px; display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+  .tags span { border: 1px solid rgba(255,255,255,.35); background: rgba(255,255,255,.1); border-radius: 999px; padding: 8px 18px; font-size: 18px; }
+  .wrap > * { opacity: 0; transform: translateY(24px); }
+  body.go .wrap > * { animation: rise .9s cubic-bezier(.2,.8,.2,1) forwards; }
+  body.go .wrap > :nth-child(2) { animation-delay: .25s; }
+  body.go .wrap > :nth-child(3) { animation-delay: .5s; }
+  body.go .wrap > :nth-child(4) { animation-delay: .8s; }
+  @keyframes rise { to { opacity: 1; transform: none; } }
+</style>
+</head>
+<body>
+  <div class="blob b1"></div><div class="blob b2"></div>
+  <div class="wrap">
+    <div class="logo"><i class="fa-solid fa-building"></i></div>
+    <h1 id="title"></h1>
+    <p id="subtitle"></p>
+    <div class="tags" id="tags"></div>
+  </div>
+<script>
+  const q = new URLSearchParams(location.search);
+  document.getElementById('title').textContent = q.get('title') || 'RentPro';
+  document.getElementById('subtitle').textContent = q.get('subtitle') || '';
+  document.getElementById('tags').innerHTML = (q.get('tags') || '').split('|').filter(Boolean).map((t) => `<span>${t}</span>`).join('');
+  window.startCard = () => document.body.classList.add('go');
+</script>
+</body>
+</html>
