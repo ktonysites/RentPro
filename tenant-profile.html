@@ -473,7 +473,7 @@
         button.disabled = true;
         button.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin me-1"></i>Drafting';
         try {
-            const result = await apiRequest({
+            const result = await aiRequest({
                 action: 'aiAssist', mode: 'reminder',
                 language: document.getElementById('reminderLang').value,
                 question: `Write the rent reminder for ${tenantData.Name} (House ${tenantData.House}).`

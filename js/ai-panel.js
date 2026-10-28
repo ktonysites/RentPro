@@ -151,7 +151,7 @@
         const wait = typing();
         const recent = history.slice(-4).map(turn => ({ role: turn.role, content: turn.content.slice(0, 600) }));
         try {
-            const result = await apiRequest({ action: 'aiAssist', mode: 'ask', page, tenantId, question, history: recent });
+            const result = await aiRequest({ action: 'aiAssist', mode: 'ask', page, tenantId, question, history: recent });
             wait.remove();
             const text = ((result.data && result.data.text) || 'No answer came back. Please try again.') +
                 (result.data && result.data.notice ? '\n\n_' + result.data.notice + '_' : '');

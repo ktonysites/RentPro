@@ -353,7 +353,7 @@
         button.disabled = true;
         note.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin me-1"></i>Thinking…';
         try {
-            const result = await apiRequest({ action: 'aiAssist', mode: 'categorize', question: description });
+            const result = await aiRequest({ action: 'aiAssist', mode: 'categorize', question: description });
             const { category, house, reason } = result.data;
             const categorySelect = document.getElementById('expenseCategory');
             const houseSelect = document.getElementById('expenseHouse');

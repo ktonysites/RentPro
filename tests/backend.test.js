@@ -599,6 +599,33 @@ test("Gemini limits, blocks and errors fall back to the free assistant with a cl
   assert.match(suggest.data.notice, /Gemini's reply couldn't be read/);
 });
 
+test("a busy Gemini model falls back to the lighter model; thinking is kept low", () => {
+  const replies = [
+    { code: 503, body: { error: { code: 503, message: "This model is currently experiencing high demand.", status: "UNAVAILABLE" } } },
+    geminiText("Answer from the backup model.")
+  ];
+  const { api, calls } = geminiBackend(() => replies.shift());
+  const result = api.get({ action: "aiAssist", mode: "ask", question: "Who owes rent?" });
+  assert.deepEqual([result.data.engine, result.data.text], ["gemini", "Answer from the backup model."]);
+  assert.deepEqual(calls.map((c) => c.url.match(/models\/([^:]+)/)[1]), ["gemini-3.8-flash", "gemini-3.5-flash-lite"]);
+  assert.deepEqual(calls[0].body.generationConfig.thinkingConfig, { thinkingLevel: "low" });
+});
+
+test("Gemini is asked again without the thinking setting if a model rejects it", () => {
+  const replies = [{ code: 400, body: { error: { code: 400, message: "Unknown name \"thinkingConfig\"" } } }, geminiText("Plain answer.")];
+  const { api, calls } = geminiBackend(() => replies.shift());
+  assert.equal(api.get({ action: "aiAssist", mode: "ask", question: "hi" }).data.text, "Plain answer.");
+  assert.equal(calls[1].body.generationConfig.thinkingConfig, undefined);
+  assert.match(calls[1].url, /gemini-3\.8-flash/);
+});
+
+test("engine=free skips the AI service (used by the app when the service is slow)", () => {
+  const { api, calls } = geminiBackend();
+  const result = api.get({ action: "aiAssist", mode: "ask", question: "Who owes rent?", engine: "free" });
+  assert.equal(result.data.engine, "free");
+  assert.equal(calls.length, 0);
+});
+
 test("Gemini skips thinking parts and testAiConnection checks Gemini", () => {
   const { api } = geminiBackend({ code: 200, body: { candidates: [{ content: { parts: [{ text: "thinking…", thought: true }, { text: "RentPro AI is connected to Gemini." }] } }] } });
   assert.equal(api.get({ action: "aiAssist", mode: "insights" }).data.text, "RentPro AI is connected to Gemini.");

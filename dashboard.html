@@ -130,7 +130,7 @@
             body.classList.remove("d-none", "is-error");
             body.innerHTML = '<div class="ai-shimmer" style="width:92%"></div><div class="ai-shimmer" style="width:78%"></div><div class="ai-shimmer" style="width:85%"></div>';
             try {
-                const result = await apiRequest({ action: "aiAssist", mode: "insights" });
+                const result = await aiRequest({ action: "aiAssist", mode: "insights" });
                 const text = (result.data && result.data.text) || "No insights came back. Please try again.";
                 const at = Date.now();
                 show(text, at);

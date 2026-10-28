@@ -106,3 +106,16 @@ async function apiRequest(params) {
 	if (result && result.success === false) throw new Error(result.message || "Request failed.");
 	return result;
 }
+
+// AI requests with a time limit: if Gemini/Claude hasn't answered in 25 seconds, the built-in
+// assistant answers instead (engine=free), so the landlord is never left waiting.
+const AI_TIME_LIMIT_MS = 25000;
+async function aiRequest(params) {
+	let timer;
+	const slow = new Promise((resolve) => { timer = setTimeout(() => resolve(null), AI_TIME_LIMIT_MS); });
+	const result = await Promise.race([apiRequest(params), slow]).finally(() => clearTimeout(timer));
+	if (result) return result;
+	const fallback = await apiRequest({ ...params, engine: "free" });
+	if (fallback && fallback.data) fallback.data.notice = "The AI service was slow to reply, so the built-in assistant answered.";
+	return fallback;
+}

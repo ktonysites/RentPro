@@ -970,7 +970,8 @@ function aiAssist(data) {
   var properties = PropertiesService.getScriptProperties();
   var apiKey = properties.getProperty("ANTHROPIC_API_KEY");
   var geminiKey = apiKey ? "" : properties.getProperty("GEMINI_API_KEY");
-  var engine = apiKey ? "claude" : geminiKey ? "gemini" : "free";
+  // engine=free asks for the built-in assistant (the app does this when the model is too slow).
+  var engine = String(value(data, ["engine"], "")) === "free" ? "free" : apiKey ? "claude" : geminiKey ? "gemini" : "free";
   var engineName = engine === "claude" ? "Claude" : "Gemini";
   var mode = String(value(data, ["mode"], "ask"));
   if (["ask", "insights", "reminder", "matchSuggest", "categorize"].indexOf(mode) < 0) return response(false, "Unknown AI mode");
@@ -1179,12 +1180,22 @@ function callClaude(apiKey, body) {
   return { ok: true, text: text };
 }
 
-// One Gemini generateContent call (Google AI Studio key; the free tier covers this model).
+// Gemini generateContent (Google AI Studio key; the free tier covers both models).
+// The lighter model is tried when the main one is busy or over its limit.
+var GEMINI_MODEL = "gemini-3.8-flash";
+var GEMINI_BACKUP_MODEL = "gemini-3.5-flash-lite";
+
 // history uses the Claude roles (user/assistant); Gemini calls the assistant "model".
 // Returns { ok, text } or { ok: false, message }.
-var GEMINI_MODEL = "gemini-3.8-flash";
-
 function callGemini(apiKey, system, history, question, schema, maxTokens) {
+  var reply = callGeminiModel(GEMINI_MODEL, apiKey, system, history, question, schema, maxTokens, true);
+  if (!reply.ok && reply.busy) reply = callGeminiModel(GEMINI_BACKUP_MODEL, apiKey, system, history, question, schema, maxTokens, true);
+  // If a model rejects the thinking setting, ask again without it.
+  if (!reply.ok && reply.badThinking) reply = callGeminiModel(reply.model, apiKey, system, history, question, schema, maxTokens, false);
+  return reply;
+}
+
+function callGeminiModel(model, apiKey, system, history, question, schema, maxTokens, lowThinking) {
   var contents = history.map(function(turn) {
     return { role: turn.role === "assistant" ? "model" : "user", parts: [{ text: turn.content }] };
   }).concat([{ role: "user", parts: [{ text: question }] }]);
@@ -1194,7 +1205,9 @@ function callGemini(apiKey, system, history, question, schema, maxTokens) {
     generationConfig: { maxOutputTokens: maxTokens || 4000 }
   };
   if (schema) body.generationConfig.responseMimeType = "application/json";
-  var res = UrlFetchApp.fetch("https://generativelanguage.googleapis.com/v1beta/models/" + GEMINI_MODEL + ":generateContent", {
+  // Low thinking keeps answers quick; the data and calculated figures do the heavy lifting.
+  if (lowThinking) body.generationConfig.thinkingConfig = { thinkingLevel: "low" };
+  var res = UrlFetchApp.fetch("https://generativelanguage.googleapis.com/v1beta/models/" + model + ":generateContent", {
     method: "post",
     contentType: "application/json",
     headers: { "x-goog-api-key": apiKey },
@@ -1204,8 +1217,11 @@ function callGemini(apiKey, system, history, question, schema, maxTokens) {
   var code = res.getResponseCode();
   var result;
   try { result = JSON.parse(res.getContentText()); } catch (error) { return { ok: false, message: "Gemini returned an unexpected reply (" + code + ")" }; }
-  if (code === 429) return { ok: false, message: "Gemini's free limit is used up for now." };
-  if (code !== 200) return { ok: false, message: "Gemini error: " + ((result.error && result.error.message) || code) };
+  var errorMessage = String((result.error && result.error.message) || code);
+  if (code === 429) return { ok: false, busy: true, model: model, message: "Gemini's free limit is used up for now." };
+  if (code === 500 || code === 503 || code === 504) return { ok: false, busy: true, model: model, message: "Gemini is busy right now (" + errorMessage + ")" };
+  if (code === 400 && /thinking/i.test(errorMessage)) return { ok: false, badThinking: true, model: model, message: "Gemini error: " + errorMessage };
+  if (code !== 200) return { ok: false, model: model, message: "Gemini error: " + errorMessage };
   if (result.promptFeedback && result.promptFeedback.blockReason) return { ok: false, message: "Gemini declined this request. Try rephrasing it." };
   var candidate = (result.candidates || [])[0];
   var text = candidate && candidate.content ? (candidate.content.parts || []).filter(function(p) { return typeof p.text === "string" && !p.thought; })

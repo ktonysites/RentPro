@@ -178,7 +178,7 @@
                 slot.innerHTML = '<div class="ai-shimmer mt-2" style="width:70%"></div>';
             });
             try {
-                const result = await apiRequest({ action: 'aiAssist', mode: 'matchSuggest' });
+                const result = await aiRequest({ action: 'aiAssist', mode: 'matchSuggest' });
                 aiSuggestions = {};
                 (result.data.suggestions || []).forEach(s => { aiSuggestions[s.paymentId] = s; });
                 document.querySelectorAll('[data-payment-id]').forEach(card => {
