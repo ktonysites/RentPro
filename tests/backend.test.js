@@ -548,7 +548,8 @@ test("Gemini answers questions with the property data, calculated briefing and h
   assert.deepEqual([result.data.engine, result.data.text], ["gemini", "Mary Wambui owes **KES 3,500**."]);
 
   const { url, params, body } = calls[0];
-  assert.equal(url, "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent");
+  assert.equal(url, "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent");
+  assert.deepEqual(body.generationConfig, { maxOutputTokens: 2000, thinkingConfig: { thinkingLevel: "minimal" } });
   assert.equal(params.headers["x-goog-api-key"], "AIza-test");
   assert.doesNotMatch(url, /AIza/, "the key is sent in a header, not the URL");
   assert.deepEqual(body.contents, [
@@ -599,7 +600,7 @@ test("Gemini limits, blocks and errors fall back to the free assistant with a cl
   assert.match(suggest.data.notice, /Gemini's reply couldn't be read/);
 });
 
-test("a busy Gemini model falls back to the lighter model; thinking is kept low", () => {
+test("a busy fast Gemini model falls back to the larger one, each with its least thinking", () => {
   const replies = [
     { code: 503, body: { error: { code: 503, message: "This model is currently experiencing high demand.", status: "UNAVAILABLE" } } },
     geminiText("Answer from the backup model.")
@@ -607,8 +608,8 @@ test("a busy Gemini model falls back to the lighter model; thinking is kept low"
   const { api, calls } = geminiBackend(() => replies.shift());
   const result = api.get({ action: "aiAssist", mode: "ask", question: "Who owes rent?" });
   assert.deepEqual([result.data.engine, result.data.text], ["gemini", "Answer from the backup model."]);
-  assert.deepEqual(calls.map((c) => c.url.match(/models\/([^:]+)/)[1]), ["gemini-3.8-flash", "gemini-3.5-flash-lite"]);
-  assert.deepEqual(calls[0].body.generationConfig.thinkingConfig, { thinkingLevel: "low" });
+  assert.deepEqual(calls.map((c) => c.url.match(/models\/([^:]+)/)[1]), ["gemini-3.5-flash-lite", "gemini-3.8-flash"]);
+  assert.deepEqual(calls.map((c) => c.body.generationConfig.thinkingConfig.thinkingLevel), ["minimal", "low"]);
 });
 
 test("Gemini is asked again without the thinking setting if a model rejects it", () => {
@@ -616,7 +617,22 @@ test("Gemini is asked again without the thinking setting if a model rejects it",
   const { api, calls } = geminiBackend(() => replies.shift());
   assert.equal(api.get({ action: "aiAssist", mode: "ask", question: "hi" }).data.text, "Plain answer.");
   assert.equal(calls[1].body.generationConfig.thinkingConfig, undefined);
-  assert.match(calls[1].url, /gemini-3\.8-flash/);
+  assert.match(calls[1].url, /gemini-3\.5-flash-lite/, "same model, asked again");
+});
+
+test("Gemini gets a compact copy of the data: recent records and monthly totals", () => {
+  const { api, calls } = geminiBackend();
+  const old = new Date(); old.setMonth(old.getMonth() - 8);
+  api.get({ action: "addPayment", date: old.toISOString(), amount: "6500", tenant: "Mary Wambui", house: "12", reference: "OLDPAYMENT1" });
+  api.get({ action: "aiAssist", mode: "ask", question: "Who owes rent?" });
+  const system = calls[0].body.systemInstruction.parts[0].text;
+  const data = JSON.parse(system.split("Property data (JSON):\n")[1].split("\n\ncalculated (JSON):")[0]);
+  assert.deepEqual(Object.keys(data), ["today", "paybill", "tenants", "monthlyTotals", "recentPayments", "unmatched", "recentExpenses", "utilities", "formerTenants"]);
+  assert.equal(data.monthlyTotals.length, 12);
+  assert.ok(data.monthlyTotals.some((m) => m.collected === 6500), "old payment counted in monthly totals");
+  assert.ok(!data.recentPayments.some((p) => p.reference === "OLDPAYMENT1"), "old payment left out of the recent list");
+  assert.match(data.recentPayments[0].date, /^\d{4}-\d{2}-\d{2}$/);
+  assert.equal(data.tenants[0].balance, 3500);
 });
 
 test("engine=free skips the AI service (used by the app when the service is slow)", () => {

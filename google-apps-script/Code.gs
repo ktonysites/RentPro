@@ -991,7 +991,7 @@ function aiAssist(data) {
   if (engine === "free") return answerFree();
 
   var base = "You are RentPro's assistant for a Kenyan landlord managing one property. Amounts are in KES. " +
-    "Use only the property data provided; if it doesn't contain the answer, say so plainly. Be concise and practical. " +
+    "Use only the property data provided; if it doesn't contain the answer, say so plainly. Be concise and practical: keep answers under about 200 words unless asked for more detail. " +
     "The 'calculated' section holds exact figures worked out by RentPro (late payments, due dates, totals): prefer them over your own arithmetic. " +
     "If asked how to use the app, answer from the 'appHelp' notes.";
   var request;
@@ -1065,7 +1065,7 @@ function aiAssist(data) {
     var help = mode === "ask" && freeAppHelp(question.toLowerCase());
     if (help) calculated.appHelp = help;
   }
-  var system = request.system + "\n\nProperty data (JSON):\n" + JSON.stringify(context) +
+  var system = request.system + "\n\nProperty data (JSON):\n" + JSON.stringify(aiModelContext(context)) +
     (calculated.briefing ? "\n\ncalculated (JSON):\n" + JSON.stringify(calculated) : "");
   var history = mode === "ask" ? aiHistory(data) : [];
 
@@ -1083,7 +1083,7 @@ function aiAssist(data) {
       if (request.schema) body.output_config.format = { type: "json_schema", schema: request.schema };
       reply = callClaude(apiKey, body);
     } else {
-      reply = callGemini(geminiKey, system, history, request.question, request.schema, request.maxTokens || 4000);
+      reply = callGemini(geminiKey, system, history, request.question, request.schema, request.maxTokens || 2000);
     }
   } catch (error) {
     reply = { ok: false, message: "Couldn't reach " + engineName + "." };
@@ -1158,6 +1158,57 @@ function aiContext(tenantId) {
   return context;
 }
 
+// A compact copy of the data for Gemini/Claude: smaller prompts answer much faster.
+// Recent records (about 4 months) in full, plus monthly totals for the last 12 months.
+// The calculated briefing already covers the detailed sums.
+function aiModelContext(context) {
+  var tz = Session.getScriptTimeZone();
+  var now = new Date();
+  var cutoff = new Date(now.getFullYear(), now.getMonth() - 3, 1);
+  var day = function(v) { var d = aiDate(v); return d ? Utilities.formatDate(d, tz, "yyyy-MM-dd") : String(v || ""); };
+  var recent = function(v) { var d = aiDate(v); return !d || d >= cutoff; };
+  var monthKey = function(v) { var d = aiDate(v); return d ? Utilities.formatDate(d, tz, "yyyy-MM") : ""; };
+
+  var totals = {};
+  for (var i = 11; i >= 0; i--) totals[Utilities.formatDate(new Date(now.getFullYear(), now.getMonth() - i, 1), tz, "yyyy-MM")] = { collected: 0, expenses: 0 };
+  context.payments.forEach(function(p) { var t = totals[monthKey(p.date)]; if (t && !/unmatched|unassigned/i.test(String(p.status || ""))) t.collected += aiNum(p.amount); });
+  context.expenses.forEach(function(e) { var t = totals[monthKey(e.date)]; if (t) t.expenses += aiNum(e.amount); });
+
+  var payment = function(p) {
+    var out = { date: day(p.date), amount: aiNum(p.amount), tenant: p.tenant, house: p.house, method: p.method, reference: p.reference };
+    if (/unmatched|unassigned/i.test(String(p.status || ""))) { out.status = "unmatched"; out.payer = p.payer; }
+    return out;
+  };
+  var compact = {
+    today: context.today,
+    paybill: context.paybill,
+    tenants: context.tenants.map(function(t) {
+      return { id: t.id, name: t.name, house: t.house, rent: aiNum(t.rent), paid: aiNum(t.paid), balance: aiNum(t.rent) - aiNum(t.paid),
+        dueDay: t.dueDay, since: day(t.since), hasNextOfKin: t.hasNextOfKin };
+    }),
+    monthlyTotals: Object.keys(totals).map(function(k) { return { month: k, collected: totals[k].collected, expenses: totals[k].expenses }; }),
+    recentPayments: context.payments.filter(function(p) { return recent(p.date); }).slice(-120).map(payment),
+    unmatched: context.unmatched.slice(-30).map(function(p) {
+      return { paymentId: p.paymentId, date: day(p.date), amount: aiNum(p.amount), payer: p.payer, accountHouse: p.accountHouse, reference: p.reference };
+    }),
+    recentExpenses: context.expenses.filter(function(e) { return recent(e.date); }).slice(-60).map(function(e) {
+      return { date: day(e.date), category: e.category, description: e.description, amount: aiNum(e.amount), house: e.house };
+    }),
+    utilities: context.utilities.filter(function(u) { return u.status !== "Paid"; }).concat(context.utilities.slice(-30).filter(function(u) { return u.status === "Paid"; })).slice(-80).map(function(u) {
+      return { month: u.month, house: u.house, tenant: u.tenant, water: aiNum(u.water), garbage: aiNum(u.garbage), status: u.status, unitsUsed: aiNum(u.unitsUsed) };
+    }),
+    formerTenants: context.formerTenants.slice(-20).map(function(a) {
+      return { name: a.name, house: a.house, rent: aiNum(a.rent), balance: aiNum(a.balance), reason: a.reason, deposit: a.deposit, movedOut: day(a.movedOut) };
+    })
+  };
+  if (context.focusTenant) {
+    var f = context.focusTenant;
+    compact.focusTenant = { id: f.id, name: f.name, house: f.house, rent: aiNum(f.rent), paid: aiNum(f.paid), balance: aiNum(f.rent) - aiNum(f.paid),
+      dueDay: f.dueDay, since: day(f.since), payments: f.payments.slice(-24).map(payment), utilityBills: f.utilityBills.slice(-12) };
+  }
+  return compact;
+}
+
 // One Messages API call. Returns { ok, text } or { ok: false, message }.
 function callClaude(apiKey, body) {
   var res = UrlFetchApp.fetch("https://api.anthropic.com/v1/messages", {
@@ -1181,9 +1232,11 @@ function callClaude(apiKey, body) {
 }
 
 // Gemini generateContent (Google AI Studio key; the free tier covers both models).
-// The lighter model is tried when the main one is busy or over its limit.
-var GEMINI_MODEL = "gemini-3.8-flash";
-var GEMINI_BACKUP_MODEL = "gemini-3.5-flash-lite";
+// The fastest model goes first; the larger one is tried when it is busy or over its limit.
+var GEMINI_MODEL = "gemini-3.5-flash-lite";
+var GEMINI_BACKUP_MODEL = "gemini-3.8-flash";
+// Least thinking each model allows, for speed.
+var GEMINI_THINKING = { "gemini-3.5-flash-lite": "minimal", "gemini-3.8-flash": "low" };
 
 // history uses the Claude roles (user/assistant); Gemini calls the assistant "model".
 // Returns { ok, text } or { ok: false, message }.
@@ -1206,7 +1259,7 @@ function callGeminiModel(model, apiKey, system, history, question, schema, maxTo
   };
   if (schema) body.generationConfig.responseMimeType = "application/json";
   // Low thinking keeps answers quick; the data and calculated figures do the heavy lifting.
-  if (lowThinking) body.generationConfig.thinkingConfig = { thinkingLevel: "low" };
+  if (lowThinking) body.generationConfig.thinkingConfig = { thinkingLevel: GEMINI_THINKING[model] || "low" };
   var res = UrlFetchApp.fetch("https://generativelanguage.googleapis.com/v1beta/models/" + model + ":generateContent", {
     method: "post",
     contentType: "application/json",
