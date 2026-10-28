@@ -50,6 +50,7 @@
             <i class="fa-solid fa-file-pdf me-2"></i> Report
           </button>
           <button class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#meterModal" aria-label="Record meter reading" title="Record reading"><i class="fa-solid fa-faucet me-2"></i> Reading</button>
+          <button class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#reminderModal" aria-label="Draft rent reminder with AI" title="Draft reminder"><i class="fa-solid fa-wand-magic-sparkles me-2"></i> Reminder</button>
           <a id="moveOutBtn" href="moveout.html" class="btn btn-outline-danger" aria-label="Move tenant out" title="Move out"><i class="fa-solid fa-door-open me-2"></i> Move Out</a>
           <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#editModal" aria-label="Edit tenant" title="Edit tenant"><i class="fa-solid fa-pen-to-square me-2"></i> Edit</button>
       </div>
@@ -167,6 +168,41 @@
       <div style="margin-top:50px; border-top:1px solid #eee; padding-top:10px; font-size:10px; text-align:center; color:#999;">
           This is a system generated report from RentPro. No signature required.
       </div>
+  </div>
+
+  <div class="modal fade" id="reminderModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header">
+          <div class="d-flex align-items-center gap-2">
+            <div class="ai-card-icon" style="width:34px;height:34px;border-radius:10px;font-size:0.85rem"><i class="fa-solid fa-wand-magic-sparkles"></i></div>
+            <h5 class="modal-title fw-bold m-0">Rent reminder</h5>
+          </div>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div class="d-flex gap-2 align-items-end mb-3">
+            <div class="flex-grow-1">
+              <label class="form-label" for="reminderLang">Language</label>
+              <select id="reminderLang" class="form-select">
+                <option value="English">English</option>
+                <option value="Kiswahili">Kiswahili</option>
+              </select>
+            </div>
+            <button type="button" class="btn btn-primary" id="reminderGenerate"><i class="fa-solid fa-wand-magic-sparkles me-1"></i>Draft</button>
+          </div>
+          <label class="form-label" for="reminderText">Message <span class="text-muted fw-normal">(edit before sending)</span></label>
+          <textarea id="reminderText" class="form-control" rows="5" placeholder="Tap Draft to write a polite reminder with this tenant's balance and paybill details."></textarea>
+          <div class="small text-danger mt-2 d-none" id="reminderError"></div>
+          <div class="small text-muted mt-2">Nothing is sent automatically: SMS and WhatsApp open with the message ready for you to send.</div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" id="reminderCopy" disabled><i class="fa-regular fa-copy me-1"></i>Copy</button>
+          <a class="btn btn-outline-secondary disabled" id="reminderSms" href="#"><i class="fa-solid fa-comment-sms me-1"></i>SMS</a>
+          <a class="btn btn-success disabled" id="reminderWhatsapp" href="#" target="_blank" rel="noopener"><i class="fa-brands fa-whatsapp me-1"></i>WhatsApp</a>
+        </div>
+      </div>
+    </div>
   </div>
 
   <div class="modal fade" id="meterModal" tabindex="-1">
@@ -411,6 +447,54 @@
             element.style.display = 'none'; // Hide again
         });
     };
+
+    // AI RENT REMINDER (drafted by the assistant; the landlord reviews and sends it from their own phone)
+    const reminderText = document.getElementById('reminderText');
+    const reminderLinks = () => {
+        const text = reminderText.value.trim();
+        const digits = String(tenantData.Phone || '').replace(/\D/g, '');
+        // Kenyan numbers: 07xx / 01xx -> 2547xx / 2541xx for WhatsApp.
+        const intl = digits.startsWith('0') ? '254' + digits.slice(1) : digits;
+        const ready = !!text;
+        document.getElementById('reminderCopy').disabled = !ready;
+        const sms = document.getElementById('reminderSms');
+        const wa = document.getElementById('reminderWhatsapp');
+        sms.href = ready ? `sms:${digits}?body=${encodeURIComponent(text)}` : '#';
+        wa.href = ready ? `https://wa.me/${intl}?text=${encodeURIComponent(text)}` : '#';
+        sms.classList.toggle('disabled', !ready || !digits);
+        wa.classList.toggle('disabled', !ready || !intl);
+    };
+    reminderText.addEventListener('input', reminderLinks);
+
+    document.getElementById('reminderGenerate').addEventListener('click', async () => {
+        const button = document.getElementById('reminderGenerate');
+        const errorEl = document.getElementById('reminderError');
+        errorEl.classList.add('d-none');
+        button.disabled = true;
+        button.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin me-1"></i>Drafting';
+        try {
+            const result = await apiRequest({
+                action: 'aiAssist', mode: 'reminder',
+                language: document.getElementById('reminderLang').value,
+                question: `Write the rent reminder for ${tenantData.Name} (House ${tenantData.House}).`
+            });
+            reminderText.value = (result.data && result.data.text) || '';
+        } catch (error) {
+            errorEl.innerText = error.message;
+            errorEl.classList.remove('d-none');
+        } finally {
+            button.disabled = false;
+            button.innerHTML = '<i class="fa-solid fa-wand-magic-sparkles me-1"></i>Draft';
+            reminderLinks();
+        }
+    });
+
+    document.getElementById('reminderCopy').addEventListener('click', async (event) => {
+        const button = event.currentTarget;
+        try { await navigator.clipboard.writeText(reminderText.value); button.innerHTML = '<i class="fa-solid fa-check me-1"></i>Copied'; }
+        catch (error) { reminderText.select(); button.innerText = 'Press Ctrl+C'; }
+        setTimeout(() => { button.innerHTML = '<i class="fa-regular fa-copy me-1"></i>Copy'; }, 1500);
+    });
 
     // SUBMIT METER
     document.getElementById('meterForm').addEventListener('submit', async (e) => {

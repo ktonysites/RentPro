@@ -111,6 +111,14 @@ function createBackend(options = {}) {
     },
     LockService: { getScriptLock: () => ({ waitLock: () => {}, tryLock: () => true, releaseLock: () => {} }) },
     ScriptApp: { getService: () => ({ getUrl: () => "https://script.google.com/macros/s/TEST/exec" }) },
+    // Outgoing HTTP (the Claude API). Tests pass options.urlFetch(url, params) => { code, body }.
+    UrlFetchApp: {
+      fetch: (url, params) => {
+        if (!options.urlFetch) throw new Error("No network in tests: pass options.urlFetch");
+        const reply = options.urlFetch(url, params);
+        return { getResponseCode: () => reply.code, getContentText: () => (typeof reply.body === "string" ? reply.body : JSON.stringify(reply.body)) };
+      }
+    },
     Logger: { log: (...args) => logs.push(args.join(" ")) },
     console
   };

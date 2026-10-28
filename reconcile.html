@@ -28,6 +28,9 @@
                 <h2>Unmatched Payments</h2>
                 <p>SMS payments whose account number didn't name a known house and whose payer matched no tenant. Assign each one to credit the tenant.</p>
             </div>
+            <div class="page-actions">
+                <button type="button" class="btn btn-primary d-none" id="aiSuggestBtn"><i class="fa-solid fa-wand-magic-sparkles me-2"></i>AI suggest</button>
+            </div>
         </div>
 
         <div id="loading" class="text-center py-5">
@@ -65,6 +68,7 @@
     <script type="module" src="js/require-auth.js"></script>
     <script>
         let selectedPayment = null;
+        let aiSuggestions = {}; // paymentId -> { tenantId, tenantName, house, confidence, reason }
         let unmatchedPayments = [];
         let tenants = [];
         const fixModal = new bootstrap.Modal(document.getElementById('fixModal'));
@@ -80,6 +84,7 @@
                 unmatchedPayments = unmatchedRes.data || [];
                 tenants = tenantsRes.data || [];
                 updateUnmatchedBadge(unmatchedPayments.length);
+                document.getElementById("aiSuggestBtn").classList.toggle("d-none", !unmatchedPayments.length);
             } catch (e) {
                 console.error(e);
                 document.getElementById('loading').style.display = 'none';
@@ -105,12 +110,13 @@
                 const smsText = String(item.SmsText || '');
                 const account = item.House ? ` • Account house: <strong>${escapeHtml(item.House)}</strong>` : '';
                 list.innerHTML += `
-                    <div class="card mb-3">
+                    <div class="card mb-3" data-payment-id="${escapeHtml(item.ID || '')}">
                         <div class="card-body d-flex justify-content-between align-items-center gap-3">
-                            <div>
+                            <div class="min-w-0">
                                 <div class="text-muted small">${dateShort} • From: <strong>${escapeHtml(item.Payer || item.Tenant || 'Unknown')}</strong>${account}</div>
                                 <div class="mt-1"><span class="badge bg-light text-dark border">${escapeHtml(item.Reference || 'No reference')}</span></div>
                                 ${smsText ? `<div class="mt-1 small text-muted">${escapeHtml(smsText.length > 140 ? smsText.slice(0, 140) + '...' : smsText)}</div>` : ''}
+                                <div class="ai-slot"></div>
                             </div>
                             <div class="text-end">
                                 <div class="amount-badge">KES ${formatMoney(item.Amount)}</div>
@@ -130,7 +136,10 @@
                 const opt = document.createElement("option");
                 opt.value = t.ID;
                 opt.innerText = `House ${t.House} - ${t.Name}`;
-                if (selectedPayment && selectedPayment.House !== "" && String(t.House) === String(selectedPayment.House)) opt.selected = true;
+                // Pre-select the AI's suggestion if there is one, else the house named in the SMS.
+                const suggestion = selectedPayment && aiSuggestions[selectedPayment.ID];
+                if (suggestion && suggestion.tenantId) opt.selected = String(t.ID) === String(suggestion.tenantId);
+                else if (selectedPayment && selectedPayment.House !== "" && String(t.House) === String(selectedPayment.House)) opt.selected = true;
                 select.appendChild(opt);
             });
         }
@@ -158,6 +167,49 @@
                 btn.innerText = "Confirm Assignment";
             }
         }
+
+        // AI suggestions: the assistant proposes a tenant for each payment; the landlord confirms in the Assign dialog.
+        async function suggestMatches() {
+            const button = document.getElementById('aiSuggestBtn');
+            if (!unmatchedPayments.length) return;
+            button.disabled = true;
+            button.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin me-2"></i>Thinking…';
+            document.querySelectorAll('[data-payment-id] .ai-slot').forEach(slot => {
+                slot.innerHTML = '<div class="ai-shimmer mt-2" style="width:70%"></div>';
+            });
+            try {
+                const result = await apiRequest({ action: 'aiAssist', mode: 'matchSuggest' });
+                aiSuggestions = {};
+                (result.data.suggestions || []).forEach(s => { aiSuggestions[s.paymentId] = s; });
+                document.querySelectorAll('[data-payment-id]').forEach(card => {
+                    const s = aiSuggestions[card.dataset.paymentId];
+                    const slot = card.querySelector('.ai-slot');
+                    if (!s || !s.tenantId) {
+                        slot.innerHTML = `<div class="ai-suggestion is-low"><i class="fa-solid fa-wand-magic-sparkles mt-1"></i><div>No confident match${s && s.reason ? ': ' + escapeHtml(s.reason) : ''}. Assign it yourself.</div></div>`;
+                        return;
+                    }
+                    const index = unmatchedPayments.findIndex(p => String(p.ID) === card.dataset.paymentId);
+                    slot.innerHTML = `
+                        <div class="ai-suggestion">
+                            <i class="fa-solid fa-wand-magic-sparkles mt-1"></i>
+                            <div class="flex-grow-1">
+                                <div><strong>House ${escapeHtml(s.house)} - ${escapeHtml(s.tenantName)}</strong> <span class="badge ${s.confidence === 'high' ? 'bg-success' : 'bg-warning text-dark'} ms-1">${escapeHtml(s.confidence)} confidence</span></div>
+                                <div>${escapeHtml(s.reason)}</div>
+                                <button type="button" class="btn btn-sm btn-primary mt-2" onclick="openFixModal(${index})">Assign to ${escapeHtml(s.tenantName.split(' ')[0])}</button>
+                            </div>
+                        </div>`;
+                });
+            } catch (error) {
+                document.querySelectorAll('[data-payment-id] .ai-slot').forEach(slot => { slot.innerHTML = ''; });
+                alert('AI suggestions failed: ' + error.message);
+            } finally {
+                button.disabled = false;
+                button.innerHTML = '<i class="fa-solid fa-wand-magic-sparkles me-2"></i>AI suggest';
+            }
+        }
+        document.getElementById('aiSuggestBtn').addEventListener('click', suggestMatches);
+        // "Suggest a tenant for each payment" in the Ask AI panel runs the same thing.
+        window.addEventListener('rentpro:ai-action', (event) => { if (event.detail.name === 'suggest-matches') suggestMatches(); });
 
         loadUnmatched();
     </script>

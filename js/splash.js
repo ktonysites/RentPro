@@ -4,7 +4,7 @@
 // It hides when js/dev-auth.js reports the sign-in result, or after a few seconds at most.
 (function () {
     const SEEN_KEY = 'rentpro_splash_seen';
-    const MIN_FULL_MS = 1200;   // long enough for the window animation to read, short enough not to annoy
+    const MIN_FULL_MS = 2000;   // long enough for the window animation to read, short enough not to annoy
     const MAX_WAIT_MS = 7000;   // never block the page if Firebase or the network is slow
 
     let firstVisit = true;

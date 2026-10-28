@@ -126,7 +126,11 @@
                 </div>
                 <div class="col-12">
                     <label class="form-label small fw-bold">Description</label>
-                    <input type="text" id="expenseDesc" class="form-control" placeholder="e.g. Broken pipe fix" required>
+                    <input type="text" id="expenseDesc" class="form-control" placeholder="e.g. Broken pipe fix in house 7" required>
+                    <div class="d-flex align-items-center gap-2 mt-2 flex-wrap">
+                        <button type="button" class="btn btn-sm btn-outline-primary" id="aiCategoryBtn"><i class="fa-solid fa-wand-magic-sparkles me-1"></i>Suggest category &amp; house</button>
+                        <span class="small text-muted" id="aiCategoryNote"></span>
+                    </div>
                 </div>
             </div>
 
@@ -274,6 +278,7 @@
     // --- ADD EXPENSE ---
     document.getElementById('addExpenseBtn').addEventListener('click', () => {
         document.getElementById('expenseForm').reset();
+        document.getElementById('aiCategoryNote').innerText = '';
         document.getElementById('expenseDate').value = new Date().toISOString().split('T')[0];
         const modal = new bootstrap.Modal(document.getElementById('expenseModal'));
         modal.show();
@@ -336,6 +341,30 @@
         } finally {
             btn.disabled = false;
             btn.innerHTML = `<i class="fa-solid fa-trash-can me-2"></i> Generate Garbage Bills`;
+        }
+    });
+
+    // --- AI: suggest category and house from the description (the landlord can still change both) ---
+    document.getElementById('aiCategoryBtn').addEventListener('click', async () => {
+        const button = document.getElementById('aiCategoryBtn');
+        const note = document.getElementById('aiCategoryNote');
+        const description = document.getElementById('expenseDesc').value.trim();
+        if (!description) { note.innerText = 'Type a description first.'; return; }
+        button.disabled = true;
+        note.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin me-1"></i>Thinking…';
+        try {
+            const result = await apiRequest({ action: 'aiAssist', mode: 'categorize', question: description });
+            const { category, house, reason } = result.data;
+            const categorySelect = document.getElementById('expenseCategory');
+            const houseSelect = document.getElementById('expenseHouse');
+            if ([...categorySelect.options].some(o => o.value === category)) categorySelect.value = category;
+            const houseValue = String(house || '').replace(/^house\s*/i, '');
+            if ([...houseSelect.options].some(o => o.value === houseValue)) houseSelect.value = houseValue;
+            note.innerText = `${category}${houseValue && houseValue !== 'General' ? ' · House ' + houseValue : ' · General'}: ${reason}`;
+        } catch (error) {
+            note.innerText = error.message;
+        } finally {
+            button.disabled = false;
         }
     });
 

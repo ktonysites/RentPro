@@ -3,7 +3,7 @@
   "version": "1.1.0",
   "private": true,
   "scripts": {
-    "test": "node --test tests/backend.test.js",
+    "test": "node --test tests/backend.test.js tests/report.test.js tests/free-ai.test.js",
     "dev": "node tests/dev-server.js",
     "icons": "node tools/make-icons.cjs android/app/src/main/res",
     "build:web": "node tools/build-web.cjs",

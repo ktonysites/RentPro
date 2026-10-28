@@ -25,7 +25,7 @@ var SMS_TOKEN_PROPERTY = "SMS_WEBHOOK_TOKEN";
 
 var READ_ACTIONS = {
   getTenants: true, getPayments: true, getExpenses: true, getUtilityBills: true,
-  getArchivedData: true, getUnmatched: true, getDeletedPayments: true
+  getArchivedData: true, getUnmatched: true, getDeletedPayments: true, aiAssist: true
 };
 
 function doGet(e) {
@@ -96,6 +96,7 @@ function routeAction(action, params) {
       case "getDeletedPayments": return getDeletedPayments();
       case "restorePayments": return restorePayments(params);
       case "purgeDeletedPayments": return purgeDeletedPayments(params);
+      case "aiAssist": return aiAssist(params);
       default: return response(false, "Unknown action: " + action);
     }
 }
@@ -165,7 +166,7 @@ function value(data, names, fallback) {
 }
 
 function id(prefix) {
-  return prefix + "-" + new Date().getTime() + "-" + Math.floor(Math.random() * 1000);
+  return prefix + "-" + new Date().getTime() + "-" + Math.floor(Math.random() * 1000000);
 }
 
 function getTenants() {
@@ -929,4 +930,1296 @@ function initSheets() {
       currentSheet.getRange(1, currentSheet.getLastColumn() + 1, 1, missingHeaders.length).setValues([missingHeaders]);
     }
   });
+}
+
+/* ---------- AI assistant ----------
+ * Free by default: the built-in assistant (freeAssistant, below) answers from the sheet data with no API key.
+ * Optional upgrade: add ANTHROPIC_API_KEY in Apps Script → Project Settings → Script properties to use Claude
+ * for free-form questions. The key stays on Google's side; the website and app never see it.
+ * Tenant phone numbers, ID numbers and raw SMS text are never sent to the model.
+ *
+ * Modes:
+ *   ask          - answer a question; tailored to the page the landlord is on (data.page)
+ *   insights     - short briefing for the dashboard
+ *   reminder     - one SMS rent reminder (English or Kiswahili)
+ *   matchSuggest - structured: likely tenant for each unmatched payment
+ *   categorize   - structured: expense category for a description
+ */
+var AI_MODEL = "claude-opus-5-5";
+var EXPENSE_CATEGORIES = ["Maintenance", "Utilities", "Cleaning", "Tax", "Salary", "Other"];
+
+// What the assistant should focus on, per RentPro page.
+var AI_PAGE_GUIDES = {
+  dashboard: "The landlord is on the Dashboard. Focus on the overall picture: this month's collection against expected rent, who is behind, unmatched payments and the most useful next steps.",
+  tenants: "The landlord is on the Tenants list. Focus on tenants: who is behind and by how much, who is paid up, missing next-of-kin details, and drafting messages to groups of tenants.",
+  "tenant-profile": "The landlord is looking at one tenant (focusTenant in the data). Answer about that tenant: balance, payment history and how regularly they pay, utility bills, and drafting messages to them.",
+  payments: "The landlord is on the Payments history. Focus on payments: totals by month, trends, unusual or possibly duplicate payments, and unmatched payments.",
+  reconcile: "The landlord is on Unmatched payments. Work out which tenant each unmatched payment most likely belongs to, using the payer name, the house in the account reference, the amount compared with rent and balances, and past payments.",
+  utilities: "The landlord is on Utilities (water and garbage bills). Focus on unpaid bills, totals owed, water usage per house and unusually high usage.",
+  expenses: "The landlord is on Expenses. Focus on spending: totals by category and house, unusual or repeated costs, and practical ways to save.",
+  reports: "The landlord is on Reports. Explain the finances clearly: income against expenses, profit, collection rate and how periods compare.",
+  archives: "The landlord is on Former tenants. Focus on tenants who moved out: balances they left unpaid, reasons for leaving and patterns.",
+  pay: "The landlord is on Payment lookup. Help prepare clear payment instructions for tenants using the paybill and account format.",
+  moveout: "The landlord is processing a move-out. Help with a move-out checklist, the tenant's final balance, deposit decisions and a polite message to the tenant.",
+  assistant: "The landlord is in the full AI Assistant. Answer any question about the property."
+};
+
+function aiAssist(data) {
+  var apiKey = PropertiesService.getScriptProperties().getProperty("ANTHROPIC_API_KEY");
+  var mode = String(value(data, ["mode"], "ask"));
+  if (["ask", "insights", "reminder", "matchSuggest", "categorize"].indexOf(mode) < 0) return response(false, "Unknown AI mode");
+  var page = AI_PAGE_GUIDES[String(value(data, ["page"], ""))] ? String(data.page) : "assistant";
+  var question = String(value(data, ["question"], "")).slice(0, 2000);
+  if (mode === "categorize" && !question) return response(false, "Enter a description first");
+  var context = aiContext(String(value(data, ["tenantId"], "")));
+  if (mode === "matchSuggest" && !context.unmatched.length) return response(true, "No unmatched payments", { suggestions: [], engine: apiKey ? "claude" : "free" });
+  var language = String(value(data, ["language"], "")).toLowerCase() === "kiswahili" ? "Kiswahili" : "English";
+
+  var answerFree = function(notice) {
+    var result = freeAssistant(mode, page, question, context, language, aiHistory(data));
+    result.engine = "free";
+    if (notice) result.notice = notice;
+    return response(true, "OK", result);
+  };
+  if (!apiKey) return answerFree();
+
+  var base = "You are RentPro's assistant for a Kenyan landlord managing one property. Amounts are in KES. " +
+    "Use only the property data provided; if it doesn't contain the answer, say so plainly. Be concise and practical.";
+  var request;
+  if (mode === "ask") {
+    request = {
+      system: base + " " + AI_PAGE_GUIDES[page] + " Format answers with short paragraphs, **bold** for key figures and '- ' bullet lists.",
+      question: question || "What should I know about this page?"
+    };
+  } else if (mode === "insights") {
+    request = {
+      system: base + " Give a short dashboard briefing: collection status this month, tenants behind on rent, unmatched payments, unusual payments or expenses, and 2-3 practical next steps. Use **bold** and short '- ' bullets.",
+      question: question || "Give me today's briefing."
+    };
+  } else if (mode === "reminder") {
+    request = {
+      system: base + " Write one polite, friendly SMS rent reminder (under 300 characters) for the tenant named in the request" +
+        (context.focusTenant ? " (focusTenant in the data)" : "") + ", including their balance and the paybill details. Language: " + language + ". Output only the message text.",
+      question: question || "Write the reminder."
+    };
+  } else if (mode === "matchSuggest") {
+    request = {
+      system: base + " " + AI_PAGE_GUIDES.reconcile + " Return one suggestion per unmatched payment, using the tenant's id from the tenants list. " +
+        "Use an empty tenantId and confidence \"low\" when nothing fits. Keep each reason under 120 characters.",
+      question: "Suggest the tenant for each unmatched payment.",
+      maxTokens: 3000,
+      schema: {
+        type: "object",
+        properties: {
+          suggestions: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                paymentId: { type: "string" },
+                tenantId: { type: "string" },
+                confidence: { type: "string", enum: ["high", "medium", "low"] },
+                reason: { type: "string" }
+              },
+              required: ["paymentId", "tenantId", "confidence", "reason"],
+              additionalProperties: false
+            }
+          }
+        },
+        required: ["suggestions"],
+        additionalProperties: false
+      }
+    };
+  } else {
+    request = {
+      system: base + " Classify one property expense. Pick the best category; for the house, use the house number mentioned in the description, " +
+        "or \"General\" for shared costs. Keep the reason under 80 characters.",
+      question: "Expense description: " + question,
+      maxTokens: 1000,
+      schema: {
+        type: "object",
+        properties: {
+          category: { type: "string", enum: EXPENSE_CATEGORIES },
+          house: { type: "string" },
+          reason: { type: "string" }
+        },
+        required: ["category", "house", "reason"],
+        additionalProperties: false
+      }
+    };
+  }
+
+  var body = {
+    model: AI_MODEL,
+    max_tokens: request.maxTokens || 4000,
+    output_config: { effort: "low" },
+    fallbacks: "default",
+    system: request.system + "\n\nProperty data (JSON):\n" + JSON.stringify(context),
+    messages: (mode === "ask" ? aiHistory(data) : []).concat([{ role: "user", content: request.question }])
+  };
+  if (request.schema) body.output_config.format = { type: "json_schema", schema: request.schema };
+
+  var reply;
+  try { reply = callClaude(apiKey, body); } catch (error) { reply = { ok: false, message: "Couldn't reach Claude." }; }
+  if (!reply.ok) return answerFree(reply.message + " Answered with the free assistant instead.");
+  if (!request.schema) return response(true, "OK", { text: reply.text, engine: "claude" });
+
+  var parsed;
+  try { parsed = JSON.parse(reply.text); } catch (error) { return answerFree("Claude's reply couldn't be read. Answered with the free assistant instead."); }
+  if (mode === "matchSuggest") {
+    // Keep only suggestions that point at real unmatched payments and real tenants.
+    var tenantIds = {};
+    context.tenants.forEach(function(t) { tenantIds[t.id] = t; });
+    var paymentIds = {};
+    context.unmatched.forEach(function(p) { paymentIds[p.paymentId] = true; });
+    parsed.suggestions = (parsed.suggestions || []).filter(function(s) { return paymentIds[s.paymentId]; }).map(function(s) {
+      var tenant = tenantIds[s.tenantId];
+      return { paymentId: s.paymentId, tenantId: tenant ? s.tenantId : "", tenantName: tenant ? tenant.name : "", house: tenant ? tenant.house : "",
+        confidence: tenant ? s.confidence : "low", reason: s.reason };
+    });
+  }
+  if (mode === "categorize" && EXPENSE_CATEGORIES.indexOf(parsed.category) < 0) parsed.category = "Other";
+  parsed.engine = "claude";
+  return response(true, "OK", parsed);
+}
+
+// The property data the assistant sees. Personal identifiers (phone, national ID) and raw SMS text are left out.
+function aiContext(tenantId) {
+  var tenants = rowsAsObjects(SHEET_TENANTS);
+  var payments = rowsAsObjects(SHEET_PAYMENTS);
+  var utilities = rowsAsObjects(SHEET_UTILITIES);
+  var shortPayment = function(p) {
+    return { date: p.Date, amount: p.Amount, tenant: p.Tenant, payer: p.Payer, house: p.House, method: p.Method, reference: p.Reference, status: p.Notes };
+  };
+  var context = {
+    today: Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyy-MM-dd"),
+    paybill: "Equity paybill 247247, account 275515 <house number>",
+    tenants: tenants.map(function(t) {
+      return { id: String(t.ID), name: t.Name, house: t.House, rent: t.Rent, paid: t.AmountPaid, balance: t.Balance,
+        dueDay: t.DueDate, since: t.DateAdded, hasNextOfKin: !!String(t.NextOfKin || "").trim() };
+    }),
+    payments: payments.slice(-300).map(shortPayment),
+    unmatched: payments.filter(function(p) { return /unmatched|unassigned/i.test(String(p.Notes || "")); }).slice(-50).map(function(p) {
+      return { paymentId: String(p.ID), date: p.Date, amount: p.Amount, payer: p.Payer || p.Tenant, accountHouse: p.House, reference: p.Reference };
+    }),
+    expenses: rowsAsObjects(SHEET_EXPENSES).slice(-200).map(function(e) {
+      return { date: e.Date, category: e.Category, description: e.Description, amount: e.Amount, house: e.House };
+    }),
+    utilities: utilities.slice(-200).map(function(u) {
+      return { month: u.Month, house: u.House, tenant: u.TenantName, water: u.Water, garbage: u.Garbage, status: u.Status, unitsUsed: u.UnitsUsed };
+    }),
+    formerTenants: rowsAsObjects(SHEET_ARCHIVES).slice(-50).map(function(a) {
+      return { name: a.Name, house: a.House, rent: a.Rent, balance: a.Balance, reason: a.MoveOutReason, deposit: a.DepositStatus, since: a.DateAdded, movedOut: a.ArchivedDate };
+    })
+  };
+  var focus = tenantId && tenants.filter(function(t) { return String(t.ID) === tenantId; })[0];
+  if (focus) {
+    var name = String(focus.Name || "").trim().toLowerCase();
+    context.focusTenant = {
+      id: String(focus.ID), name: focus.Name, house: focus.House, rent: focus.Rent, paid: focus.AmountPaid, balance: focus.Balance,
+      dueDay: focus.DueDate, since: focus.DateAdded,
+      payments: payments.filter(function(p) { return String(p.Tenant || "").trim().toLowerCase() === name; }).map(shortPayment),
+      utilityBills: utilities.filter(function(u) { return String(u.House) === String(focus.House); }).map(function(u) {
+        return { month: u.Month, water: u.Water, garbage: u.Garbage, status: u.Status, unitsUsed: u.UnitsUsed };
+      })
+    };
+  }
+  return context;
+}
+
+// One Messages API call. Returns { ok, text } or { ok: false, message }.
+function callClaude(apiKey, body) {
+  var res = UrlFetchApp.fetch("https://api.anthropic.com/v1/messages", {
+    method: "post",
+    contentType: "application/json",
+    headers: {
+      "x-api-key": apiKey,
+      "anthropic-version": "2026-10-21",
+      "anthropic-beta": "server-side-fallback-2026-07-01"
+    },
+    payload: JSON.stringify(body),
+    muteHttpExceptions: true
+  });
+  var result;
+  try { result = JSON.parse(res.getContentText()); } catch (error) { return { ok: false, message: "AI service returned an unexpected reply (" + res.getResponseCode() + ")" }; }
+  if (res.getResponseCode() !== 200) return { ok: false, message: "AI error: " + ((result.error && result.error.message) || res.getResponseCode()) };
+  if (result.stop_reason === "refusal") return { ok: false, message: "The AI declined this request. Try rephrasing it." };
+  if (result.stop_reason === "max_tokens") return { ok: false, message: "The AI reply was too long. Try a narrower question." };
+  var text = (result.content || []).filter(function(b) { return b.type === "text"; }).map(function(b) { return b.text; }).join("\n").trim();
+  return { ok: true, text: text };
+}
+
+// Earlier turns of an assistant conversation (sent by the page), so follow-up questions have context.
+// Kept short: the last 6 messages, 1,500 characters each, starting with a user turn and alternating roles.
+function aiHistory(data) {
+  var history = data.history;
+  if (typeof history === "string") {
+    try { history = JSON.parse(history); } catch (error) { history = []; }
+  }
+  if (!Array.isArray(history)) return [];
+  var cleaned = [];
+  history.slice(-6).forEach(function(turn) {
+    var role = turn && (turn.role === "assistant" ? "assistant" : turn.role === "user" ? "user" : "");
+    var content = turn && String(turn.content || "").slice(0, 1500).trim();
+    if (!role || !content) return;
+    if (!cleaned.length && role !== "user") return;
+    if (cleaned.length && cleaned[cleaned.length - 1].role === role) return;
+    cleaned.push({ role: role, content: content });
+  });
+  // The new question is a user turn, so the history must end with the assistant.
+  if (cleaned.length && cleaned[cleaned.length - 1].role === "user") cleaned.pop();
+  return cleaned;
+}
+
+/* ---------- Free built-in assistant ----------
+ * Answers from the sheet data with rules and calculations: no API key, no cost, and nothing leaves Google.
+ * Used whenever ANTHROPIC_API_KEY isn't set, and as a backup if a Claude call fails.
+ * Returns the same shapes as the Claude path: { text }, { suggestions } or { category, house, reason }.
+ */
+var PAYBILL_NUMBER = "247247";
+var PAYBILL_ACCOUNT_PREFIX = "275515#";
+var AI_MONTH_NAMES = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+
+function freeAssistant(mode, page, question, context, language, history) {
+  var f = freeFacts(context);
+  if (mode === "insights") return { text: freeBriefing(f) };
+  if (mode === "reminder") {
+    var tenant = freeFindTenant(f, question.toLowerCase(), []);
+    return { text: tenant ? freeReminder(f, tenant, language) : "Open a tenant's profile to draft their reminder." };
+  }
+  if (mode === "matchSuggest") return { suggestions: freeMatchSuggestions(f) };
+  if (mode === "categorize") return freeCategorize(question);
+  return { text: freeAnswer(f, page, question, history || []) };
+}
+
+/* -- Data, cleaned once per request -- */
+
+function aiNum(input) {
+  if (typeof input === "number") return input;
+  return Number(String(input === null || input === undefined ? "" : input).replace(/[^0-9.\-]/g, "")) || 0;
+}
+
+function aiDate(input) {
+  if (input instanceof Date) return isNaN(input.getTime()) ? null : input;
+  if (input === "" || input === null || input === undefined) return null;
+  var date = new Date(input);
+  return isNaN(date.getTime()) ? null : date;
+}
+
+function aiMonth(date) { return date.getFullYear() * 12 + date.getMonth(); }
+function aiMonthName(index) { return AI_MONTH_NAMES[index % 12] + " " + Math.floor(index / 12); }
+
+function kes(amount) {
+  var rounded = Math.round(Math.abs(amount));
+  return (amount < 0 ? "-" : "") + "KES " + String(rounded).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+}
+
+function aiPercent(part, whole) { return whole ? Math.round(part / whole * 100) + "%" : "–"; }
+function aiBullets(lines) { return lines.map(function(line) { return "- " + line; }).join("\n"); }
+function aiSum(items, field) { return items.reduce(function(total, item) { return total + item[field]; }, 0); }
+function aiHouseLabel(house) { return house ? "House " + house : "No house"; }
+function aiNameKey(name) { return String(name || "").trim().toLowerCase().replace(/\s+/g, " "); }
+function aiFirstName(name) { return String(name || "").trim().split(/\s+/)[0] || "there"; }
+
+function freeFacts(context) {
+  var now = new Date();
+  var tenants = (context.tenants || []).map(function(t) {
+    var rent = aiNum(t.rent), paid = aiNum(t.paid);
+    return { id: String(t.id), name: String(t.name || "").trim(), house: String(t.house || "").trim(), rent: rent, paid: paid,
+      balance: rent - paid, dueDay: aiNum(t.dueDay), since: aiDate(t.since), hasNextOfKin: !!t.hasNextOfKin };
+  });
+  var payments = (context.payments || []).map(function(p) {
+    return { date: aiDate(p.date), amount: aiNum(p.amount), tenant: String(p.tenant || "").trim(), house: String(p.house || "").trim(),
+      payer: String(p.payer || "").trim(), reference: String(p.reference || "").trim(), method: String(p.method || "").trim(),
+      unmatched: /unmatched|unassigned/i.test(String(p.status || "")) };
+  }).filter(function(p) { return p.date; });
+  var focus = context.focusTenant && tenants.filter(function(t) { return t.id === String(context.focusTenant.id); })[0];
+  return {
+    now: now,
+    month: aiMonth(now),
+    tenants: tenants,
+    payments: payments,
+    received: payments.filter(function(p) { return !p.unmatched; }),
+    unmatched: (context.unmatched || []).map(function(p) {
+      return { paymentId: String(p.paymentId), date: aiDate(p.date), amount: aiNum(p.amount), payer: String(p.payer || "").trim(),
+        house: String(p.accountHouse || "").trim(), reference: String(p.reference || "") };
+    }),
+    expenses: (context.expenses || []).map(function(e) {
+      return { date: aiDate(e.date), category: String(e.category || "Other"), description: String(e.description || "").trim(),
+        amount: aiNum(e.amount), house: String(e.house || "").trim() || "General" };
+    }),
+    utilities: (context.utilities || []).map(function(u) {
+      return { month: String(u.month || ""), house: String(u.house || "").trim(), tenant: String(u.tenant || ""), water: aiNum(u.water),
+        garbage: aiNum(u.garbage), paid: u.status === "Paid", units: aiNum(u.unitsUsed) };
+    }),
+    former: (context.formerTenants || []).map(function(a) {
+      return { name: String(a.name || "").trim(), house: String(a.house || "").trim(), rent: aiNum(a.rent), balance: aiNum(a.balance),
+        reason: String(a.reason || "").trim(), deposit: String(a.deposit || "").trim(), since: aiDate(a.since), movedOut: aiDate(a.movedOut) };
+    }),
+    focus: focus || null
+  };
+}
+
+function aiOwing(f) {
+  return f.tenants.filter(function(t) { return t.balance > 0; }).sort(function(a, b) { return b.balance - a.balance; });
+}
+
+// Rent expected in one month: everyone who occupied a house that month (current and former tenants).
+function aiExpectedRent(f, month) {
+  var occupied = function(t, end) {
+    var from = t.since ? aiMonth(t.since) : -Infinity;
+    return from <= month && month <= end;
+  };
+  return aiSum(f.tenants.filter(function(t) { return occupied(t, Infinity); }), "rent") +
+    aiSum(f.former.filter(function(a) { return occupied(a, a.movedOut ? aiMonth(a.movedOut) : -Infinity); }), "rent");
+}
+
+function aiInMonths(date, first, last) {
+  if (!date) return false;
+  var month = aiMonth(date);
+  return month >= first && month <= last;
+}
+
+// "last month", "last 3 months", "this year", "in September"... Returns null when the question names no period.
+function freePeriod(q, f) {
+  var m = f.month, year = f.now.getFullYear();
+  var make = function(first, last, label) { return { first: first, last: last, label: label }; };
+  if (/last month|previous month|mwezi uliopita/.test(q)) return make(m - 1, m - 1, "last month (" + aiMonthName(m - 1) + ")");
+  var words = { two: 2, three: 3, four: 4, six: 6, twelve: 12 };
+  var span = q.match(/(?:last|past)\s+(\d+|two|three|four|six|twelve)\s+months/);
+  if (span) {
+    var n = Math.max(1, Math.min(24, Number(span[1]) || words[span[1]]));
+    return make(m - n + 1, m, "the last " + n + " months (" + aiMonthName(m - n + 1) + " – " + aiMonthName(m) + ")");
+  }
+  if (/this year|mwaka huu/.test(q)) return make(year * 12, m, "this year (" + year + ")");
+  if (/last year|mwaka uliopita/.test(q)) return make((year - 1) * 12, (year - 1) * 12 + 11, "last year (" + (year - 1) + ")");
+  if (/all time|\bever\b|so far|since the start|altogether/.test(q)) return make(0, m, "all time");
+  for (var i = 0; i < 12; i++) {
+    var name = AI_MONTH_NAMES[i].toLowerCase();
+    var pattern = i === 4 ? /\b(in|for|during|of|since) may\b|\bmay \d{4}\b/ : new RegExp("\\b(" + name + "|" + name.slice(0, 3) + ")\\b");
+    if (pattern.test(q)) {
+      var index = year * 12 + i;
+      if (index > m) index -= 12;
+      return make(index, index, aiMonthName(index));
+    }
+  }
+  if (/this month|mwezi huu|today|now/.test(q)) return make(m, m, "this month (" + aiMonthName(m) + ")");
+  return null;
+}
+
+function aiThisMonth(f) { return { first: f.month, last: f.month, label: "this month (" + aiMonthName(f.month) + ")" }; }
+
+// A tenant named in the question ("Mary", "house 7"), else the one whose profile is open,
+// else (for "she"/"they" follow-ups) the last tenant mentioned in the conversation.
+function freeFindTenant(f, q, history) {
+  var house = q.match(/\b(?:house|hse|nyumba|unit|door|no\.?)\s*#?\s*([a-z]?\d+[a-z]?)\b/i) || q.match(/#\s*(\d+[a-z]?)\b/i);
+  if (house) {
+    var byHouse = f.tenants.filter(function(t) { return t.house.toLowerCase() === house[1].toLowerCase(); })[0];
+    if (byHouse) return byHouse;
+  }
+  var best = null, bestScore = 0;
+  var plain = function(text) { return " " + String(text).toLowerCase().replace(/['’]s\b/g, "").replace(/['’]/g, "").replace(/[^a-z0-9]+/g, " ") + " "; };
+  var words = plain(q);
+  f.tenants.forEach(function(t) {
+    var key = plain(t.name).trim();
+    var score = key && words.indexOf(" " + key + " ") >= 0 ? 10 : 0;
+    key.split(" ").forEach(function(word) {
+      if (word.length >= 3 && words.indexOf(" " + word + " ") >= 0) score += 1;
+    });
+    if (score > bestScore) { best = t; bestScore = score; }
+  });
+  if (best) return best;
+  if (f.focus) return f.focus;
+  if (/\b(she|he|her|his|him|they|their|them)\b/.test(q)) {
+    for (var i = history.length - 1; i >= 0; i--) {
+      var earlier = freeFindTenant({ tenants: f.tenants, focus: null }, String(history[i].content || "").toLowerCase(), []);
+      if (earlier) return earlier;
+    }
+  }
+  return null;
+}
+
+/* -- Questions -- */
+
+function freeAnswer(f, page, question, history) {
+  var q = String(question || "").toLowerCase().replace(/[’`]/g, "'");
+  var tenant = freeFindTenant(f, q, history);
+  var has = function(pattern) { return pattern.test(q); };
+
+  if (!q.trim() || has(/^(hi|hello|hey|habari|mambo|help|what can you do|what can i ask)\b/) || has(/^(help|what can you do)/)) return freeHelp(f, page);
+
+  // "How do I…" questions about using RentPro
+  if (has(/how (do|can|to|should) (i |we )?(add|record|enter|edit|change|update|delete|remove|clear|restore|undo|recover|move|assign|generate|send|export|download|print|install|sign|log|set ?up|use|find|see|create|register|archive|mark|pay|get)|how to |where (do|can|is|are)|^can i |steps to|guide me|show me how|what does .* button/) &&
+      !has(/how (do|can) i (improve|increase|save|reduce|grow)/) && !has(/\b(write|draft|compose)\b/)) {
+    var help = freeAppHelp(q);
+    if (help) return help;
+  }
+
+  // An M-Pesa reference such as UJH7UAL03Q
+  var reference = String(question || "").toUpperCase().match(/\b(?=[A-Z0-9]*\d)(?=[A-Z0-9]*[A-Z])[A-Z0-9]{10}\b/);
+  if (reference) return freeReferenceLookup(f, reference[0]);
+
+  // Messages to draft
+  if (has(/remind|kumbusha/)) {
+    var language = has(/kiswahili|swahili/) ? "Kiswahili" : "English";
+    if (tenant && !has(/\b(each|every|all|everyone)\b/)) return "Here's a reminder you can send" + (tenant.balance > 0 ? "" : " (they don't owe anything right now)") + ":\n\n" + freeReminder(f, tenant, language);
+    return freeAllReminders(f, language);
+  }
+  if (has(/goodbye|farewell|kwaheri/)) return freeGoodbye(tenant);
+  if (has(/thank|appreciat|asante/) && has(/message|draft|write|sms|note|send/)) return freeThankYou(tenant);
+  if (has(/deposit/) && has(/message|draft|write|refund|explain/)) return freeDepositMessage(tenant);
+  if (has(/how to pay|payment instruction|paybill|account number/) && has(/message|write|draft|send|explain|instruction/)) return freePayInstructions(tenant);
+  if (has(/paybill|account number|business number|till/)) return freePayInstructions(tenant);
+
+  // Former tenants
+  if (has(/former|archiv|moved out|move-out reason|ex-tenant|previous tenant|tenants (who )?(left|leave)|why .*(leave|left)/)) {
+    return has(/why|reason|pattern/) ? freeMoveOutReasons(f) : freeFormerBalances(f);
+  }
+  if (has(/checklist|move.?out|moving (a tenant )?out|vacat/)) return freeMoveOutChecklist(f, tenant);
+
+  // The tenant whose profile is open, or one named in the question
+  if (tenant && has(/payments|paid|pay\b|malipo|lipa/) && !has(/\b(tenants|everyone|all|who|which)\b|on time|regular|in full/)) return freeTenantPayments(f, tenant, freePeriod(q, f));
+  if (tenant && has(/\b(this tenant|they|their|she|he|her|his)\b|summar|on time|regular|late|history/) && !has(/\b(tenants|everyone|all)\b/)) {
+    return has(/on time|regular|late|punctual|in full|consistent/) && !has(/summar/) ? freePunctuality(f, tenant) : freeTenantSummary(f, tenant);
+  }
+
+  if (has(/next.?of.?kin|missing|incomplete|details/)) return freeMissingDetails(f);
+
+  if (has(/water|garbage|utilit|maji|taka|meter|units/)) {
+    return has(/most|highest|usage|\buse\b|consum|high|unusual/) ? freeWaterUsage(f) : freeUnpaidUtilities(f);
+  }
+
+  if (has(/unmatched|unassigned|belong|\bmatch/)) return has(/how (should|do|can) i|explain how|decide/) ? freeMatchingGuide(f) : freeUnmatchedAnswer(f);
+
+  var expenseWords = /expens|spend|spent|cost|matumizi|bills? paid/;
+  if (has(/briefing|attention|what('s| is) happening|overview|how am i doing|insight|summary of everything|status|focus|today's|priorit/)) return freeBriefing(f);
+  if (has(/\blate\b|overdue|past due|defaulter|wamechelewa|kuchelewa/) && !tenant) return freeLateAnswer(f);
+  if (has(/due (soon|this week|next|date|day)|upcoming|who is due|when .*due|due on/)) return freeDueDates(f);
+  if (has(/reliable|best tenant|good tenant|always pay|pays? on time|never (miss|late)|trust/) && !tenant) return freeReliability(f);
+  if (has(/risk|worr|concern|problem tenant|watch list|keep an eye|trouble/)) return freeWatchList(f);
+  if (has(/recent|latest|last (few |10 |ten )?payments|newest/) && has(/payment|paid|transaction|malipo/)) return freeRecentPayments(f);
+  if (has(/method|by cash|in cash|m-?pesa vs|how (did|do) (they|tenants) pay|bank/) && has(/payment|paid|pay/)) return freePaymentMethods(f, freePeriod(q, f) || aiThisMonth(f));
+  if (has(/follow.?up|chase|who should i (call|contact|remind)|priority/)) return freeFollowUps(f);
+  if (has(/compare|\bvs\.?\b|versus|against last/)) return freeCompareMonths(f);
+  if (has(/improve|increase|grow|what should i do|useful things|advice|tips|recommend/)) return freeImprovementTips(f);
+  if (has(/save|saving|cut (my )?cost|reduce|cheaper/)) return freeSavings(f, freePeriod(q, f));
+  if (has(/duplicate|unusual|odd|suspicious|strange|very large|very small/) && !has(expenseWords)) return freePaymentAnomalies(f);
+  if (has(/profit|my numbers|financ|income and expens/)) return freeFinancialSummary(f, freePeriod(q, f));
+  var category = EXPENSE_CATEGORIES.filter(function(c) { return c !== "Other" && new RegExp("\\b" + c.toLowerCase()).test(q); })[0] ||
+    (has(/repair|fundi|plumb/) ? "Maintenance" : has(/caretaker|guard|wage|mshahara/) ? "Salary" : "");
+  if (has(expenseWords) || (category && has(/spen|cost|paid for|how much/))) {
+    if (category && !has(/categor/)) return freeCategorySpend(f, category, freePeriod(q, f));
+    return has(/unusual|repeat|odd|duplicate|strange|high/) ? freeUnusualExpenses(f) : freeExpenseSummary(f, freePeriod(q, f), has(/house/));
+  }
+  if (has(/profit|income|\bnet\b|my numbers|financ|earn|explain/)) return freeFinancialSummary(f, freePeriod(q, f));
+  if (has(/\brate\b|trend|percentage|how well/)) return freeCollectionTrend(f, 3);
+
+  if (has(/more than (one|1|a) month|two months|2 months|months? behind|several months/)) return freeLongArrears(f);
+  if (has(/\bpart(ly|ial|ially)?\b|half|some of|not (paid )?in full|underpaid/)) return freePartialPayers(f);
+  if (has(/owe|owing|behind|arrear|balance|debt|deni|anadaiwa|hajalipa|hawajalipa|haven't paid|hasn't paid|not paid|unpaid|outstanding|\blate\b/)) {
+    return tenant && !has(/tenants|who|everyone|which/) ? freeTenantSummary(f, tenant) : freeOwing(f);
+  }
+  if (has(/credit|overpaid|paid (too much|extra|ahead)|advance/)) return freeCredits(f);
+  if (has(/collect|receiv|paid|payment|malipo|income|got|made|rent in|how much/)) return freeCollections(f, freePeriod(q, f) || aiThisMonth(f));
+  if (has(/vacan|empty|occup|how many (tenants|houses)|tenants do i have|list (of )?tenants|total rent|rent roll|monthly rent|expected rent/)) return freeOccupancy(f);
+  if (tenant) return freeTenantSummary(f, tenant);
+  var anyHelp = freeAppHelp(q);
+  if (anyHelp && has(/\b(how|where|can i|steps|button|page|screen)\b/)) return anyHelp;
+
+  return freePageOverview(f, page) + "\n\n" + freeHelp(f, page, true);
+}
+
+function freeHelp(f, page, short) {
+  var examples = {
+    dashboard: ["Today's briefing", "Who is late with rent?", "Who is due this week?", "Compare this month with last month"],
+    tenants: ["Who is behind on rent?", "Who are my most reliable tenants?", "Reminders for everyone owing", "How do I add a tenant?"],
+    "tenant-profile": ["Summarise this tenant", "Do they pay on time?", "Reminder in Kiswahili"],
+    payments: ["How much did I collect last month?", "Latest payments", "Find payment UJH7UAL03Q", "How do I restore a deleted payment?"],
+    reconcile: ["Who might the unmatched payments belong to?", "How should I match these?"],
+    utilities: ["Who hasn't paid utilities?", "Highest water use", "Total owed in utilities"],
+    expenses: ["Expenses this year by category", "Unusual spending", "Where can I save?"],
+    reports: ["Explain my numbers", "Collection rate over the last 6 months", "What should I improve?"],
+    archives: ["Unpaid balances of former tenants", "Why do tenants leave?"],
+    pay: ["Payment instructions message"],
+    moveout: ["Move-out checklist", "Deposit refund message", "Goodbye message"]
+  }[page] || ["Who is late with rent?", "How much did I collect last month?", "Summarise this year's expenses", "Who hasn't paid water?", "Tell me about house 7", "How do I record a cash payment?"];
+  return (short ? "**Try asking:**" : "I'm RentPro's built-in assistant. I work out answers from your own records, free.\n\n" +
+    "**I can help with:**\n" + aiBullets([
+      "**Rent:** who is late or due soon, who owes, part payments, arrears, reliable tenants, collections for any month, collection rate",
+      "**Tenants:** a summary of any tenant or house, payment record, missing details, tenants to watch",
+      "**Payments:** latest payments, find an M-Pesa reference, duplicates, unmatched payments and who they belong to",
+      "**Money:** expenses by category or house, unusual spending, where to save, profit, month-by-month comparisons",
+      "**Utilities & former tenants:** unpaid bills, water use, balances left, why tenants leave",
+      "**Messages:** reminders (English or Kiswahili), payment instructions, deposit and goodbye messages, move-out checklist",
+      "**Using RentPro:** _how do I…_ add a tenant, record a payment, assign, restore, export, generate bills…"
+    ]) + "\n\n**Try asking:**") + "\n" + aiBullets(examples) +
+    (short ? "" : "\n\nName a tenant or house (_\"how much does house 7 owe?\"_) and a period (\"in September\", \"last 3 months\", \"this year\") any time.");
+}
+
+function freePageOverview(f, page) {
+  if (page === "utilities") return freeUnpaidUtilities(f);
+  if (page === "expenses") return freeExpenseSummary(f, null, false);
+  if (page === "archives") return freeFormerBalances(f);
+  if (page === "reconcile") return freeUnmatchedAnswer(f);
+  if (page === "payments") return freeCollections(f, aiThisMonth(f));
+  if (page === "tenant-profile" && f.focus) return freeTenantSummary(f, f.focus);
+  if (page === "reports") return freeFinancialSummary(f, null);
+  if (page === "moveout") return freeMoveOutChecklist(f, f.focus);
+  return "I'm not sure I understood that, so here's the overall picture.\n\n" + freeBriefing(f);
+}
+
+// Day of the month rent is due for a tenant (DueDate column; new tenants get the 15th).
+function aiDueDay(t) { return t.dueDay >= 1 && t.dueDay <= 31 ? Math.floor(t.dueDay) : 15; }
+
+// Months among the last 3 finished ones where the tenant paid short or after the due day.
+function aiLateMonths(f, t) {
+  var due = aiDueDay(t);
+  var months = freeMonthlyHistory(f, t, 4).filter(function(m) { return m.month < f.month; }).slice(-3);
+  return { late: months.filter(function(m) { return m.paid < m.rent || (m.firstDay && m.firstDay > due); }).length, of: months.length };
+}
+
+// Tenants with a balance whose due day has passed this month, most days late first.
+function freeLateList(f) {
+  var day = f.now.getDate();
+  return aiOwing(f).filter(function(t) { return day > aiDueDay(t) || (t.rent && t.balance > t.rent); }).map(function(t) {
+    var monthsBehind = t.rent ? Math.floor((t.balance - 1) / t.rent) : 0;
+    return { tenant: t, days: Math.max(0, day - aiDueDay(t)) + monthsBehind * 30, history: aiLateMonths(f, t) };
+  }).sort(function(a, b) { return b.days - a.days || b.tenant.balance - a.tenant.balance; });
+}
+
+// Tenants with a balance whose due day is in the next 7 days.
+function freeDueSoonList(f) {
+  var day = f.now.getDate();
+  return aiOwing(f).filter(function(t) { var due = aiDueDay(t); return due >= day && due - day <= 7 && !(t.rent && t.balance > t.rent); })
+    .map(function(t) { return { tenant: t, inDays: aiDueDay(t) - day }; })
+    .sort(function(a, b) { return a.inDays - b.inDays; });
+}
+
+function aiLateLine(item) {
+  var t = item.tenant;
+  return t.name + " (" + aiHouseLabel(t.house) + "): **" + kes(t.balance) + "**, " + item.days + " day" + (item.days === 1 ? "" : "s") + " late" +
+    " (due on the " + aiDueDay(t) + aiOrdinal(aiDueDay(t)) + ")" +
+    (t.paid > 0 ? ", paid " + kes(t.paid) + " so far" : "") +
+    (item.history.of && item.history.late >= 2 ? ". Late or short in " + item.history.late + " of the last " + item.history.of + " months" : "");
+}
+
+function freeLateAnswer(f) {
+  var late = freeLateList(f), soon = freeDueSoonList(f);
+  if (!late.length && !soon.length) return "No one is late with rent right now 👍";
+  var text = late.length ? "**" + late.length + " tenant" + (late.length === 1 ? " is" : "s are") + " late, " + kes(aiSum(late.map(function(i) { return i.tenant; }), "balance")) + " overdue:**\n" + aiBullets(late.map(aiLateLine)) : "No one is late yet.";
+  if (soon.length) text += "\n\n**Due in the next 7 days:**\n" + aiBullets(soon.map(function(i) { return i.tenant.name + " (" + aiHouseLabel(i.tenant.house) + "): " + kes(i.tenant.balance) + (i.inDays ? ", due in " + i.inDays + " day" + (i.inDays === 1 ? "" : "s") : ", due today"); }));
+  return text + "\n\nAsk _\"reminders for everyone owing\"_ to draft their SMS messages.";
+}
+
+function freeDueDates(f) {
+  if (!f.tenants.length) return "There are no tenants yet.";
+  var soon = freeDueSoonList(f);
+  var byDay = {};
+  f.tenants.forEach(function(t) { (byDay[aiDueDay(t)] = byDay[aiDueDay(t)] || []).push(t.name + " (" + aiHouseLabel(t.house) + ")"); });
+  return (soon.length ? "**Due in the next 7 days:**\n" + aiBullets(soon.map(function(i) { return i.tenant.name + ": " + kes(i.tenant.balance) + (i.inDays ? " in " + i.inDays + " day(s)" : " today"); })) + "\n\n" : "Nobody with a balance is due in the next 7 days.\n\n") +
+    "**Rent due days:**\n" + aiBullets(Object.keys(byDay).sort(function(a, b) { return a - b; }).map(function(d) { return "The " + d + aiOrdinal(Number(d)) + ": " + byDay[d].join(", "); }));
+}
+
+// Best payers first: months paid in full and on time over the last 3 finished months.
+function freeReliability(f) {
+  var rows = f.tenants.map(function(t) { var h = aiLateMonths(f, t); return { t: t, good: h.of - h.late, of: h.of }; }).filter(function(r) { return r.of; });
+  if (!rows.length) return "Not enough payment history yet. Ask again after a full month.";
+  rows.sort(function(a, b) { return b.good / b.of - a.good / a.of || a.t.balance - b.t.balance; });
+  var star = rows.filter(function(r) { return r.good === r.of && r.t.balance <= 0; });
+  return "**Most reliable tenants** (paid in full and on time, last 3 months):\n" + aiBullets(rows.map(function(r) {
+    return r.t.name + " (" + aiHouseLabel(r.t.house) + "): " + r.good + " of " + r.of + " months" + (r.good === r.of ? " ⭐" : "");
+  })) + (star.length ? "\n\n" + star.map(function(r) { return aiFirstName(r.t.name); }).join(", ") + " never missed. A thank-you message keeps good tenants." : "");
+}
+
+// Tenants needing attention, with the reason.
+function freeWatchList(f) {
+  var notes = [];
+  aiOwing(f).forEach(function(t) {
+    var h = aiLateMonths(f, t);
+    if (t.rent && t.balance > t.rent) notes.push("**" + t.name + "** (" + aiHouseLabel(t.house) + ") owes " + kes(t.balance) + ", about " + (Math.round(t.balance / t.rent * 10) / 10) + " months of rent");
+    else if (h.late >= 2) notes.push("**" + t.name + "** (" + aiHouseLabel(t.house) + ") was late or short in " + h.late + " of the last " + h.of + " months");
+  });
+  f.tenants.forEach(function(t) {
+    var unpaid = f.utilities.filter(function(u) { return u.house === t.house && !u.paid; });
+    if (unpaid.length >= 2) notes.push("**" + t.name + "** has " + unpaid.length + " unpaid utility bills (" + kes(aiSum(unpaid, "water") + aiSum(unpaid, "garbage")) + ")");
+  });
+  return notes.length ? "**Tenants to keep an eye on:**\n" + aiBullets(notes) : "No tenant is a concern right now 👍";
+}
+
+// Possible duplicate or odd payments in the last 6 months (unmatched payments are reported separately).
+function freePaymentIssues(f) {
+  var recent = f.payments.filter(function(p) { return aiMonth(p.date) > f.month - 6; });
+  var notes = [], seen = {};
+  recent.forEach(function(p) {
+    if (p.reference && seen[p.reference]) notes.push("Same M-Pesa reference **" + p.reference + "** appears twice (" + kes(p.amount) + ")");
+    if (p.reference) seen[p.reference] = true;
+  });
+  recent.forEach(function(p, i) {
+    recent.slice(i + 1).forEach(function(o) {
+      if (p.tenant && aiNameKey(o.tenant) === aiNameKey(p.tenant) && o.amount === p.amount && o.reference !== p.reference && Math.abs(o.date - p.date) <= 2 * 86400000) {
+        notes.push("Possible double payment: " + p.tenant + " paid " + kes(p.amount) + " twice within 2 days");
+      }
+    });
+  });
+  var rents = {};
+  f.tenants.forEach(function(t) { rents[aiNameKey(t.name)] = t.rent; });
+  recent.forEach(function(p) {
+    var rent = rents[aiNameKey(p.tenant)];
+    if (rent && p.amount > rent * 2) notes.push("Large payment: " + p.tenant + " paid " + kes(p.amount) + " (rent is " + kes(rent) + ")");
+    if (rent && p.amount < rent * 0.1) notes.push("Very small payment: " + p.tenant + " paid " + kes(p.amount));
+  });
+  return notes;
+}
+
+function freeBriefing(f) {
+  var day = f.now.getDate();
+  var collected = aiSum(f.received.filter(function(p) { return aiMonth(p.date) === f.month; }), "amount");
+  var expected = aiExpectedRent(f, f.month);
+  var lastByNow = aiSum(f.received.filter(function(p) { return aiMonth(p.date) === f.month - 1 && p.date.getDate() <= day; }), "amount");
+  var owing = aiOwing(f), late = freeLateList(f), soon = freeDueSoonList(f);
+  var sections = [], steps = [];
+  var section = function(title, lines) { if (lines.length) sections.push("**" + title + "**\n" + aiBullets(lines)); };
+
+  var pace = lastByNow || collected ? (collected >= lastByNow ? " That's ahead of last month at this point (" + kes(lastByNow) + " by the " + day + aiOrdinal(day) + ")."
+    : " That's behind last month at this point (" + kes(lastByNow) + " by the " + day + aiOrdinal(day) + ").") : "";
+  var headline = !f.tenants.length ? "No tenants yet. Add them on the Tenants page to start tracking rent."
+    : "You've collected **" + kes(collected) + " of " + kes(expected) + "** expected rent (" + aiPercent(collected, expected) + ")." + pace +
+      (owing.length ? " " + owing.length + " tenant" + (owing.length === 1 ? " still owes" : "s still owe") + " " + kes(aiSum(owing, "balance")) + "." : " Everyone is paid up 🎉");
+
+  section("🔴 Late payments", late.slice(0, 6).map(aiLateLine).concat(late.length > 6 ? ["…and " + (late.length - 6) + " more"] : []));
+  if (late.length) steps.push("Send reminders to " + late.slice(0, 3).map(function(i) { return aiFirstName(i.tenant.name); }).join(", ") + (late.length > 3 ? " and " + (late.length - 3) + " more" : "") + ". Ask me for **reminders for everyone owing** to draft them.");
+
+  section("🟡 Due in the next 7 days", soon.map(function(i) { return i.tenant.name + " (" + aiHouseLabel(i.tenant.house) + "): " + kes(i.tenant.balance) + (i.inDays ? ", due in " + i.inDays + " day" + (i.inDays === 1 ? "" : "s") : ", due today"); }));
+  if (soon.length) steps.push("Send a friendly heads-up to " + soon.map(function(i) { return aiFirstName(i.tenant.name); }).join(", ") + " before their due date.");
+
+  var watch = [];
+  late.filter(function(i) { return i.tenant.rent && i.tenant.balance > i.tenant.rent; }).forEach(function(i) {
+    watch.push(i.tenant.name + " owes about " + (Math.round(i.tenant.balance / i.tenant.rent * 10) / 10) + " months of rent. Agree a payment plan in writing");
+  });
+  f.tenants.forEach(function(t) {
+    var h = aiLateMonths(f, t);
+    if (h.late >= 2 && h.late === h.of && t.balance <= 0) watch.push(t.name + " is paid up now but was late or short in all of the last " + h.of + " months");
+  });
+  var credit = f.tenants.filter(function(t) { return t.balance < 0; });
+  if (credit.length) watch.push(credit.map(function(t) { return t.name + " (" + kes(-t.balance) + ")"; }).join(", ") + " paid ahead, carried into next month");
+  section("⚠️ Watch list", watch);
+
+  var issues = freePaymentIssues(f).slice(0, 3);
+  if (f.unmatched.length) {
+    issues.unshift(f.unmatched.length + " unmatched payment" + (f.unmatched.length === 1 ? "" : "s") + " (" + kes(aiSum(f.unmatched, "amount")) + ") not credited to anyone yet");
+    var guesses = freeMatchSuggestions(f).filter(function(s) { return s.tenantId && s.confidence !== "low"; });
+    steps.unshift("Assign the unmatched payment" + (f.unmatched.length === 1 ? "" : "s") + " on the Unmatched page" + (guesses.length ? " (" + guesses.slice(0, 2).map(function(s) { return "likely " + aiFirstName(s.tenantName); }).join(", ") + ")" : "") + ".");
+  }
+  section("💳 Payments to check", issues);
+
+  var unpaid = f.utilities.filter(function(u) { return !u.paid; });
+  var thisLabel = Utilities.formatDate(f.now, Session.getScriptTimeZone(), "MMM yyyy");
+  var overdueBills = unpaid.filter(function(u) { return u.month && u.month !== thisLabel; });
+  var util = [];
+  if (unpaid.length) util.push(unpaid.length + " unpaid bill" + (unpaid.length === 1 ? "" : "s") + ", " + kes(aiSum(unpaid, "water") + aiSum(unpaid, "garbage")) + (overdueBills.length ? " (" + overdueBills.length + " from earlier months)" : ""));
+  var readings = f.utilities.filter(function(u) { return u.units > 0; });
+  if (readings.length >= 3) {
+    var avg = aiSum(readings, "units") / readings.length;
+    var high = readings.filter(function(u) { return u.month === thisLabel && u.units > avg * 1.5; });
+    high.forEach(function(u) { util.push(aiHouseLabel(u.house) + " used " + u.units + " units this month, well above the " + Math.round(avg) + "-unit average. Check for a leak"); });
+  }
+  section("💧 Utilities", util);
+  if (overdueBills.length) steps.push("Collect the " + overdueBills.length + " older utility bill" + (overdueBills.length === 1 ? "" : "s") + ".");
+
+  var spentNow = aiSum(f.expenses.filter(function(e) { return e.date && aiMonth(e.date) === f.month; }), "amount");
+  var spentBefore = [1, 2, 3].map(function(n) { return aiSum(f.expenses.filter(function(e) { return e.date && aiMonth(e.date) === f.month - n; }), "amount"); });
+  var avgSpent = aiSum(spentBefore.map(function(v) { return { v: v }; }), "v") / 3;
+  var exp = [];
+  if (spentNow) exp.push("Spent " + kes(spentNow) + " this month, net so far " + kes(collected - spentNow) + (avgSpent ? " (usual month: about " + kes(avgSpent) + ")" : ""));
+  if (avgSpent && spentNow > avgSpent * 1.5) {
+    var big = f.expenses.filter(function(e) { return e.date && aiMonth(e.date) === f.month; }).sort(function(a, b) { return b.amount - a.amount; })[0];
+    exp.push("That's higher than usual. Biggest item: " + (big.description || big.category) + ", " + kes(big.amount));
+  }
+  section("🧾 Expenses", exp);
+
+  var records = [];
+  var missing = f.tenants.filter(function(t) { return !t.hasNextOfKin; });
+  if (missing.length) records.push(missing.length + " tenant" + (missing.length === 1 ? " has" : "s have") + " no next of kin: " + missing.map(function(t) { return aiFirstName(t.name); }).join(", "));
+  var formerDebt = f.former.filter(function(a) { return a.balance > 0; });
+  if (formerDebt.length) records.push("Former tenants left " + kes(aiSum(formerDebt, "balance")) + " unpaid (" + formerDebt.length + ")");
+  section("🗂️ Records", records);
+  if (missing.length) steps.push("Add next-of-kin details for " + missing.length + " tenant" + (missing.length === 1 ? "" : "s") + ".");
+
+  if (!f.tenants.length) steps.unshift("Add your first tenant on the Tenants page.");
+  if (!steps.length) steps.push("Nothing urgent. Everything looks up to date 🎉");
+  return "**" + aiMonthName(f.month) + " briefing**\n" + headline + (sections.length ? "\n\n" + sections.join("\n\n") : "") +
+    "\n\n**✅ Do next**\n" + steps.slice(0, 4).map(function(s, i) { return (i + 1) + ". " + s; }).join("\n");
+}
+
+// Recent payments, newest first.
+function freeRecentPayments(f) {
+  var list = f.payments.slice().sort(function(a, b) { return b.date - a.date; }).slice(0, 10);
+  if (!list.length) return "No payments recorded yet.";
+  return "**Latest payments:**\n" + aiBullets(list.map(function(p) {
+    return Utilities.formatDate(p.date, Session.getScriptTimeZone(), "dd MMM") + ": " + kes(p.amount) + " " + (p.unmatched ? "from " + (p.payer || "unknown") + " (unmatched)" : (p.tenant || "unknown") + (p.house ? " (" + aiHouseLabel(p.house) + ")" : "")) + (p.method ? " · " + p.method : "") + (p.reference ? " · " + p.reference : "");
+  }));
+}
+
+// Find a payment by its M-Pesa reference (e.g. UJH7UAL03Q).
+function freeReferenceLookup(f, reference) {
+  var p = f.payments.filter(function(x) { return x.reference.toUpperCase() === reference; })[0];
+  if (!p) return "No payment with reference **" + reference + "** is recorded. If the tenant has the M-Pesa message, check the reference and amount, or look in Payments → Recently deleted.";
+  return "**" + reference + "**: " + kes(p.amount) + " on " + Utilities.formatDate(p.date, Session.getScriptTimeZone(), "dd MMM yyyy") +
+    (p.unmatched ? " from " + (p.payer || "an unknown payer") + ". It is **unmatched**: assign it on the Unmatched page." : ", credited to **" + (p.tenant || "unknown") + "**" + (p.house ? " (" + aiHouseLabel(p.house) + ")" : "") + (p.method ? " via " + p.method : "") + ".");
+}
+
+function freePaymentMethods(f, period) {
+  var list = f.received.filter(function(p) { return aiInMonths(p.date, period.first, period.last); });
+  if (!list.length) return "No payments recorded for " + period.label + ".";
+  var by = {};
+  list.forEach(function(p) { var k = p.method || "Other"; by[k] = by[k] || { n: 0, amount: 0 }; by[k].n++; by[k].amount += p.amount; });
+  var total = aiSum(list, "amount");
+  return "**How tenants paid in " + period.label + ":**\n" + aiBullets(Object.keys(by).sort(function(a, b) { return by[b].amount - by[a].amount; }).map(function(k) {
+    return k + ": " + kes(by[k].amount) + " (" + by[k].n + " payment" + (by[k].n === 1 ? "" : "s") + ", " + aiPercent(by[k].amount, total) + ")";
+  }));
+}
+
+// How to do things in the app. Returns null when the question isn't about using RentPro.
+function freeAppHelp(q) {
+  var topics = [
+    [/restore|undo|recover|recently deleted|\bbin\b/, "**Restore a deleted payment**\n1. Open **Payments** and choose the **Recently deleted** tab.\n2. Tick the payment(s) and tap **Restore**.\nDeleted payments are kept for 3 months, then removed for good."],
+    [/(delete|clear|remove).*(payment)|payment.*(delete|clear|remove)/, "**Clear payments**\n1. Open **Payments → History**.\n2. Tick the payments (or **Select all**) and tap **Clear**.\nThey move to **Recently deleted** for 3 months, so you can restore them."],
+    [/(delete|remove).*(tenant)|tenant.*(delete|remove)/, "**Remove a tenant**\n- If they're leaving, use **Move Out** on their profile instead: it keeps their history under Former tenants.\n- To delete a tenant added by mistake, tap the 🗑️ button on their row in **Tenants** (no history is kept).\n- **Delete all tenants** is under **Tenants → More** and asks you to type DELETE."],
+    [/move.?out|mov(e|ing) (a |the |my )?(tenant|\w+) out|tenant (is )?leaving|archive/,"**Move a tenant out**\n1. Open the tenant's profile and tap **Move Out** (or go to **Process Move-Out**).\n2. Enter the reason and deposit status, then **Confirm & Archive Tenant**.\nThey appear under **Former tenants** with their final balance. Ask me for a _move-out checklist_ first."],
+    [/sms|automatic|macrodroid|webhook|m-?pesa message|record .*automatic/, "**Automatic payments from M-Pesa SMS**\n- The landlord's Android phone runs **MacroDroid**: when an SMS containing _MPESA Ref_ arrives, it sends it to RentPro.\n- RentPro reads the amount, reference and account **275515#house** and credits that house's tenant.\n- If the house or name can't be matched, the payment goes to **Unmatched** for you to assign."],
+    [/unmatched|assign/, "**Assign an unmatched payment**\n1. Open **Unmatched** (Payments → Unmatched).\n2. Tap **AI suggest** to see the likely tenant for each one.\n3. Tap **Assign**, check the tenant and **Confirm Assignment**. Their balance updates straight away."],
+    [/meter|reading/, "**Add a water meter reading**\n1. Open the tenant's profile.\n2. Tap **Reading**, enter the current meter reading and save.\nThe bill (units × rate + garbage fee) is added to **Utilities** as unpaid."],
+    [/utilit|water bill|garbage|generate (the )?bills?/, "**Utility bills**\n- **Utilities → Generate This Month's Bills** creates water and garbage bills for every tenant.\n- Meter readings from a tenant's profile create bills by units used.\n- Tap **Mark Paid** when a tenant pays a bill."],
+    [/expense/, "**Record an expense**\n1. Open **Expenses**.\n2. Type the description, then tap **Suggest category & house** to fill those in.\n3. Enter the amount and date and tap **Save Expense**."],
+    [/report|export|csv|pdf|print|download|statement/, "**Reports and exports**\n- **Reports** shows income, expenses, profit and collection rate for any period, by house and by month.\n- **Print / PDF** saves the report; tables export to **CSV**.\n- **Tenants → More → Export to CSV** downloads the tenant list.\n- A tenant's profile can produce their statement PDF."],
+    [/(record|add|enter|receive).*(payment|cash|rent)|cash payment/, "**Record a payment by hand** (e.g. cash)\n1. Open **Tenants** and tap **Pay** next to the tenant (or **Record Payment** on their profile).\n2. Enter the amount and method and **Confirm Payment**.\nM-Pesa payments with the right account are recorded automatically."],
+    [/due date|due day|when rent is due/, "**Rent due dates**\nNew tenants are due on the **15th** of each month. There's no screen to change it yet: edit the tenant's **DueDate** column (a day number, e.g. 5) in the Google Sheet. Late-payment insights and reminders use this day."],
+    [/(edit|change|update|correct).*(tenant|phone|name|rent|house|kin)/, "**Edit a tenant**\nOpen the tenant's profile, tap **Edit**, make the change (phone, rent, house, next of kin…) and tap **Save Changes**."],
+    [/(add|new|register|create).*(tenant)|tenant.*(add|new)/, "**Add a tenant**\n1. Open **Tenants** and use **Add New Tenant**.\n2. Enter name, phone (07… or +254…), ID, house number and rent, plus next of kin.\n3. Tap **Save Tenant**. RentPro warns you if the house is already occupied."],
+    [/remind|send (an )?sms|whatsapp/, "**Send a rent reminder**\n1. Open the tenant's profile and tap **Reminder**.\n2. Pick English or Kiswahili and tap **Draft**.\n3. Tap **SMS** or **WhatsApp** to send it from your phone.\nOr ask me for _reminders for everyone owing_."],
+    [/former|old tenants/, "**Former tenants**\nOpen **Former tenants** (Tenants → Former tenants) to see everyone who moved out, their final balance, reason and deposit status."],
+    [/sign ?in|log ?in|password|access|account|google/, "**Signing in**\nUse **Sign in with Google** with an allowed account (ken05462@gmail.com or nancyngari2@gmail.com). Other accounts are refused for safety."],
+    [/install|apk|app on (my )?phone|android|download the app/, "**Install the Android app**\nCopy **RentPro.apk** to the phone, open it and allow installing from this source. Sign in with an allowed Google account; it uses the same data as the website."],
+    [/tenant pay|payment lookup|pay page|how (do )?tenants pay|paybill/, "**How tenants pay**\nM-Pesa → Lipa na M-Pesa → Pay Bill → business **247247**, account **275515#<house>**. The **Payment Lookup** page shows a tenant their account number. Ask me for a _payment instructions message_."],
+    [/\bai\b|assistant|you do/, "**Using the AI**\nTap **Ask AI** on any page for quick actions about that page, or open **AI Assistant** to chat. Ask in plain words, e.g. _who is late?_, _tell me about house 7_, _expenses last month_, _how do I add a tenant?_"]
+  ];
+  for (var i = 0; i < topics.length; i++) if (topics[i][0].test(q)) return topics[i][1];
+  return null;
+}
+
+function freeOwing(f) {
+  var owing = aiOwing(f);
+  if (!f.tenants.length) return "There are no tenants yet. Add tenants on the Tenants page.";
+  if (!owing.length) return "Everyone is paid up 🎉 No tenant has a balance right now.";
+  return "**" + owing.length + " of " + f.tenants.length + " tenants owe " + kes(aiSum(owing, "balance")) + " in total** (highest first):\n" +
+    aiBullets(owing.map(function(t) {
+      return t.name + " (" + aiHouseLabel(t.house) + "): **" + kes(t.balance) + "**" + (t.paid > 0 ? ", paid " + kes(t.paid) + " of " + kes(t.rent) : ", nothing paid yet");
+    }));
+}
+
+function freeLongArrears(f) {
+  var long = aiOwing(f).filter(function(t) { return t.rent > 0 && t.balance > t.rent; });
+  if (!long.length) return "No tenant owes more than one month's rent. " + (aiOwing(f).length ? "Those with balances owe less than a month each." : "Everyone is paid up.");
+  return "**" + long.length + " tenant" + (long.length === 1 ? " owes" : "s owe") + " more than a month's rent:**\n" + aiBullets(long.map(function(t) {
+    return t.name + " (" + aiHouseLabel(t.house) + "): " + kes(t.balance) + ", about **" + (Math.round(t.balance / t.rent * 10) / 10) + " months**";
+  }));
+}
+
+function freePartialPayers(f) {
+  var partial = f.tenants.filter(function(t) { return t.paid > 0 && t.balance > 0; }).sort(function(a, b) { return b.balance - a.balance; });
+  var none = f.tenants.filter(function(t) { return t.paid <= 0 && t.rent > 0; });
+  var text = partial.length ? "**" + partial.length + " tenant" + (partial.length === 1 ? " has" : "s have") + " paid part of their rent:**\n" + aiBullets(partial.map(function(t) {
+    return t.name + " (" + aiHouseLabel(t.house) + "): paid " + kes(t.paid) + " of " + kes(t.rent) + ", **" + kes(t.balance) + " left**";
+  })) : "Nobody has a part-payment right now.";
+  if (none.length) text += "\n\n**Not paid anything yet:** " + none.map(function(t) { return t.name + " (" + aiHouseLabel(t.house) + ")"; }).join(", ");
+  return text;
+}
+
+function freeCredits(f) {
+  var credit = f.tenants.filter(function(t) { return t.balance < 0; });
+  if (!credit.length) return "No tenant has paid ahead right now.";
+  return "**Tenants in credit (paid ahead):**\n" + aiBullets(credit.map(function(t) { return t.name + " (" + aiHouseLabel(t.house) + "): " + kes(-t.balance) + " ahead"; }));
+}
+
+function freeCollections(f, period) {
+  var paid = f.received.filter(function(p) { return aiInMonths(p.date, period.first, period.last); });
+  var expected = 0;
+  for (var m = Math.max(period.first, f.month - 120); m <= Math.min(period.last, f.month); m++) expected += aiExpectedRent(f, m);
+  if (!paid.length) return "No payments were recorded for " + period.label + ".";
+  var byTenant = {};
+  paid.forEach(function(p) {
+    var key = p.tenant || "Unknown";
+    byTenant[key] = byTenant[key] || { name: key, house: p.house, amount: 0, count: 0 };
+    byTenant[key].amount += p.amount;
+    byTenant[key].count += 1;
+  });
+  var payers = Object.keys(byTenant).map(function(k) { return byTenant[k]; }).sort(function(a, b) { return b.amount - a.amount; });
+  var total = aiSum(paid, "amount");
+  var unmatched = f.unmatched.filter(function(p) { return aiInMonths(p.date, period.first, period.last); });
+  return "**Collected in " + period.label + ": " + kes(total) + "** from " + paid.length + " payment" + (paid.length === 1 ? "" : "s") +
+    (expected ? " (" + aiPercent(total, expected) + " of " + kes(expected) + " expected rent)" : "") + ".\n\n**Who paid:**\n" +
+    aiBullets(payers.slice(0, 15).map(function(p) { return p.name + (p.house ? " (" + aiHouseLabel(p.house) + ")" : "") + ": " + kes(p.amount) + (p.count > 1 ? " in " + p.count + " payments" : ""); })) +
+    (payers.length > 15 ? "\n- …and " + (payers.length - 15) + " more" : "") +
+    (unmatched.length ? "\n\nPlus " + unmatched.length + " unmatched payment" + (unmatched.length === 1 ? "" : "s") + " (" + kes(aiSum(unmatched, "amount")) + ") not yet assigned to a tenant." : "");
+}
+
+function freeCompareMonths(f) {
+  var row = function(month) {
+    var paid = f.received.filter(function(p) { return aiMonth(p.date) === month; });
+    return { collected: aiSum(paid, "amount"), count: paid.length, expected: aiExpectedRent(f, month),
+      spent: aiSum(f.expenses.filter(function(e) { return e.date && aiMonth(e.date) === month; }), "amount") };
+  };
+  var now = row(f.month), before = row(f.month - 1);
+  var diff = function(a, b) {
+    if (!b) return a ? "(none last month)" : "(same)";
+    var change = Math.round((a - b) / b * 100);
+    return change === 0 ? "(same)" : "(" + (change > 0 ? "▲ " : "▼ ") + Math.abs(change) + "%)";
+  };
+  return "**" + aiMonthName(f.month) + " vs " + aiMonthName(f.month - 1) + "**\n" + aiBullets([
+    "Rent collected: **" + kes(now.collected) + "** vs " + kes(before.collected) + " " + diff(now.collected, before.collected),
+    "Payments: " + now.count + " vs " + before.count,
+    "Collection rate: " + aiPercent(now.collected, now.expected) + " vs " + aiPercent(before.collected, before.expected),
+    "Expenses: " + kes(now.spent) + " vs " + kes(before.spent) + " " + diff(now.spent, before.spent),
+    "Net: **" + kes(now.collected - now.spent) + "** vs " + kes(before.collected - before.spent)
+  ]) + "\n\n_This month is still in progress, so it may catch up._";
+}
+
+function freeCollectionTrend(f, months) {
+  var rows = [];
+  for (var m = f.month - months + 1; m <= f.month; m++) {
+    var collected = aiSum(f.received.filter(function(p) { return aiMonth(p.date) === m; }), "amount");
+    rows.push({ month: m, collected: collected, expected: aiExpectedRent(f, m) });
+  }
+  var rates = rows.filter(function(r) { return r.expected; }).map(function(r) { return r.collected / r.expected; });
+  var trend = rates.length >= 2 ? (rates[rates.length - 1] > rates[0] + 0.05 ? "improving 📈" : rates[rates.length - 1] < rates[0] - 0.05 ? "falling 📉" : "steady") : "not enough history yet";
+  var totalCollected = aiSum(rows, "collected"), totalExpected = aiSum(rows, "expected");
+  return "**Collection rate, last " + months + " months: " + aiPercent(totalCollected, totalExpected) + "** (" + trend + ")\n" +
+    aiBullets(rows.map(function(r) { return aiMonthName(r.month) + ": " + kes(r.collected) + " of " + kes(r.expected) + " (" + aiPercent(r.collected, r.expected) + ")"; })) +
+    "\n\n_The current month is still in progress._";
+}
+
+function freeFinancialSummary(f, period) {
+  period = period || { first: f.now.getFullYear() * 12, last: f.month, label: "this year (" + f.now.getFullYear() + ")" };
+  var income = aiSum(f.received.filter(function(p) { return aiInMonths(p.date, period.first, period.last); }), "amount");
+  var spent = aiSum(f.expenses.filter(function(e) { return aiInMonths(e.date, period.first, period.last); }), "amount");
+  var expected = 0;
+  for (var m = Math.max(period.first, f.month - 120); m <= Math.min(period.last, f.month); m++) expected += aiExpectedRent(f, m);
+  var net = income - spent;
+  return "**Your numbers for " + period.label + "**\n" + aiBullets([
+    "**Income (rent received): " + kes(income) + "**. Rent due was " + kes(expected) + ", so you collected " + aiPercent(income, expected) + " of it.",
+    "**Expenses: " + kes(spent) + "**, money spent on the property.",
+    "**Profit: " + kes(net) + "**: income minus expenses" + (income ? ", so you keep about " + aiPercent(net, income) + " of every shilling collected." : "."),
+    "**Still owed today: " + kes(aiSum(aiOwing(f), "balance")) + "** across " + aiOwing(f).length + " tenant(s)."
+  ]) + (net < 0 ? "\n\nYou spent more than you collected in this period. Check large expenses and follow up on unpaid rent." : "");
+}
+
+function freeImprovementTips(f) {
+  var tips = [];
+  var owing = aiOwing(f);
+  if (owing.length) tips.push("**Collect arrears:** " + owing.length + " tenant(s) owe " + kes(aiSum(owing, "balance")) + ". Send reminders a few days before the due date, starting with " + owing[0].name + ".");
+  if (f.unmatched.length) tips.push("**Clear unmatched payments:** " + kes(aiSum(f.unmatched, "amount")) + " isn't credited to anyone yet. Remind tenants to use account 275515#<house number>.");
+  var unpaid = f.utilities.filter(function(u) { return !u.paid; });
+  if (unpaid.length) tips.push("**Collect utilities:** " + unpaid.length + " bill(s) worth " + kes(aiSum(unpaid, "water") + aiSum(unpaid, "garbage")) + " are unpaid.");
+  var cats = freeExpenseCategories(f.expenses.filter(function(e) { return e.date && aiMonth(e.date) > f.month - 6; }));
+  if (cats.length) tips.push("**Watch " + cats[0].name + " costs:** your biggest expense in the last 6 months (" + kes(cats[0].amount) + "). Get two quotes before big jobs.");
+  var late = f.tenants.filter(function(t) { return freeMonthlyHistory(f, t, 6).filter(function(m) { return m.paid < m.rent; }).length >= 2; });
+  if (late.length) tips.push("**Talk to repeat late payers:** " + late.map(function(t) { return t.name; }).join(", ") + " fell short in 2+ of the last 6 months.");
+  if (!tips.length) tips.push("Things look healthy: rent is collected and nothing is outstanding. Keep sending reminders before the due date.");
+  return "**What would help most next month:**\n" + aiBullets(tips.slice(0, 3));
+}
+
+function freeFollowUps(f) {
+  var owing = aiOwing(f);
+  var lines = owing.slice(0, 8).map(function(t) {
+    var history = freeMonthlyHistory(f, t, 6);
+    var short = history.filter(function(m) { return m.paid < m.rent; }).length;
+    var why = t.paid <= 0 ? "nothing paid this month" : "paid " + kes(t.paid) + " of " + kes(t.rent);
+    if (t.rent && t.balance > t.rent) why = "owes over " + Math.floor(t.balance / t.rent) + " month(s) of rent";
+    return t.name + " (" + aiHouseLabel(t.house) + "): **" + kes(t.balance) + "**, " + why + (short >= 2 ? "; short in " + short + " of the last 6 months" : "");
+  });
+  if (f.unmatched.length) lines.push("Also check the " + f.unmatched.length + " unmatched payment(s): one may belong to a tenant above.");
+  return lines.length ? "**Follow up with these tenants this week** (highest balance first):\n" + aiBullets(lines) : "No one needs a follow-up: everyone is paid up 🎉";
+}
+
+/* -- One tenant -- */
+
+// Rent due vs paid per month, for the tenant's most recent months.
+function freeMonthlyHistory(f, tenant, months) {
+  var key = aiNameKey(tenant.name);
+  var paidIn = {};
+  f.received.forEach(function(p) {
+    if (aiNameKey(p.tenant) !== key) return;
+    var m = aiMonth(p.date);
+    paidIn[m] = paidIn[m] || { paid: 0, firstDay: 99 };
+    paidIn[m].paid += p.amount;
+    paidIn[m].firstDay = Math.min(paidIn[m].firstDay, p.date.getDate());
+  });
+  var start = Math.max(f.month - months + 1, tenant.since ? aiMonth(tenant.since) : f.month - months + 1);
+  var rows = [];
+  for (var m = start; m <= f.month; m++) rows.push({ month: m, rent: tenant.rent, paid: (paidIn[m] || {}).paid || 0, firstDay: (paidIn[m] || {}).firstDay || null });
+  return rows;
+}
+
+function freeTenantSummary(f, t) {
+  var history = freeMonthlyHistory(f, t, 6);
+  var bills = f.utilities.filter(function(u) { return u.house === t.house; });
+  var unpaidBills = bills.filter(function(u) { return !u.paid; });
+  var payments = f.received.filter(function(p) { return aiNameKey(p.tenant) === aiNameKey(t.name); });
+  var last = payments.sort(function(a, b) { return b.date - a.date; })[0];
+  var full = history.filter(function(m) { return m.paid >= m.rent; }).length;
+  var lines = [
+    "**Balance:** " + (t.balance > 0 ? kes(t.balance) + " owed" : t.balance < 0 ? kes(-t.balance) + " in credit" : "fully paid") + " (rent " + kes(t.rent) + ", paid " + kes(t.paid) + " this month)",
+    "**Last payment:** " + (last ? kes(last.amount) + " on " + Utilities.formatDate(last.date, Session.getScriptTimeZone(), "dd MMM yyyy") + (last.method ? " via " + last.method : "") : "none recorded"),
+    "**Paid in full:** " + full + " of the last " + history.length + " month(s)",
+    "**Utilities:** " + (unpaidBills.length ? unpaidBills.length + " unpaid bill(s), " + kes(aiSum(unpaidBills, "water") + aiSum(unpaidBills, "garbage")) : bills.length ? "all paid" : "no bills yet"),
+    "**Tenant since:** " + (t.since ? Utilities.formatDate(t.since, Session.getScriptTimeZone(), "dd MMM yyyy") : "unknown") + (t.hasNextOfKin ? "" : " · ⚠️ no next of kin recorded")
+  ];
+  var watch = t.balance > t.rent && t.rent ? "They owe more than a month's rent. Follow up soon." : t.balance > 0 ? "Send a reminder before the due date." : "Nothing to worry about right now.";
+  return "**" + t.name + " (" + aiHouseLabel(t.house) + ")**\n" + aiBullets(lines) + "\n\n" + watch;
+}
+
+// One tenant's payments, for a period or the last 12 months.
+function freeTenantPayments(f, t, period) {
+  period = period || { first: f.month - 11, last: f.month, label: "the last 12 months" };
+  var list = f.received.filter(function(p) { return aiNameKey(p.tenant) === aiNameKey(t.name) && aiInMonths(p.date, period.first, period.last); })
+    .sort(function(a, b) { return b.date - a.date; });
+  if (!list.length) return t.name + " (" + aiHouseLabel(t.house) + ") made no payments in " + period.label + "." + (t.balance > 0 ? " They currently owe " + kes(t.balance) + "." : "");
+  return "**" + t.name + " (" + aiHouseLabel(t.house) + ") paid " + kes(aiSum(list, "amount")) + " in " + period.label + "** (" + list.length + " payment" + (list.length === 1 ? "" : "s") + "):\n" +
+    aiBullets(list.slice(0, 15).map(function(p) {
+      return Utilities.formatDate(p.date, Session.getScriptTimeZone(), "dd MMM yyyy") + ": " + kes(p.amount) + (p.method ? " · " + p.method : "") + (p.reference ? " · " + p.reference : "");
+    })) + "\n\nBalance now: " + (t.balance > 0 ? kes(t.balance) + " owed" : t.balance < 0 ? kes(-t.balance) + " in credit" : "fully paid") + ".";
+}
+
+function freeThankYou(t) {
+  return "Hello " + (t ? aiFirstName(t.name) : "<name>") + ", thank you for always paying your rent on time" + (t ? " for House " + t.house : "") +
+    ". We really appreciate having you as a tenant. If you ever need anything fixed, just let us know. Best regards!";
+}
+
+// Spending in one expense category, item by item.
+function freeCategorySpend(f, category, period) {
+  period = period || { first: f.now.getFullYear() * 12, last: f.month, label: "this year (" + f.now.getFullYear() + ")" };
+  var list = f.expenses.filter(function(e) { return e.category === category && aiInMonths(e.date, period.first, period.last); }).sort(function(a, b) { return b.date - a.date; });
+  if (!list.length) return "No " + category + " expenses recorded for " + period.label + ".";
+  var all = aiSum(f.expenses.filter(function(e) { return aiInMonths(e.date, period.first, period.last); }), "amount");
+  return "**" + category + " in " + period.label + ": " + kes(aiSum(list, "amount")) + "** (" + aiPercent(aiSum(list, "amount"), all) + " of all spending)\n" +
+    aiBullets(list.slice(0, 15).map(function(e) {
+      return (e.date ? Utilities.formatDate(e.date, Session.getScriptTimeZone(), "dd MMM") + ": " : "") + (e.description || category) + ", " + kes(e.amount) + (e.house !== "General" ? " (" + aiHouseLabel(e.house) + ")" : "");
+    }));
+}
+
+function freePunctuality(f, t) {
+  var history = freeMonthlyHistory(f, t, 6).filter(function(m) { return m.month < f.month || m.paid > 0; });
+  if (!history.length) return t.name + " has no payment history yet to judge from.";
+  var full = history.filter(function(m) { return m.paid >= m.rent; }).length;
+  var onTime = t.dueDay ? history.filter(function(m) { return m.firstDay && m.firstDay <= t.dueDay; }).length : null;
+  var verdict = full === history.length ? "pays in full every month 👍" : full >= history.length / 2 ? "usually pays in full, with some short months" : "often pays less than the full rent";
+  return "**" + t.name + " " + verdict + ".**\n" + aiBullets(history.map(function(m) {
+    var status = m.paid >= m.rent ? "✅ full" : m.paid > 0 ? "⚠️ part" : "❌ nothing";
+    return aiMonthName(m.month) + ": " + kes(m.paid) + " of " + kes(m.rent) + " " + status + (m.firstDay ? " (first payment on the " + m.firstDay + aiOrdinal(m.firstDay) + ")" : "");
+  })) + (onTime !== null ? "\n\nPaid by the due day (the " + t.dueDay + aiOrdinal(t.dueDay) + ") in " + onTime + " of " + history.length + " months." : "");
+}
+
+function aiOrdinal(n) { return n % 10 === 1 && n !== 11 ? "st" : n % 10 === 2 && n !== 12 ? "nd" : n % 10 === 3 && n !== 13 ? "rd" : "th"; }
+
+function freeMissingDetails(f) {
+  var missing = f.tenants.filter(function(t) { return !t.hasNextOfKin; });
+  if (!missing.length) return "Every tenant has next-of-kin details recorded 👍";
+  return "**" + missing.length + " tenant" + (missing.length === 1 ? " is" : "s are") + " missing next-of-kin details:**\n" +
+    aiBullets(missing.map(function(t) { return t.name + " (" + aiHouseLabel(t.house) + ")"; })) + "\n\nOpen each tenant's profile and tap Edit to add them.";
+}
+
+function freeOccupancy(f) {
+  var houses = f.tenants.map(function(t) { return t.house; }).filter(Boolean).sort(function(a, b) { return a.localeCompare(b, undefined, { numeric: true }); });
+  return "**You have " + f.tenants.length + " tenant" + (f.tenants.length === 1 ? "" : "s") + "**, paying " + kes(aiSum(f.tenants, "rent")) + " a month in total.\n" +
+    aiBullets(["Occupied houses: " + (houses.join(", ") || "none"), "Paid up: " + f.tenants.filter(function(t) { return t.balance <= 0; }).length, "Owing: " + aiOwing(f).length]);
+}
+
+/* -- Messages -- */
+
+function freeReminder(f, t, language) {
+  var account = PAYBILL_ACCOUNT_PREFIX + t.house;
+  var amount = t.balance > 0 ? t.balance : t.rent;
+  if (language === "Kiswahili") {
+    return "Habari " + aiFirstName(t.name) + ", hii ni kumbusho la kodi ya nyumba " + t.house + ". " +
+      (t.balance > 0 ? "Salio lako ni " + kes(amount) + ". " : "Kodi ya mwezi ni " + kes(amount) + ". ") +
+      "Tafadhali lipa kupitia Equity Paybill " + PAYBILL_NUMBER + ", Akaunti " + account + ". Asante!";
+  }
+  return "Hello " + aiFirstName(t.name) + ", this is a friendly reminder about rent for House " + t.house + ". " +
+    (t.balance > 0 ? "Your balance is " + kes(amount) + ". " : "Monthly rent is " + kes(amount) + ". ") +
+    "Please pay via Equity Paybill " + PAYBILL_NUMBER + ", Account " + account + ". Thank you!";
+}
+
+function freeAllReminders(f, language) {
+  var owing = aiOwing(f);
+  if (!owing.length) return "No one owes rent right now, so there are no reminders to send 🎉";
+  return "**Reminders for the " + owing.length + " tenant" + (owing.length === 1 ? "" : "s") + " with a balance.** Copy each one into an SMS:\n\n" +
+    owing.map(function(t) { return "**" + t.name + " (" + aiHouseLabel(t.house) + ")**\n" + freeReminder(f, t, language); }).join("\n\n");
+}
+
+function freePayInstructions(t) {
+  var account = PAYBILL_ACCOUNT_PREFIX + (t ? t.house : "<your house number>");
+  return (t ? "Hello " + aiFirstName(t.name) + ", " : "Hello, ") + "here's how to pay rent by M-Pesa:\n" + aiBullets([
+    "Go to M-Pesa → Lipa na M-Pesa → Pay Bill",
+    "Business number: **" + PAYBILL_NUMBER + "** (Equity)",
+    "Account number: **" + account + "**" + (t ? "" : ", e.g. 275515#7 for House 7"),
+    "Enter the amount and your M-Pesa PIN, then confirm"
+  ]) + "\nUsing your house number in the account means your payment is recorded automatically. Thank you!";
+}
+
+function freeDepositMessage(t) {
+  var name = t ? aiFirstName(t.name) : "<name>";
+  return "Here's a template. Fill in the amounts in brackets:\n\n" +
+    "Hello " + name + ", thank you for staying with us" + (t ? " at House " + t.house : "") + ". Following the move-out inspection, your deposit was KES [deposit]. " +
+    "Deductions: [item, e.g. repainting] KES [amount]" + (t && t.balance > 0 ? ", unpaid rent " + kes(t.balance) : "") + ". " +
+    "Your refund of KES [refund] will be sent to your M-Pesa number by [date]. Please reach out if you have any questions. Best wishes!";
+}
+
+function freeGoodbye(t) {
+  return "Hello " + (t ? aiFirstName(t.name) : "<name>") + ", thank you for being a great tenant" + (t ? " at House " + t.house : "") +
+    ". It has been a pleasure having you. We wish you all the best in your new home, and you're always welcome back. Kind regards!";
+}
+
+function freeMoveOutChecklist(f, t) {
+  var steps = [
+    "Confirm the move-out date in writing" + (t ? " with " + t.name : ""),
+    "Final rent balance: " + (t ? (t.balance > 0 ? "**" + kes(t.balance) + " owed**" : t.balance < 0 ? kes(-t.balance) + " in credit, refund or offset it" : "fully paid ✅") : "check the tenant's profile"),
+    "Utilities: " + (t ? (function() {
+      var unpaid = f.utilities.filter(function(u) { return u.house === t.house && !u.paid; });
+      return unpaid.length ? "**" + kes(aiSum(unpaid, "water") + aiSum(unpaid, "garbage")) + " unpaid** (" + unpaid.length + " bill(s))" : "all paid ✅";
+    })() : "take a final water meter reading and settle any unpaid bills"),
+    "Inspect the house with the tenant: walls, doors, locks, taps, sockets and windows; take photos",
+    "Agree on deductions and work out the deposit refund",
+    "Collect all keys and any gate cards",
+    "Record the move-out in RentPro (reason and deposit status) so the house shows as free"
+  ];
+  return "**Move-out checklist" + (t ? " for " + t.name + " (" + aiHouseLabel(t.house) + ")" : "") + "**\n" + steps.map(function(s, i) { return (i + 1) + ". " + s; }).join("\n");
+}
+
+/* -- Payments -- */
+
+function freePaymentAnomalies(f) {
+  var notes = freePaymentIssues(f).slice(0, 12);
+  if (f.unmatched.length) notes.push(f.unmatched.length + " unmatched payment(s) worth " + kes(aiSum(f.unmatched, "amount")) + " still need assigning");
+  return notes.length ? "**Worth checking (last 6 months):**\n" + aiBullets(notes) : "Nothing unusual in the last 6 months: no duplicate references, double payments or odd amounts.";
+}
+
+function freeUnmatchedAnswer(f) {
+  if (!f.unmatched.length) return "There are no unmatched payments. Every payment is assigned to a tenant 👍";
+  var suggestions = freeMatchSuggestions(f);
+  return "**" + f.unmatched.length + " unmatched payment" + (f.unmatched.length === 1 ? "" : "s") + ":**\n" + aiBullets(f.unmatched.map(function(p, i) {
+    var s = suggestions[i];
+    return kes(p.amount) + " from " + (p.payer || "unknown payer") + (p.house ? " (account house " + p.house + ")" : "") + " → " +
+      (s.tenantId ? "probably **" + s.tenantName + " (" + aiHouseLabel(s.house) + ")**, " + s.confidence + " confidence: " + s.reason : "no clear match. " + s.reason);
+  })) + "\n\nOpen the Unmatched page and tap **Suggest a tenant for each payment** to assign them.";
+}
+
+function freeMatchingGuide(f) {
+  return "**How to decide who an unmatched payment belongs to:**\n" + aiBullets([
+    "**Payer name:** does it match a tenant, or someone who has paid for that tenant before (e.g. a spouse)?",
+    "**Account number:** tenants should use 275515#<house>. A typo (e.g. 275515#71 instead of 7) usually points to the right house",
+    "**Amount:** an amount equal to a tenant's rent or exact balance is a strong hint",
+    "**Timing:** who usually pays around this date and hasn't paid yet this month?",
+    "If unsure, call the payer on the number in the M-Pesa message before assigning"
+  ]) + (f.unmatched.length ? "\n\nTap **Suggest a tenant for each payment** and I'll apply these checks to the " + f.unmatched.length + " waiting payment(s)." : "");
+}
+
+// Scores every tenant for each unmatched payment: payer name, past payments by the same payer,
+// house in the account reference, and amount vs rent/balance.
+function freeMatchSuggestions(f) {
+  var payerHistory = {};
+  f.received.forEach(function(p) {
+    if (p.payer && p.tenant) payerHistory[aiNameKey(p.payer)] = p.tenant;
+  });
+  return f.unmatched.map(function(p) {
+    var payerWords = aiNameKey(p.payer).split(" ").filter(function(w) { return w.length >= 3; });
+    var best = null;
+    f.tenants.forEach(function(t) {
+      var score = 0, reasons = [];
+      var shared = aiNameKey(t.name).split(" ").filter(function(w) { return w.length >= 3 && payerWords.indexOf(w) >= 0; });
+      if (shared.length >= 2) { score += 6; reasons.push("payer name matches"); }
+      else if (shared.length === 1) { score += 3; reasons.push("shares the name " + shared[0].charAt(0).toUpperCase() + shared[0].slice(1)); }
+      if (payerHistory[aiNameKey(p.payer)] && aiNameKey(payerHistory[aiNameKey(p.payer)]) === aiNameKey(t.name)) { score += 5; reasons.push("this payer paid for them before"); }
+      if (p.house && t.house && p.house.toLowerCase() === t.house.toLowerCase()) { score += 5; reasons.push("account is their house"); }
+      else if (p.house && t.house && p.house.length > t.house.length && p.house.indexOf(t.house) === 0) { score += 1; reasons.push("account " + p.house + " may be a typo for house " + t.house); }
+      if (t.balance > 0 && p.amount === t.balance) { score += 3; reasons.push("amount equals their balance"); }
+      else if (p.amount === t.rent) { score += 2; reasons.push("amount equals their rent"); }
+      if (score && (!best || score > best.score)) best = { tenant: t, score: score, reasons: reasons };
+    });
+    if (!best || best.score < 2) return { paymentId: p.paymentId, tenantId: "", tenantName: "", house: "", confidence: "low", reason: "No tenant's name, house or amount fits this payment." };
+    var reason = best.reasons.join(", ");
+    return { paymentId: p.paymentId, tenantId: best.tenant.id, tenantName: best.tenant.name, house: best.tenant.house,
+      confidence: best.score >= 6 ? "high" : best.score >= 3 ? "medium" : "low", reason: reason.charAt(0).toUpperCase() + reason.slice(1) };
+  });
+}
+
+/* -- Utilities -- */
+
+function freeUnpaidUtilities(f) {
+  var unpaid = f.utilities.filter(function(u) { return !u.paid; });
+  if (!f.utilities.length) return "No utility bills yet. Generate this month's bills on the Utilities page.";
+  if (!unpaid.length) return "All water and garbage bills are paid 👍";
+  var byHouse = {};
+  unpaid.forEach(function(u) {
+    var h = byHouse[u.house] = byHouse[u.house] || { house: u.house, tenant: u.tenant, water: 0, garbage: 0, months: [] };
+    h.water += u.water; h.garbage += u.garbage; h.months.push(u.month);
+  });
+  var rows = Object.keys(byHouse).map(function(k) { return byHouse[k]; }).sort(function(a, b) { return (b.water + b.garbage) - (a.water + a.garbage); });
+  var water = aiSum(unpaid, "water"), garbage = aiSum(unpaid, "garbage");
+  return "**" + kes(water + garbage) + " owed in utilities**: water " + kes(water) + ", garbage " + kes(garbage) + ".\n" +
+    aiBullets(rows.map(function(h) {
+      return aiHouseLabel(h.house) + (h.tenant ? " (" + h.tenant + ")" : "") + ": **" + kes(h.water + h.garbage) + "** (water " + kes(h.water) + ", garbage " + kes(h.garbage) + "), " + h.months.join(", ");
+    }));
+}
+
+function freeWaterUsage(f) {
+  var withUnits = f.utilities.filter(function(u) { return u.units > 0; });
+  if (!withUnits.length) return "No meter readings recorded yet, so I can't compare water use. Add readings on the Utilities page.";
+  var byHouse = {};
+  withUnits.forEach(function(u) {
+    var h = byHouse[u.house] = byHouse[u.house] || { house: u.house, tenant: u.tenant, units: 0, months: 0, latest: 0 };
+    h.units += u.units; h.months += 1; h.latest = u.units;
+  });
+  var rows = Object.keys(byHouse).map(function(k) { var h = byHouse[k]; h.average = h.units / h.months; return h; }).sort(function(a, b) { return b.average - a.average; });
+  var overall = aiSum(withUnits, "units") / withUnits.length;
+  var high = rows.filter(function(h) { return h.average > overall * 1.5; });
+  return "**Water use by house** (average units per month; overall average " + Math.round(overall * 10) / 10 + "):\n" +
+    aiBullets(rows.slice(0, 10).map(function(h) { return aiHouseLabel(h.house) + (h.tenant ? " (" + h.tenant + ")" : "") + ": " + Math.round(h.average * 10) / 10 + " units"; })) +
+    "\n\n" + (high.length ? "⚠️ Unusually high (over 1.5× average): " + high.map(function(h) { return aiHouseLabel(h.house); }).join(", ") + ". Check for leaks or a faulty meter." : "No house is unusually high.");
+}
+
+/* -- Expenses -- */
+
+function freeExpenseCategories(expenses) {
+  var totals = {};
+  expenses.forEach(function(e) { totals[e.category] = (totals[e.category] || 0) + e.amount; });
+  return Object.keys(totals).map(function(k) { return { name: k, amount: totals[k] }; }).sort(function(a, b) { return b.amount - a.amount; });
+}
+
+function freeExpenseSummary(f, period, byHouse) {
+  period = period || { first: f.now.getFullYear() * 12, last: f.month, label: "this year (" + f.now.getFullYear() + ")" };
+  var list = f.expenses.filter(function(e) { return aiInMonths(e.date, period.first, period.last); });
+  if (!list.length) return "No expenses recorded for " + period.label + ".";
+  var total = aiSum(list, "amount");
+  var houses = {};
+  list.forEach(function(e) { houses[e.house] = (houses[e.house] || 0) + e.amount; });
+  var houseRows = Object.keys(houses).map(function(k) { return { name: k, amount: houses[k] }; }).sort(function(a, b) { return b.amount - a.amount; });
+  var biggest = list.slice().sort(function(a, b) { return b.amount - a.amount; })[0];
+  return "**Expenses for " + period.label + ": " + kes(total) + "** (" + list.length + " item" + (list.length === 1 ? "" : "s") + ")\n\n**By category**\n" +
+    aiBullets(freeExpenseCategories(list).map(function(c) { return c.name + ": " + kes(c.amount) + " (" + aiPercent(c.amount, total) + ")"; })) +
+    "\n\n**By house**\n" + aiBullets(houseRows.slice(0, byHouse ? 20 : 6).map(function(h) { return (h.name === "General" ? "General / shared" : aiHouseLabel(h.name)) + ": " + kes(h.amount); })) +
+    "\n\nBiggest single expense: " + (biggest.description || biggest.category) + ", " + kes(biggest.amount) + ".";
+}
+
+function freeUnusualExpenses(f) {
+  var recent = f.expenses.filter(function(e) { return e.date && aiMonth(e.date) > f.month - 6; });
+  if (!recent.length) return "No expenses in the last 6 months to check.";
+  var notes = [];
+  var cats = {};
+  recent.forEach(function(e) { (cats[e.category] = cats[e.category] || []).push(e.amount); });
+  recent.forEach(function(e) {
+    var amounts = cats[e.category].slice().sort(function(a, b) { return a - b; });
+    var median = amounts[Math.floor(amounts.length / 2)];
+    if (amounts.length >= 3 && e.amount > median * 2.5) notes.push("**" + kes(e.amount) + "** for " + (e.description || e.category) + " is much higher than your usual " + e.category + " cost (" + kes(median) + ")");
+  });
+  var repeats = {};
+  recent.forEach(function(e) {
+    var key = e.description.toLowerCase().replace(/[^a-z ]/g, "").trim();
+    if (key) (repeats[key] = repeats[key] || []).push(e);
+  });
+  Object.keys(repeats).forEach(function(k) {
+    var items = repeats[k];
+    if (items.length >= 3) notes.push("\"" + items[0].description + "\" was paid " + items.length + " times (" + kes(aiSum(items, "amount")) + "). If it's a repair, a permanent fix may be cheaper");
+    else if (items.length === 2 && items[0].amount === items[1].amount && Math.abs(items[0].date - items[1].date) <= 3 * 86400000) notes.push("\"" + items[0].description + "\" (" + kes(items[0].amount) + ") was entered twice within 3 days. Possibly a duplicate");
+  });
+  var houseCounts = {};
+  recent.filter(function(e) { return e.category === "Maintenance" && e.house !== "General"; }).forEach(function(e) { houseCounts[e.house] = (houseCounts[e.house] || 0) + 1; });
+  Object.keys(houseCounts).forEach(function(h) { if (houseCounts[h] >= 3) notes.push(aiHouseLabel(h) + " needed " + houseCounts[h] + " repairs in 6 months. Worth inspecting"); });
+  return notes.length ? "**Spending to look into (last 6 months):**\n" + aiBullets(notes.slice(0, 10)) : "Nothing unusual: no unusually large, repeated or duplicate expenses in the last 6 months 👍";
+}
+
+function freeSavings(f, period) {
+  period = period || { first: f.month - 5, last: f.month, label: "the last 6 months" };
+  var list = f.expenses.filter(function(e) { return aiInMonths(e.date, period.first, period.last); });
+  if (!list.length) return "No expenses in " + period.label + " to look at yet.";
+  var tips = {
+    Maintenance: "Fix recurring problems properly once, keep a trusted fundi on a fixed rate, and charge tenants for damage they cause.",
+    Utilities: "Check for leaks and compare the water bill with the tenants' meter readings, so everything used is billed.",
+    Cleaning: "Agree a fixed monthly cleaning rate instead of paying per visit.",
+    Salary: "Review duties and hours. One caretaker can often cover cleaning and security together.",
+    Tax: "Keep receipts for all expenses so you only pay tax on real profit (KRA monthly rental income tax).",
+    Other: "Look through 'Other' costs and cut anything that isn't needed."
+  };
+  var cats = freeExpenseCategories(list);
+  return "**Where your money went in " + period.label + ":** " + kes(aiSum(list, "amount")) + "\n" + aiBullets(cats.slice(0, 3).map(function(c) {
+    return "**" + c.name + ": " + kes(c.amount) + "**. " + (tips[c.name] || tips.Other);
+  })) + "\n\nAsk _\"any unusual spending?\"_ to spot repeated or one-off large costs.";
+}
+
+// Expense category from keywords (English and Kiswahili), plus a house number if one is mentioned.
+function freeCategorize(description) {
+  var d = String(description || "").toLowerCase();
+  var rules = [
+    ["Salary", /salar|wage|caretaker|watchm|guard|askari|mshahara|pay(ment)? for staff|staff/],
+    ["Tax", /\btax|kra|county rate|land rate|\brates?\b|license|licence|permit|ushuru/],
+    ["Cleaning", /clean|sweep|detergent|mop|fumigat|pest|usafi|slash|garden|compound/],
+    ["Utilities", /water bill|nairobi water|kplc|token|electric|power|umeme|garbage|takataka|internet|wifi|security light|maji/],
+    ["Maintenance", /repair|fix|leak|pipe|plumb|paint|door|lock|window|roof|tile|toilet|tap|socket|bulb|gate|fundi|cement|weld|replace|broken|maintenance|ukarabati/]
+  ];
+  var match = rules.filter(function(r) { return r[1].test(d); })[0];
+  var house = d.match(/\b(?:house|hse|nyumba|unit|no\.?)\s*#?\s*([a-z]?\d+[a-z]?)\b/i) || d.match(/#\s*(\d+[a-z]?)\b/);
+  return {
+    category: match ? match[0] : "Other",
+    house: house ? house[1].toUpperCase() : "General",
+    reason: match ? "Matched \"" + (d.match(match[1]) || [""])[0] + "\"" + (house ? " for house " + house[1].toUpperCase() : ", a shared cost") : "No category keyword found"
+  };
+}
+
+/* -- Former tenants -- */
+
+function freeFormerBalances(f) {
+  if (!f.former.length) return "No former tenants yet.";
+  var owed = f.former.filter(function(a) { return a.balance > 0; }).sort(function(a, b) { return b.balance - a.balance; });
+  if (!owed.length) return "All " + f.former.length + " former tenants left with nothing owed 👍";
+  return "**" + owed.length + " former tenant" + (owed.length === 1 ? "" : "s") + " left " + kes(aiSum(owed, "balance")) + " unpaid:**\n" + aiBullets(owed.map(function(a) {
+    return a.name + " (" + aiHouseLabel(a.house) + "): **" + kes(a.balance) + "**" + (a.movedOut ? ", moved out " + Utilities.formatDate(a.movedOut, Session.getScriptTimeZone(), "MMM yyyy") : "") + (a.deposit ? ", deposit: " + a.deposit : "");
+  })) + "\n\nTip: settle balances against the deposit before a tenant leaves.";
+}
+
+function freeMoveOutReasons(f) {
+  if (!f.former.length) return "No former tenants yet, so there are no move-out reasons to look at.";
+  var groups = [["Rent too high / money", /rent|expens|afford|money|cost|price/], ["Moved for work or school", /job|work|transfer|school|study|relocat/],
+    ["Bought or built a home", /bought|built|own home|own house|building/], ["Needed more space / family", /space|bigger|family|marri|baby|child/],
+    ["Problems with the house", /repair|leak|water|noise|security|maintenance|broken|dirty|insecur/], ["Evicted / arrears", /evict|arrear|default|unpaid/]];
+  var counts = {}, other = 0;
+  f.former.forEach(function(a) {
+    var g = groups.filter(function(x) { return x[1].test(a.reason.toLowerCase()); })[0];
+    if (g) counts[g[0]] = (counts[g[0]] || 0) + 1; else other += 1;
+  });
+  var rows = Object.keys(counts).map(function(k) { return [k, counts[k]]; }).sort(function(a, b) { return b[1] - a[1]; });
+  if (other) rows.push(["Other / not recorded", other]);
+  var advice = rows.length && rows[0][0] === "Problems with the house" ? "The most common reason is problems with the house. Fixing repairs quickly could keep tenants longer."
+    : rows.length && rows[0][0] === "Rent too high / money" ? "Cost is the top reason. Consider flexible payment dates or a small loyalty discount for long-staying tenants."
+    : "Most reasons are personal (work, family). Keeping houses in good repair and responding quickly still helps tenants stay.";
+  return "**Why " + f.former.length + " tenant" + (f.former.length === 1 ? "" : "s") + " moved out:**\n" + aiBullets(rows.map(function(r) { return r[0] + ": " + r[1]; })) + "\n\n" + advice;
+}
+
+/*
+ * Optional (Claude only): run this once from the Apps Script editor (select it, click Run) after adding ANTHROPIC_API_KEY.
+ * It makes one tiny Claude call and writes the result to the Execution log.
+ */
+function testAiConnection() {
+  var apiKey = PropertiesService.getScriptProperties().getProperty("ANTHROPIC_API_KEY");
+  if (!apiKey) {
+    Logger.log("ℹ️ No Claude key set, so RentPro uses the free built-in assistant. To use Claude, add ANTHROPIC_API_KEY under Project Settings → Script properties.");
+    return "missing key";
+  }
+  var reply = callClaude(apiKey, {
+    model: AI_MODEL,
+    max_tokens: 200,
+    output_config: { effort: "low" },
+    fallbacks: "default",
+    messages: [{ role: "user", content: "Reply with exactly: RentPro AI is connected." }]
+  });
+  Logger.log(reply.ok ? "✅ " + reply.text : "❌ " + reply.message);
+  return reply.ok ? "connected" : reply.message;
 }

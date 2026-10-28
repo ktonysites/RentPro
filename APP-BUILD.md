@@ -75,6 +75,41 @@ Until `google-services.json` is in place, tapping the Google button in the app s
 > APK on another computer, or switch to a release key for the Play Store, add that key's SHA-1/SHA-256 in
 > Firebase too (`keytool -list -v -keystore <keystore> -alias <alias>`).
 
+## AI features – free, no setup needed
+
+RentPro's assistant is **free and built in**. It runs inside your Apps Script backend and works out answers from
+your own sheet (tenants, payments, expenses, utilities, former tenants) with calculations and rules. There is no
+API key, no bill, and your data never leaves your Google account.
+
+To turn it on, paste the latest `google-apps-script/Code.gs` and **Deploy → Manage deployments → ✏️ → New version**.
+
+| Where | What the assistant does |
+|---|---|
+| Every page | **Ask AI** button (bottom right): quick actions and questions tailored to that page |
+| AI Assistant page | Chat about tenants, rent, payments, expenses and utilities, including follow-ups ("does she pay on time?") |
+| Dashboard | **AI insights** briefing: collection vs expected and vs last month at the same point, **late payments** (days late, repeat late payers), rent due in the next 7 days, a watch list (arrears over a month, tenants in credit), unmatched and possibly duplicate payments, unpaid or overdue utilities and water spikes, spending above normal, missing records, and a prioritised **Do next** list |
+| Tenant profile | Tenant summary and payment record; **Reminder** drafts an SMS in English or Kiswahili (you send it yourself) |
+| Unmatched payments | **AI suggest** proposes the tenant for each payment (payer name, past payers, account typos, amount) |
+| Expenses | **Suggest category & house** from the description (English and Kiswahili keywords) |
+
+Questions it understands include: who owes / who hasn't paid / partial payers / more than a month behind; how much
+was collected (this month, last month, "in September", last 3 months, this year); comparisons and collection rate;
+expenses by category or house, unusual spending, where to save; unpaid utilities and water use; former tenants'
+balances and move-out reasons; any tenant by name or house ("tell me about house 7"); and drafting reminders,
+payment instructions, deposit, thank-you and goodbye messages. It also answers who is late or due soon, the most reliable
+tenants, tenants to watch, one tenant's payments for any period, spending in one category, the latest payments, payment
+methods, and an M-Pesa reference lookup (e.g. "where is UJH7UAL03Q?"). **How-do-I** questions ("how do I restore a
+deleted payment?", "how do I add a meter reading?") get step-by-step help for the right screen.
+Questions outside all that get a page summary plus suggestions.
+
+### Optional: Claude for open-ended questions
+
+If you ever want answers to any free-form question, add an Anthropic API key (paid per question):
+Apps Script → **Project Settings → Script properties** → `ANTHROPIC_API_KEY` = your `sk-ant-…` key, then run
+`testAiConnection` once from the editor. With a key set, Claude answers; if Claude is unavailable, the free
+assistant answers instead and says so. Remove the property to go back to free only. Tenant phone numbers,
+national ID numbers and raw SMS text are never sent to Claude.
+
 ## Notes
 
 - **Sign-in:** the APK uses the same Firebase account as the website. The local test login (`dev@rentpro.local`)

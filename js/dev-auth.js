@@ -98,6 +98,11 @@
             });
         },
         signOut(auth, firebaseSignOut) {
+            // AI insights and chat mention tenants by name: don't leave them on a shared device.
+            try {
+                localStorage.removeItem('rentpro_ai_insights');
+                Object.keys(sessionStorage).filter((key) => key.startsWith('rentpro_ai_')).forEach((key) => sessionStorage.removeItem(key));
+            } catch (error) { /* optional */ }
             if (getCurrentUser()) {
                 sessionStorage.removeItem(sessionKey);
                 window.location.href = 'index.html';

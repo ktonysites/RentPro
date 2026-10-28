@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>RentPro — Tenants</title>
-  
+
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -13,37 +13,100 @@
   <meta name="theme-color" content="#0c1022">
   <link rel="icon" href="icons/icon-192.png">
   <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <style>
+    .t-stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; margin-bottom: 18px; }
+    .t-stat { background: var(--rp-surface); border: 1px solid var(--rp-border); border-radius: var(--rp-radius); padding: 15px 18px; box-shadow: var(--rp-shadow); }
+    .t-stat .value { font-size: 1.3rem; font-weight: 800; color: var(--rp-ink); letter-spacing: -0.02em; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .t-stat.is-alert .value { color: var(--rp-danger); }
+
+    .t-toolbar { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-bottom: 12px; }
+    .t-search { position: relative; flex: 1 1 260px; }
+    .t-search > i { position: absolute; left: 13px; top: 50%; transform: translateY(-50%); color: var(--rp-subtle); font-size: 0.85rem; pointer-events: none; }
+    .t-search input { padding-left: 36px; padding-right: 64px; }
+    .t-search .kbd { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); font-size: 0.7rem; color: var(--rp-subtle); border: 1px solid var(--rp-border); border-radius: 5px; padding: 0 6px; background: #fff; }
+    .t-search .clear { position: absolute; right: 6px; top: 50%; transform: translateY(-50%); border: 0; background: transparent; color: var(--rp-muted); width: 30px; height: 30px; border-radius: 8px; display: none; }
+    .t-search.has-text .clear { display: block; }
+    .t-search.has-text .kbd { display: none; }
+    .t-sort { width: auto; min-width: 190px; flex: 0 0 auto; }
+    .t-chips { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 14px; }
+    .t-chip { border: 1px solid var(--rp-border); background: var(--rp-surface); color: var(--rp-text); border-radius: 999px; padding: 6px 13px; font-size: 0.82rem; font-weight: 600; display: inline-flex; gap: 7px; align-items: center; }
+    .t-chip .n { background: #eef0f5; color: var(--rp-muted); border-radius: 999px; padding: 0 7px; font-size: 0.72rem; }
+    .t-chip.active { background: var(--rp-ink); border-color: var(--rp-ink); color: #fff; }
+    .t-chip.active .n { background: rgba(255, 255, 255, 0.18); color: #fff; }
+    .t-count { font-size: 0.8rem; color: var(--rp-muted); margin: -4px 0 10px; }
+
+    .t-name { font-weight: 700; color: var(--rp-ink); }
+    .t-sub { font-size: 0.8rem; color: var(--rp-muted); }
+    mark { background: #fef08a; color: inherit; padding: 0 1px; border-radius: 3px; }
+    .status-credit { background: #e0e7ff; color: #3730a3; }
+    .status-overdue { background: var(--rp-danger-soft); color: #991b1b; }
+    .bal-credit { color: #4338ca; font-weight: 700; }
+    .bal-owing { color: var(--rp-danger); font-weight: 700; }
+    .bal-zero { color: var(--rp-muted); font-weight: 600; }
+    .t-empty i { font-size: 1.8rem; color: #c7cbe0; display: block; margin-bottom: 10px; }
+
+    @media (max-width: 991.98px) {
+      .t-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+      .t-stat { padding: 12px 14px; }
+      .t-stat .value { font-size: 1.05rem; }
+      .t-sort { flex: 1 1 100%; width: 100%; }
+      .t-search .kbd { display: none; }
+      .t-chips { flex-wrap: nowrap; overflow-x: auto; margin-left: -16px; margin-right: -16px; padding: 0 16px 2px; scrollbar-width: none; }
+      .t-chips::-webkit-scrollbar { display: none; }
+      .t-chip { flex-shrink: 0; }
+    }
+  </style>
 </head>
 <body data-page="tenants">
   <script src="js/splash.js"></script>
   <script src="js/shell.js"></script>
 
-
   <main class="content">
     <div class="page-head">
       <div>
-        <h2 class="fw-bold text-dark mb-1">Tenant Management</h2>
-        <p class="text-muted small mb-0">Manage leases and payments.</p>
+        <h2>Tenants</h2>
+        <p>Everyone currently renting, their balances and payments.</p>
       </div>
-      
       <div class="page-actions">
-        <button class="btn btn-outline-success" onclick="downloadCSV()">
-            <i class="fa-solid fa-file-csv me-2"></i> Export
-        </button>
-
-        <button class="btn btn-outline-danger" onclick="deleteAllTenants()">
-          <i class="fa-solid fa-trash-can me-2"></i> Delete All
-        </button>
-
-        <a href="archives.html" class="btn btn-outline-secondary" style="border-color: #cbd5e1; color: #475569;">
-            <i class="fa-solid fa-box-archive me-2"></i> Archives
-        </a>
-
-        <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addTenantModal">
+        <div class="dropdown">
+          <button class="btn btn-outline-secondary dropdown-toggle w-100" data-bs-toggle="dropdown" aria-expanded="false"><i class="fa-solid fa-ellipsis me-2"></i>More</button>
+          <ul class="dropdown-menu dropdown-menu-end shadow border-0 rounded-3">
+            <li><button class="dropdown-item" onclick="downloadCSV()"><i class="fa-solid fa-file-csv me-2 text-success"></i>Export to CSV</button></li>
+            <li><a class="dropdown-item" href="archives.html"><i class="fa-solid fa-box-archive me-2 text-muted"></i>Former tenants</a></li>
+            <li><hr class="dropdown-divider"></li>
+            <li><button class="dropdown-item text-danger" data-bs-toggle="modal" data-bs-target="#deleteAllModal"><i class="fa-solid fa-trash-can me-2"></i>Delete all tenants…</button></li>
+          </ul>
+        </div>
+        <button class="btn btn-primary" id="newTenantBtn">
             <i class="fa-solid fa-plus me-2"></i> New Tenant
         </button>
       </div>
     </div>
+
+    <div class="t-stats">
+      <div class="t-stat"><div class="card-label">Tenants</div><div class="value" id="statTenants">–</div></div>
+      <div class="t-stat"><div class="card-label">Monthly rent</div><div class="value" id="statRent">–</div></div>
+      <div class="t-stat" id="statOwedCard"><div class="card-label">Outstanding</div><div class="value" id="statOwed">–</div></div>
+      <div class="t-stat"><div class="card-label">Paid up</div><div class="value" id="statPaid">–</div></div>
+    </div>
+
+    <div class="t-toolbar">
+      <div class="t-search" id="searchWrap">
+        <i class="fa-solid fa-magnifying-glass"></i>
+        <input type="search" id="searchInput" class="form-control" placeholder="Search name, house, phone or ID number" aria-label="Search tenants" autocomplete="off">
+        <span class="kbd" aria-hidden="true">/</span>
+        <button type="button" class="clear" id="searchClear" aria-label="Clear search"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <select id="sortSelect" class="form-select t-sort" aria-label="Sort tenants">
+        <option value="house">Sort: House number</option>
+        <option value="name">Sort: Name (A–Z)</option>
+        <option value="balance">Sort: Highest balance</option>
+        <option value="rent">Sort: Highest rent</option>
+        <option value="newest">Sort: Newest tenants</option>
+      </select>
+    </div>
+    <div class="t-chips" id="filterChips" role="tablist" aria-label="Filter tenants"></div>
+    <div class="t-count" id="resultCount"></div>
 
     <div class="card-table">
       <div class="table-responsive">
@@ -60,7 +123,7 @@
             </tr>
           </thead>
           <tbody id="tenantTableBody">
-             <tr><td colspan="7" class="text-center p-5 text-muted"><i class="fa-solid fa-spinner fa-spin me-2"></i>Loading data...</td></tr>
+             <tr><td colspan="7" class="text-center p-5 text-muted"><i class="fa-solid fa-spinner fa-spin me-2"></i>Loading tenants...</td></tr>
           </tbody>
         </table>
       </div>
@@ -75,18 +138,29 @@
             <button class="btn-close" data-bs-dismiss="modal"></button>
         </div>
         <div class="modal-body">
-          <form id="addTenantForm">
+          <form id="addTenantForm" novalidate>
             <div class="row g-3">
-                <div class="col-12"><label class="form-label">Full Name</label><input type="text" id="tName" class="form-control" required></div>
-                <div class="col-6"><label class="form-label">Phone</label><input type="number" id="tPhone" class="form-control" required></div>
-                <div class="col-6"><label class="form-label">ID Number</label><input type="text" id="tNatID" class="form-control" required></div>
-                <div class="col-4"><label class="form-label">House</label><input type="text" id="tHouse" class="form-control" required></div>
-                <div class="col-4"><label class="form-label">Rent</label><input type="number" id="tRent" class="form-control" required></div>
-                <div class="col-4"><label class="form-label">Due Day</label><input type="number" id="tDate" class="form-control" placeholder="15" value="15" max="31" required></div>
-                <div class="col-6"><label class="form-label">Next of Kin</label><input type="text" id="tNextOfKin" class="form-control"></div>
-                <div class="col-6"><label class="form-label">Relation</label><input type="text" id="tKinRelation" class="form-control" placeholder="e.g. Spouse"></div>
-                <div class="col-6"><label class="form-label">Next of Kin Phone</label><input type="tel" id="tKinPhone" class="form-control"></div>
-                
+                <div class="col-12"><label class="form-label" for="tName">Full Name</label><input type="text" id="tName" class="form-control" required autocomplete="off"></div>
+                <div class="col-6">
+                  <label class="form-label" for="tPhone">Phone</label>
+                  <input type="tel" id="tPhone" class="form-control" required placeholder="0712 345 678" inputmode="tel">
+                  <div class="invalid-feedback">Enter a Kenyan number, e.g. 0712 345 678.</div>
+                </div>
+                <div class="col-6"><label class="form-label" for="tNatID">ID Number</label><input type="text" id="tNatID" class="form-control" required inputmode="numeric"></div>
+                <div class="col-4">
+                  <label class="form-label" for="tHouse">House</label>
+                  <input type="text" id="tHouse" class="form-control" required>
+                </div>
+                <div class="col-4"><label class="form-label" for="tRent">Rent</label><input type="number" id="tRent" class="form-control" required min="1" inputmode="numeric"></div>
+                <div class="col-4"><label class="form-label" for="tDate">Due Day</label><input type="number" id="tDate" class="form-control" value="15" min="1" max="31" required></div>
+                <div class="col-12 d-none" id="houseWarning"><div class="alert alert-warning small py-2 mb-0"></div></div>
+                <div class="col-6"><label class="form-label" for="tNextOfKin">Next of Kin</label><input type="text" id="tNextOfKin" class="form-control"></div>
+                <div class="col-6"><label class="form-label" for="tKinRelation">Relation</label><input type="text" id="tKinRelation" class="form-control" placeholder="e.g. Spouse"></div>
+                <div class="col-6">
+                  <label class="form-label" for="tKinPhone">Next of Kin Phone</label>
+                  <input type="tel" id="tKinPhone" class="form-control" inputmode="tel">
+                  <div class="invalid-feedback">Check this phone number.</div>
+                </div>
                 <div class="col-12 mt-3"><button type="submit" id="saveBtn" class="btn btn-primary w-100">Save Tenant</button></div>
             </div>
           </form>
@@ -103,20 +177,20 @@
             <button class="btn-close" data-bs-dismiss="modal"></button>
         </div>
         <div class="modal-body pt-2">
-          <p class="small text-muted mb-3">Payment for: <span id="payTenantName" class="fw-bold text-dark"></span></p>
+          <p class="small text-muted mb-3">Payment for <span id="payTenantName" class="fw-bold text-dark"></span> <span id="payTenantBalance"></span></p>
           <form id="payForm">
              <input type="hidden" id="payTenantId">
              <div class="mb-3">
-                <label class="form-label small fw-bold">Amount (KES)</label>
-                <div class="input-group"><span class="input-group-text bg-light">KES</span><input type="number" id="payAmount" class="form-control" placeholder="e.g. 5000" required></div>
+                <label class="form-label" for="payAmount">Amount (KES)</label>
+                <div class="input-group"><span class="input-group-text">KES</span><input type="number" id="payAmount" class="form-control" placeholder="e.g. 5000" required min="1" inputmode="numeric"></div>
              </div>
              <div class="mb-3">
-                 <label class="form-label small fw-bold">Method</label>
+                 <label class="form-label" for="payMethod">Method</label>
                  <select id="payMethod" class="form-select" required>
                      <option value="M-Pesa">M-Pesa</option><option value="Bank">Bank Deposit</option><option value="Cash">Cash</option>
                  </select>
              </div>
-             <div class="mb-3"><label class="form-label small fw-bold">Reference</label><textarea id="payMessage" class="form-control" rows="2" placeholder="e.g. Ref No..."></textarea></div>
+             <div class="mb-3"><label class="form-label" for="payMessage">Reference</label><textarea id="payMessage" class="form-control" rows="2" placeholder="M-Pesa code or a note, e.g. UJH7UAL03Q"></textarea></div>
              <button type="submit" id="confirmPayBtn" class="btn btn-success w-100">Confirm Payment</button>
           </form>
         </div>
@@ -124,9 +198,29 @@
     </div>
   </div>
 
+  <div class="modal fade" id="deleteAllModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-body p-4">
+          <div class="d-flex gap-3">
+            <div class="icon-box bg-danger bg-opacity-10 text-danger"><i class="fa-solid fa-triangle-exclamation"></i></div>
+            <div>
+              <h5 class="fw-bold mb-1">Delete all tenants?</h5>
+              <p class="text-muted small mb-3">This permanently removes <strong id="deleteAllCount">0</strong> tenants. It can't be undone and doesn't create archive records. To move someone out normally, use <em>Move Out</em> on their profile instead.</p>
+              <label class="form-label" for="deleteAllConfirm">Type <strong>DELETE</strong> to confirm</label>
+              <input type="text" id="deleteAllConfirm" class="form-control" autocomplete="off">
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer border-0 pt-0">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="button" class="btn btn-danger" id="deleteAllBtn" disabled>Delete all</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
-
-
   <script src="global.js"></script>
   <script src="js/dev-auth.js"></script>
   <script type="module">
@@ -139,146 +233,298 @@
     let currentUserUID = null;
     let currentTenants = [];
 
-    // 🔴 YOUR WEB APP URL
-    const WEB_APP_URL = window.API_URL;
-
-    async function apiWrite(payload) {
-      const url = new URL(WEB_APP_URL);
-      Object.entries(payload).forEach(([key, value]) => url.searchParams.set(key, value));
-      const response = await fetch(url.toString());
-      const result = await response.json();
-      if (!result.success) throw new Error(result.message || 'Request failed.');
-      return result;
-    }
+    const $ = (id) => document.getElementById(id);
+    const kes = (n) => 'KES ' + Math.round(Number(n) || 0).toLocaleString('en-KE');
+    const VIEW_KEY = 'rentpro_tenants_view';
+    const FILTERS = [
+      ['all', 'All'], ['owing', 'Owing'], ['overdue', 'Overdue'], ['paid', 'Paid up'], ['credit', 'In credit']
+    ];
+    // Search text, filter and sort survive refreshes and page changes during the visit.
+    const view = Object.assign({ q: '', filter: 'all', sort: 'house' }, (() => { try { return JSON.parse(sessionStorage.getItem(VIEW_KEY)) || {}; } catch (e) { return {}; } })());
+    const saveView = () => { try { sessionStorage.setItem(VIEW_KEY, JSON.stringify(view)); } catch (e) { /* optional */ } };
 
     RentProDevAuth.onAuthStateChanged(auth, (user) => {
-        if (user) { currentUserUID = user.uid; loadData(); startLiveUpdates(); } 
+        if (user) { currentUserUID = user.uid; loadData(); startLiveUpdates(); }
         else window.location.href = "index.html";
     }, firebaseOnAuthStateChanged);
 
     async function loadData() {
         try {
-            const tRes = await fetch(`${WEB_APP_URL}?action=getTenants&t=${Date.now()}`).then(r=>r.json());
-
-            // This installation serves one property, so the roster is not split by SaaS account.
-            const allTenants = tRes.data || [];
-            currentTenants = allTenants;
-            renderTable(currentTenants);
-
-        } catch(e) { console.error(e); }
+            const result = await apiRequest({ action: 'getTenants' });
+            currentTenants = (result.data || []).map(enrich);
+            render();
+        } catch (e) {
+            console.error(e);
+            if (!currentTenants.length) $('tenantTableBody').innerHTML = `<tr><td colspan="7" class="text-center p-5 text-danger">Couldn't load tenants. ${escapeHtml(e.message)}</td></tr>`;
+        }
     }
 
-    function renderTable(data) {
-        const tbody = document.getElementById('tenantTableBody'); tbody.innerHTML = "";
-        if(data.length === 0) { tbody.innerHTML = `<tr><td colspan="7" class="text-center p-5 text-muted">No tenants found.</td></tr>`; return; }
+    // Derived fields used by search, filters, sorting and display.
+    function enrich(t) {
+        const rent = Number(t.Rent) || 0;
+        const paid = Number(t.AmountPaid) || 0;
+        const balance = rent - paid; // same rule as the backend: Balance = Rent - AmountPaid
+        const dueDay = Math.min(31, Math.max(1, Number(t.DueDate) || 15));
+        const overdue = balance > 0 && new Date().getDate() > dueDay;
+        const state = balance < 0 ? 'credit' : balance === 0 ? 'paid' : overdue ? 'overdue' : 'owing';
+        const search = [t.Name, t.House, t.Phone, String(t.Phone || '').replace(/\D/g, ''), t.NationalID, t.NextOfKin, t.NextOfKinPhone]
+            .map(v => String(v ?? '').toLowerCase()).join(' | ');
+        return { ...t, rent, paid, balance, dueDay, state, search };
+    }
 
-        data.forEach(t => {
-            const rent = Number(t.Rent||0), paid = Number(t.AmountPaid||0), bal = rent - paid;
+    function matchesFilter(t) {
+        if (view.filter === 'owing') return t.balance > 0;
+        if (view.filter === 'overdue') return t.state === 'overdue';
+        if (view.filter === 'paid') return t.balance <= 0;
+        if (view.filter === 'credit') return t.balance < 0;
+        return true;
+    }
+
+    function matchesSearch(t) {
+        let query = view.q.trim().toLowerCase();
+        // "house 9" / "hse 9" means exactly house 9, not every phone number containing a 9.
+        const houseMatch = query.match(/\b(?:house|hse)\s*#?\s*([a-z0-9-]+)/);
+        if (houseMatch) {
+            if (String(t.House).trim().toLowerCase() !== houseMatch[1]) return false;
+            query = query.replace(houseMatch[0], ' ');
+        }
+        const words = query.split(/\s+/).filter(Boolean);
+        return words.every(word => t.search.includes(word) || t.search.includes(word.replace(/\D/g, '') || '\u0000'));
+    }
+
+    const SORTERS = {
+        house: (a, b) => String(a.House).localeCompare(String(b.House), undefined, { numeric: true, sensitivity: 'base' }),
+        name: (a, b) => String(a.Name).localeCompare(String(b.Name), undefined, { sensitivity: 'base' }),
+        balance: (a, b) => b.balance - a.balance,
+        rent: (a, b) => b.rent - a.rent,
+        newest: (a, b) => new Date(b.DateAdded) - new Date(a.DateAdded)
+    };
+
+    // Wraps search matches in <mark> (input is escaped first).
+    function highlight(text) {
+        const safe = escapeHtml(text ?? '');
+        const words = view.q.trim().split(/\s+/).filter(w => w.length > 0).map(w => escapeHtml(w).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+        if (!words.length) return safe;
+        return safe.replace(new RegExp(`(${words.join('|')})`, 'gi'), '<mark>$1</mark>');
+    }
+
+    function renderStats() {
+        const owing = currentTenants.filter(t => t.balance > 0);
+        $('statTenants').innerText = currentTenants.length;
+        $('statRent').innerText = kes(currentTenants.reduce((s, t) => s + t.rent, 0));
+        $('statOwed').innerText = kes(owing.reduce((s, t) => s + t.balance, 0));
+        $('statOwedCard').classList.toggle('is-alert', owing.length > 0);
+        $('statPaid').innerText = `${currentTenants.filter(t => t.balance <= 0).length} of ${currentTenants.length}`;
+    }
+
+    function renderChips() {
+        const counts = {
+            all: currentTenants.length,
+            owing: currentTenants.filter(t => t.balance > 0).length,
+            overdue: currentTenants.filter(t => t.state === 'overdue').length,
+            paid: currentTenants.filter(t => t.balance <= 0).length,
+            credit: currentTenants.filter(t => t.balance < 0).length
+        };
+        $('filterChips').innerHTML = FILTERS.map(([key, label]) =>
+            `<button type="button" class="t-chip ${view.filter === key ? 'active' : ''}" data-filter="${key}" role="tab" aria-selected="${view.filter === key}">${label}<span class="n">${counts[key]}</span></button>`
+        ).join('');
+    }
+
+    function statusBadge(t) {
+        if (t.state === 'credit') return '<span class="status-badge status-credit">IN CREDIT</span>';
+        if (t.state === 'paid') return '<span class="status-badge status-paid">PAID</span>';
+        if (t.state === 'overdue') return `<span class="status-badge status-overdue" title="Due on day ${t.dueDay}">OVERDUE</span>`;
+        return t.paid > 0 ? '<span class="status-badge status-partial">PARTIAL</span>' : `<span class="status-badge status-unpaid" title="Due on day ${t.dueDay}">DUE ${t.dueDay}${ordinal(t.dueDay)}</span>`;
+    }
+    const ordinal = (n) => (n % 10 === 1 && n !== 11 ? 'st' : n % 10 === 2 && n !== 12 ? 'nd' : n % 10 === 3 && n !== 13 ? 'rd' : 'th');
+
+    function balanceCell(t) {
+        if (t.balance < 0) return `<span class="bal-credit">Credit ${Math.abs(t.balance).toLocaleString()}</span>`;
+        if (t.balance === 0) return '<span class="bal-zero">0</span>';
+        return `<span class="bal-owing">${t.balance.toLocaleString()}</span>`;
+    }
+
+    function render() {
+        $('searchInput').value = view.q;
+        $('searchWrap').classList.toggle('has-text', !!view.q);
+        $('sortSelect').value = view.sort;
+        renderStats();
+        renderChips();
+
+        const tbody = $('tenantTableBody');
+        if (!currentTenants.length) {
+            tbody.innerHTML = `<tr><td colspan="7" class="text-center p-5 text-muted t-empty"><i class="fa-solid fa-users"></i>No tenants yet. Tap <strong>New Tenant</strong> to add one.</td></tr>`;
+            $('resultCount').innerText = '';
+            return;
+        }
+        const rows = currentTenants.filter(t => matchesFilter(t) && matchesSearch(t)).sort(SORTERS[view.sort] || SORTERS.house);
+        // Typing just a house number ("9") lists that house first, then other matches.
+        const single = view.q.trim().toLowerCase();
+        if (single && !/\s/.test(single)) rows.sort((a, b) => (String(b.House).toLowerCase() === single) - (String(a.House).toLowerCase() === single));
+        $('resultCount').innerText = rows.length === currentTenants.length ? `${rows.length} tenant${rows.length === 1 ? '' : 's'}` : `Showing ${rows.length} of ${currentTenants.length} tenants`;
+
+        if (!rows.length) {
+            tbody.innerHTML = `<tr><td colspan="7" class="text-center p-5 text-muted t-empty"><i class="fa-solid fa-magnifying-glass"></i>No tenants match${view.q ? ` “${escapeHtml(view.q)}”` : ''}.<br><button type="button" class="btn btn-link btn-sm" onclick="resetView()">Clear search and filters</button></td></tr>`;
+            return;
+        }
+
+        tbody.innerHTML = rows.map(t => {
             // encodeURIComponent leaves apostrophes alone, which would break the quoted onclick arguments.
             const uniqueId = encodeURIComponent(t.ID).replace(/'/g, '%27');
-            const encodedName = encodeURIComponent(t.Name || '').replace(/'/g, '%27');
-            let status = bal<=0 ? '<span class="status-badge status-paid">PAID</span>' : (paid>0 ? '<span class="status-badge status-partial">PARTIAL</span>' : '<span class="status-badge status-unpaid">UNPAID</span>');
-
-            tbody.innerHTML += `<tr onclick="window.location.href='tenant-profile.html?id=${uniqueId}'">
-                <td class="td-primary"><div class="fw-bold text-dark">${escapeHtml(t.Name)}</div><div class="small text-muted">${escapeHtml(t.Phone)}</div></td>
-                <td data-label="House"><span class="badge bg-light text-dark border">${escapeHtml(t.House)}</span></td>
-                <td data-label="Rent" class="fw-medium">${rent.toLocaleString()}</td>
-                <td data-label="Paid" class="text-success fw-medium">${paid.toLocaleString()}</td>
-                <td data-label="Balance" class="fw-bold text-danger">${bal.toLocaleString()}</td>
-                <td data-label="Status">${status}</td>
+            return `<tr onclick="window.location.href='tenant-profile.html?id=${uniqueId}'">
+                <td class="td-primary"><div class="t-name">${highlight(t.Name)}</div><div class="t-sub">${highlight(t.Phone)}</div></td>
+                <td data-label="House"><span class="badge bg-light text-dark border">${highlight(t.House)}</span></td>
+                <td data-label="Rent" class="fw-medium">${t.rent.toLocaleString()}</td>
+                <td data-label="Paid" class="text-success fw-medium">${t.paid.toLocaleString()}</td>
+                <td data-label="Balance">${balanceCell(t)}</td>
+                <td data-label="Status">${statusBadge(t)}</td>
                 <td class="text-end td-actions">
-                    <button class="btn btn-sm btn-outline-success me-1" onclick="event.stopPropagation(); openPayModal('${uniqueId}', '${encodedName}')"><i class="fa-solid fa-hand-holding-dollar"></i> Pay</button>
-                    <button class="btn btn-sm btn-outline-danger delete-tenant-btn" onclick="event.stopPropagation(); deleteTenant('${uniqueId}', this)"><i class="fa-solid fa-trash"></i></button>
+                    <button class="btn btn-sm btn-outline-success me-1" onclick="event.stopPropagation(); openPayModal('${uniqueId}')"><i class="fa-solid fa-hand-holding-dollar me-1"></i>Pay</button>
+                    <button class="btn btn-sm btn-outline-danger" title="Delete tenant" aria-label="Delete ${escapeHtml(t.Name)}" onclick="event.stopPropagation(); deleteTenant('${uniqueId}', this)"><i class="fa-solid fa-trash"></i></button>
                 </td>
             </tr>`;
-        });
+        }).join('');
     }
 
-    // LIVE UPDATE POLLER
-    function startLiveUpdates() { setInterval(() => loadData(), 15000); }
+    // --- Search, filter and sort controls ---
+    let searchTimer = null;
+    $('searchInput').addEventListener('input', (event) => {
+        clearTimeout(searchTimer);
+        searchTimer = setTimeout(() => { view.q = event.target.value; saveView(); render(); }, 120);
+        $('searchWrap').classList.toggle('has-text', !!event.target.value);
+    });
+    $('searchClear').addEventListener('click', () => { view.q = ''; saveView(); render(); $('searchInput').focus(); });
+    $('sortSelect').addEventListener('change', (event) => { view.sort = event.target.value; saveView(); render(); });
+    $('filterChips').addEventListener('click', (event) => {
+        const chip = event.target.closest('[data-filter]');
+        if (!chip) return;
+        view.filter = chip.dataset.filter; saveView(); render();
+    });
+    window.resetView = () => { view.q = ''; view.filter = 'all'; saveView(); render(); };
+    // "/" focuses search (laptops); Esc clears it.
+    document.addEventListener('keydown', (event) => {
+        const typing = /INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName);
+        if (event.key === '/' && !typing && !document.querySelector('.modal.show')) { event.preventDefault(); $('searchInput').focus(); }
+        if (event.key === 'Escape' && document.activeElement === $('searchInput') && view.q) { view.q = ''; saveView(); render(); }
+    });
 
-    // UTILS
+    // Refresh every minute while the page is visible, without disturbing an open dialog or the search.
+    function startLiveUpdates() {
+        setInterval(() => {
+            if (document.hidden || document.querySelector('.modal.show')) return;
+            loadData();
+        }, 60000);
+        document.addEventListener('visibilitychange', () => { if (!document.hidden) loadData(); });
+    }
+
+    // --- Export (exports what you're looking at) ---
     window.downloadCSV = () => {
-      let csv = "Name,Phone,National ID,House,Rent,Paid,Balance,Next of Kin,Relation,Next of Kin Phone,Property\n";
-      currentTenants.forEach(t => { csv += [t.Name, t.Phone, t.NationalID, t.House, t.Rent, t.AmountPaid, Number(t.Rent || 0) - Number(t.AmountPaid || 0), t.NextOfKin, t.KinRelation, t.NextOfKinPhone, t.Property].map(csvValue).join(",") + "\n"; });
-        const link = document.createElement("a"); link.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" })); link.download = "RentPro_Tenants.csv"; document.body.appendChild(link); link.click();
+      const rows = currentTenants.filter(t => matchesFilter(t) && matchesSearch(t)).sort(SORTERS[view.sort] || SORTERS.house);
+      let csv = "Name,Phone,National ID,House,Rent,Paid,Balance,Due Day,Next of Kin,Relation,Next of Kin Phone\n";
+      rows.forEach(t => { csv += [t.Name, t.Phone, t.NationalID, t.House, t.rent, t.paid, t.balance, t.dueDay, t.NextOfKin, t.KinRelation, t.NextOfKinPhone].map(csvValue).join(",") + "\n"; });
+      const link = document.createElement("a"); link.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" })); link.download = "RentPro_Tenants.csv"; document.body.appendChild(link); link.click(); link.remove();
+    };
+    function csvValue(value) { return `"${String(value ?? "").replace(/"/g, '""')}"`; }
+
+    // --- Record payment (pre-filled with the balance) ---
+    window.openPayModal = (id) => {
+        const tenant = currentTenants.find(t => String(t.ID) === decodeURIComponent(id));
+        if (!tenant) return;
+        $('payForm').reset();
+        $('payTenantId').value = tenant.ID;
+        $('payTenantName').innerText = `${tenant.Name} (House ${tenant.House})`;
+        $('payTenantBalance').innerHTML = tenant.balance > 0 ? `· owes <strong class="text-danger">${kes(tenant.balance)}</strong>` : tenant.balance < 0 ? `· in credit ${kes(-tenant.balance)}` : '· fully paid';
+        if (tenant.balance > 0) $('payAmount').value = tenant.balance;
+        new bootstrap.Modal($('payModal')).show();
+        setTimeout(() => $('payAmount').select(), 300);
     };
 
-    function csvValue(value) {
-      return `"${String(value ?? "").replace(/"/g, '""')}"`;
-    }
-
-    window.openPayModal = (id, name) => {
-        document.getElementById('payTenantId').value = decodeURIComponent(id); document.getElementById('payTenantName').innerText = decodeURIComponent(name);
-        new bootstrap.Modal(document.getElementById('payModal')).show();
-    };
+    $('payForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const btn = $('confirmPayBtn'); btn.disabled = true; btn.innerText = "Processing...";
+        try {
+          await apiRequest({ action: "recordPayment", id: $('payTenantId').value, amount: $('payAmount').value, method: $('payMethod').value, message: $('payMessage').value });
+          bootstrap.Modal.getInstance($('payModal')).hide();
+          await loadData();
+        } catch (err) { alert(`Unable to record payment: ${err.message}`); }
+        finally { btn.disabled = false; btn.innerText = "Confirm Payment"; }
+    });
 
     window.deleteTenant = async (id, button) => {
-      if(!confirm("Permanently delete this tenant? This cannot be undone and will not create an archive record.")) return;
-      if (button) {
-        button.disabled = true;
-        button.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
-      }
-
+      const tenant = currentTenants.find(t => String(t.ID) === decodeURIComponent(id));
+      if (!confirm(`Permanently delete ${tenant ? tenant.Name : 'this tenant'}? This cannot be undone and will not create an archive record.\n\nTo move a tenant out normally, use Move Out on their profile instead.`)) return;
+      button.disabled = true;
+      button.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
       try {
-        await apiWrite({ action: "deleteTenant", id: decodeURIComponent(id) });
+        await apiRequest({ action: "deleteTenant", id: decodeURIComponent(id) });
         await loadData();
       } catch (error) {
-        console.error("Delete tenant failed:", error);
-        alert("Unable to delete this tenant. Please try again.");
-        if (button) {
-          button.disabled = false;
-          button.innerHTML = '<i class="fa-solid fa-trash"></i>';
-        }
+        alert(`Unable to delete this tenant: ${error.message}`);
+        button.disabled = false;
+        button.innerHTML = '<i class="fa-solid fa-trash"></i>';
       }
     };
 
-    window.deleteAllTenants = async () => {
-      if (!currentTenants.length) {
-        alert("There are no active tenants to delete.");
-        return;
-      }
-      if (!confirm(`Permanently delete all ${currentTenants.length} active tenants? This cannot be undone and will not create archive records.`)) return;
-
+    // --- Delete all: behind the More menu and a typed confirmation ---
+    $('deleteAllModal').addEventListener('show.bs.modal', () => { $('deleteAllCount').innerText = currentTenants.length; $('deleteAllConfirm').value = ''; $('deleteAllBtn').disabled = true; });
+    $('deleteAllConfirm').addEventListener('input', (e) => { $('deleteAllBtn').disabled = e.target.value.trim() !== 'DELETE' || !currentTenants.length; });
+    $('deleteAllBtn').addEventListener('click', async () => {
+      const btn = $('deleteAllBtn');
+      btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
       try {
-        await apiWrite({ action: "deleteAllTenants" });
+        await apiRequest({ action: "deleteAllTenants" });
+        bootstrap.Modal.getInstance($('deleteAllModal')).hide();
         await loadData();
-      } catch (error) {
-        console.error("Delete all tenants failed:", error);
-        alert("Unable to delete all tenants. Please try again.");
-      }
-    };
+      } catch (error) { alert(`Unable to delete all tenants: ${error.message}`); }
+      finally { btn.innerText = 'Delete all'; }
+    });
 
-    // FORM SUBMIT
-    document.getElementById('addTenantForm').addEventListener('submit', async (e) => {
+    // --- Add tenant ---
+    // Kenyan mobile numbers: 07xx/01xx (10 digits) or +2547xx/2541xx; spaces and dashes are fine.
+    const normalPhone = (v) => String(v || '').replace(/[\s-]/g, '');
+    const validPhone = (v) => /^(?:\+?254|0)[17]\d{8}$/.test(normalPhone(v));
+
+    $('newTenantBtn').addEventListener('click', () => {
+        $('addTenantForm').reset();
+        $('addTenantForm').classList.remove('was-validated');
+        $('houseWarning').classList.add('d-none');
+        new bootstrap.Modal($('addTenantModal')).show();
+        setTimeout(() => $('tName').focus(), 300);
+    });
+
+    $('tHouse').addEventListener('input', () => {
+        const house = $('tHouse').value.trim().toLowerCase();
+        const taken = house && currentTenants.filter(t => String(t.House).trim().toLowerCase() === house);
+        $('houseWarning').classList.toggle('d-none', !taken || !taken.length);
+        if (taken && taken.length) $('houseWarning').firstElementChild.innerText = `House ${$('tHouse').value.trim()} already has ${taken.map(t => t.Name).join(', ')}. Check the house number, or move them out first.`;
+    });
+
+    $('addTenantForm').addEventListener('submit', async (e) => {
         e.preventDefault();
-        const btn = document.getElementById('saveBtn'); btn.disabled=true; btn.innerText="Saving...";
+        const form = $('addTenantForm');
+        $('tPhone').setCustomValidity(validPhone($('tPhone').value) ? '' : 'invalid');
+        $('tKinPhone').setCustomValidity(!$('tKinPhone').value.trim() || validPhone($('tKinPhone').value) ? '' : 'invalid');
+        form.classList.add('was-validated');
+        if (!form.checkValidity()) return;
+
+        const btn = $('saveBtn'); btn.disabled = true; btn.innerText = "Saving...";
         const payload = {
-            action: "addTenant", uid: currentUserUID, name: document.getElementById('tName').value, phone: document.getElementById('tPhone').value, natID: document.getElementById('tNatID').value, house: document.getElementById('tHouse').value, rent: document.getElementById('tRent').value, date: document.getElementById('tDate').value, nextOfKin: document.getElementById('tNextOfKin').value, kinRelation: document.getElementById('tKinRelation').value, nextOfKinPhone: document.getElementById('tKinPhone').value,
-            property: "Main Property"
+            action: "addTenant", uid: currentUserUID, name: $('tName').value.trim(), phone: normalPhone($('tPhone').value), natID: $('tNatID').value.trim(),
+            house: $('tHouse').value.trim(), rent: $('tRent').value, date: $('tDate').value, nextOfKin: $('tNextOfKin').value.trim(),
+            kinRelation: $('tKinRelation').value.trim(), nextOfKinPhone: normalPhone($('tKinPhone').value), property: "Main Property"
         };
         try {
-          await apiWrite(payload);
-          bootstrap.Modal.getInstance(document.getElementById('addTenantModal')).hide();
+          await apiRequest(payload);
+          bootstrap.Modal.getInstance($('addTenantModal')).hide();
+          form.reset();
+          form.classList.remove('was-validated');
           await loadData();
-        } catch(e) { alert(`Unable to save tenant: ${e.message}`); }
-        finally { btn.disabled=false; btn.innerText="Save Tenant"; }
+        } catch (err) { alert(`Unable to save tenant: ${err.message}`); }
+        finally { btn.disabled = false; btn.innerText = "Save Tenant"; }
     });
+    ['tPhone', 'tKinPhone'].forEach(id => $(id).addEventListener('input', () => $(id).setCustomValidity('')));
 
-    document.getElementById('payForm').addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const btn = document.getElementById('confirmPayBtn'); btn.disabled=true; btn.innerText="Processing...";
-        const payload = { action: "recordPayment", id: document.getElementById('payTenantId').value, amount: document.getElementById('payAmount').value, method: document.getElementById('payMethod').value, message: document.getElementById('payMessage').value };
-        try {
-          await apiWrite(payload);
-          bootstrap.Modal.getInstance(document.getElementById('payModal')).hide();
-          document.getElementById('payForm').reset();
-          await loadData();
-        } catch(e) { alert(`Unable to record payment: ${e.message}`); }
-        finally { btn.disabled=false; btn.innerText="Confirm Payment"; }
-    });
-
-    if(document.getElementById('logoutBtn')) document.getElementById('logoutBtn').addEventListener('click', () => RentProDevAuth.signOut(auth, firebaseSignOut));
+    if ($('logoutBtn')) $('logoutBtn').addEventListener('click', () => RentProDevAuth.signOut(auth, firebaseSignOut));
   </script>
 </body>
 </html>

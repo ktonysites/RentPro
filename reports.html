@@ -4,7 +4,6 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>RentPro — Reports</title>
-  
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -13,400 +12,448 @@
   <meta name="theme-color" content="#0c1022">
   <link rel="icon" href="icons/icon-192.png">
   <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <style>
+    .r-controls { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+    .r-controls .form-select { width: auto; min-width: 170px; font-weight: 600; }
+    .r-custom { display: none; gap: 6px; align-items: center; }
+    .r-custom.show { display: flex; }
+    .r-custom input { width: 150px; }
+    .r-period { font-size: 0.85rem; color: var(--rp-muted); margin: -12px 0 18px; }
+    .r-period strong { color: var(--rp-ink); }
+
+    .kpis { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; margin-bottom: 18px; }
+    @media (min-width: 1280px) { .kpis { grid-template-columns: repeat(6, minmax(0, 1fr)); } .kpis .kpi { padding: 14px 15px; } .kpis .kpi .value { font-size: 1.12rem; } }
+    .kpi { background: var(--rp-surface); border: 1px solid var(--rp-border); border-radius: var(--rp-radius); box-shadow: var(--rp-shadow); padding: 16px 18px; min-width: 0; }
+    .kpi .value { font-size: 1.35rem; font-weight: 800; color: var(--rp-ink); letter-spacing: -0.02em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-variant-numeric: tabular-nums; }
+    .kpi .sub { font-size: 0.76rem; color: var(--rp-muted); margin-top: 4px; min-height: 1.1em; }
+    .delta { font-weight: 700; }
+    .delta.up { color: var(--rp-success); } .delta.down { color: var(--rp-danger); }
+    .delta.up.bad { color: var(--rp-danger); } .delta.down.bad { color: var(--rp-success); }
+    .rate-bar { height: 6px; border-radius: 6px; background: #eef0f5; margin-top: 8px; overflow: hidden; }
+    .rate-bar span { display: block; height: 100%; border-radius: 6px; background: linear-gradient(90deg, #6366f1, #22c55e); }
+
+    .r-card { background: var(--rp-surface); border: 1px solid var(--rp-border); border-radius: var(--rp-radius); box-shadow: var(--rp-shadow); padding: 20px; height: 100%; }
+    .r-card h6 { font-weight: 700; margin: 0; }
+    .r-card .head { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 14px; flex-wrap: wrap; }
+    .chart-box { position: relative; height: 300px; }
+    .chart-box.sm { height: 240px; }
+    .legend-dot { display: inline-block; width: 9px; height: 9px; border-radius: 3px; margin-right: 5px; }
+    .legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 0.78rem; color: var(--rp-muted); }
+
+    .r-table th { font-size: 0.68rem; }
+    .r-table td, .r-table th { padding: 10px 14px; }
+    .r-table tfoot td { font-weight: 800; border-top: 2px solid var(--rp-border); background: var(--rp-surface-2); }
+    .neg { color: var(--rp-danger); } .pos { color: var(--rp-success); }
+    .arrear { display: flex; justify-content: space-between; gap: 10px; padding: 9px 0; border-bottom: 1px solid #f0f1f5; font-size: 0.9rem; }
+    .arrear:last-child { border-bottom: 0; }
+    .mini-stat { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px dashed #edeff4; font-size: 0.9rem; }
+    .mini-stat:last-child { border-bottom: 0; }
+    .export-card { padding: 16px 18px; }
+    .r-empty { text-align: center; color: var(--rp-muted); padding: 30px 10px; font-size: 0.9rem; }
+
+    @media (max-width: 767.98px) {
+      .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+      .kpi { padding: 12px 14px; }
+      .kpi .value { font-size: 1.05rem; }
+      .r-controls .form-select { flex: 1 1 100%; }
+      .r-custom.show { flex: 1 1 100%; }
+      .r-custom input { flex: 1; width: auto; }
+      .chart-box { height: 250px; }
+      .r-card { padding: 16px; }
+    }
+    @media print {
+      body { background: #fff; }
+      .page-actions, .r-controls, .export-section, .ai-fab, #rp-ai-btn { display: none !important; }
+      .r-card, .kpi { box-shadow: none; break-inside: avoid; }
+      .kpis { grid-template-columns: repeat(3, 1fr); }
+      .print-only { display: block !important; }
+    }
+    .print-only { display: none; }
+  </style>
 </head>
 <body data-page="reports">
   <script src="js/splash.js"></script>
   <script src="js/shell.js"></script>
 
-
   <main class="content">
-    
     <div class="page-head">
       <div>
-        <div class="eyebrow">Financial Intelligence</div>
-        <h2>Analytics Report</h2>
+        <div class="eyebrow">Financial report</div>
+        <h2>Reports</h2>
+        <p class="print-only" id="printDate"></p>
       </div>
-
-      <div class="page-actions">
-        <select id="timeRange" class="form-select fw-semibold" style="width: auto;">
-            <option value="this_month" selected>This Month</option>
-            <option value="last_month">Last Month</option>
-            <option value="last_3_months">Last 3 Months</option>
-            <option value="this_year">This Year</option>
-            <option value="all_time">All Time</option>
+      <div class="page-actions r-controls">
+        <select id="timeRange" class="form-select" aria-label="Report period">
+          <option value="this_month" selected>This month</option>
+          <option value="last_month">Last month</option>
+          <option value="last_3_months">Last 3 months</option>
+          <option value="this_year">This year</option>
+          <option value="last_year">Last year</option>
+          <option value="all_time">All time</option>
+          <option value="custom">Custom months…</option>
         </select>
-        
-        <button class="btn btn-primary" onclick="loadReports()">
-            <i class="fa-solid fa-rotate me-2"></i> Sync
-        </button>
+        <div class="r-custom" id="customRange">
+          <input type="month" id="fromMonth" class="form-control" aria-label="From month">
+          <span class="text-muted">to</span>
+          <input type="month" id="toMonth" class="form-control" aria-label="To month">
+        </div>
+        <button class="btn btn-outline-secondary" id="rp-ai-btn" type="button"><i class="fa-solid fa-wand-magic-sparkles me-2"></i>Explain with AI</button>
+        <button class="btn btn-outline-secondary" type="button" onclick="window.print()"><i class="fa-solid fa-print me-2"></i>Print / PDF</button>
+        <button class="btn btn-primary" type="button" onclick="loadReports()"><i class="fa-solid fa-rotate me-2"></i>Refresh</button>
       </div>
     </div>
+    <div class="r-period" id="periodLine">Loading…</div>
 
-    <div class="row g-4 mb-4">
-      <div class="col-6 col-xl-3">
-        <div class="report-card acc-blue">
-          <div class="card-label">Expected Revenue</div>
-          <div id="expectedVal" class="card-value">...</div>
-          <div class="card-sub">Based on active leases</div>
-        </div>
-      </div>
-      <div class="col-6 col-xl-3">
-        <div class="report-card acc-green">
-          <div class="card-label">Collected Revenue</div>
-          <div id="collectedVal" class="card-value text-success">...</div>
-          <div class="card-sub">Payments received</div>
-        </div>
-      </div>
-      <div class="col-6 col-xl-3">
-        <div class="report-card acc-red">
-          <div class="card-label">Total Expenses</div>
-          <div id="expensesVal" class="card-value text-danger">...</div>
-          <div class="card-sub">Operational costs</div>
-        </div>
-      </div>
-      <div class="col-6 col-xl-3">
-        <div class="report-card acc-purple">
-          <div class="card-label">Net Profit</div>
-          <div id="profitVal" class="card-value" style="color:#8b5cf6">...</div>
-          <div class="card-sub">Actual - Expenses</div>
-        </div>
-      </div>
+    <div class="kpis">
+      <div class="kpi"><div class="card-label">Expected rent</div><div class="value" id="kExpected">–</div><div class="sub" id="kExpectedSub"></div></div>
+      <div class="kpi"><div class="card-label">Collected</div><div class="value text-success" id="kCollected">–</div><div class="sub" id="kCollectedSub"></div></div>
+      <div class="kpi"><div class="card-label">Collection rate</div><div class="value" id="kRate">–</div><div class="rate-bar"><span id="kRateBar" style="width:0%"></span></div></div>
+      <div class="kpi"><div class="card-label">Expenses</div><div class="value text-danger" id="kExpenses">–</div><div class="sub" id="kExpensesSub"></div></div>
+      <div class="kpi"><div class="card-label">Net profit</div><div class="value" id="kNet">–</div><div class="sub" id="kNetSub"></div></div>
+      <div class="kpi"><div class="card-label">Owed right now</div><div class="value" id="kOwed">–</div><div class="sub" id="kOwedSub"></div></div>
     </div>
 
-    <div class="row g-4 mb-5">
+    <div class="row g-3 mb-3">
       <div class="col-lg-8">
-        <div class="chart-container">
-          <div class="d-flex justify-content-between align-items-center mb-3">
-            <h6 class="fw-bold m-0 text-dark">Cash Flow Overview</h6>
-            <span class="badge bg-light text-dark border" id="chartLabel">This Month</span>
+        <div class="r-card">
+          <div class="head">
+            <h6>Month by month</h6>
+            <div class="legend">
+              <span><i class="legend-dot" style="background:#22c55e"></i>Collected</span>
+              <span><i class="legend-dot" style="background:#f87171"></i>Expenses</span>
+              <span><i class="legend-dot" style="background:#6366f1"></i>Net</span>
+              <span><i class="legend-dot" style="background:#cbd5e1"></i>Expected rent</span>
+            </div>
           </div>
-          <canvas id="cashFlowChart"></canvas>
+          <div class="chart-box"><canvas id="trendChart"></canvas></div>
         </div>
       </div>
       <div class="col-lg-4">
-        <div class="chart-container">
-          <div class="d-flex justify-content-between align-items-center mb-3">
-            <h6 class="fw-bold m-0 text-dark">Collection Efficiency</h6>
-          </div>
-          <canvas id="efficiencyChart"></canvas>
+        <div class="r-card">
+          <div class="head"><h6>Rent collection</h6><span class="badge bg-light text-dark border" id="rateBadge">–</span></div>
+          <div class="chart-box sm"><canvas id="collectionChart"></canvas></div>
         </div>
       </div>
     </div>
 
-    <h5 class="fw-bold mb-3"><i class="fa-solid fa-download me-2"></i>Export Center</h5>
-    <p class="text-muted small mb-4">Exporting will download data for the <strong>currently selected time period</strong>.</p>
-    
-    <div class="row g-3">
-        <div class="col-lg-4">
-            <div class="export-card" onclick="exportData('tenants')">
-                <div class="d-flex align-items-center mb-2">
-                    <div class="export-icon bg-primary bg-opacity-10 text-primary me-3"><i class="fa-solid fa-users"></i></div>
-                    <div>
-                        <h6 class="fw-bold m-0">Tenant Roster</h6>
-                        <small class="text-muted">Active Tenants List</small>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <div class="col-lg-4">
-            <div class="export-card" onclick="exportData('payments')">
-                <div class="d-flex align-items-center mb-2">
-                    <div class="export-icon bg-success bg-opacity-10 text-success me-3"><i class="fa-solid fa-file-invoice-dollar"></i></div>
-                    <div>
-                        <h6 class="fw-bold m-0">Payment History</h6>
-                        <small class="text-muted">Filtered Transaction Log</small>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <div class="col-lg-4">
-            <div class="export-card" onclick="exportData('expenses')">
-                <div class="d-flex align-items-center mb-2">
-                    <div class="export-icon bg-danger bg-opacity-10 text-danger me-3"><i class="fa-solid fa-receipt"></i></div>
-                    <div>
-                        <h6 class="fw-bold m-0">Expense Report</h6>
-                        <small class="text-muted">Filtered Expense Log</small>
-                    </div>
-                </div>
-            </div>
-        </div>
+    <div class="r-card p-0 overflow-hidden mb-3">
+      <div class="head px-3 pt-3"><h6>By house</h6><span class="small text-muted">Expected and collected in this period; balance is today's</span></div>
+      <div class="table-responsive">
+        <table class="table table-stack r-table mb-0 align-middle">
+          <thead><tr><th>House</th><th>Tenant</th><th class="text-end">Expected</th><th class="text-end">Collected</th><th class="text-end">Expenses</th><th class="text-end">Net</th><th class="text-end">Balance now</th></tr></thead>
+          <tbody id="houseBody"></tbody>
+          <tfoot id="houseFoot"></tfoot>
+        </table>
+      </div>
     </div>
 
-    <div class="mt-5 text-center text-muted small">
-        &copy; 2026 RentPro SaaS. All rights reserved.
+    <div class="row g-3 mb-3">
+      <div class="col-md-6 col-xl-4">
+        <div class="r-card">
+          <div class="head"><h6>Who owes the most</h6><a href="tenants.html" class="small text-decoration-none">Tenants →</a></div>
+          <div id="arrearsList"></div>
+        </div>
+      </div>
+      <div class="col-md-6 col-xl-4">
+        <div class="r-card">
+          <div class="head"><h6>Other figures</h6></div>
+          <div id="otherStats"></div>
+        </div>
+      </div>
+      <div class="col-xl-4">
+        <div class="r-card">
+          <div class="head"><h6>Expenses by category</h6></div>
+          <div class="chart-box sm"><canvas id="categoryChart"></canvas></div>
+        </div>
+      </div>
     </div>
 
+    <div class="r-card p-0 overflow-hidden mb-4">
+      <div class="head px-3 pt-3"><h6>Monthly summary</h6></div>
+      <div class="table-responsive">
+        <table class="table table-stack r-table mb-0 align-middle">
+          <thead><tr><th>Month</th><th class="text-end">Expected</th><th class="text-end">Collected</th><th class="text-end">Rate</th><th class="text-end">Expenses</th><th class="text-end">Net</th></tr></thead>
+          <tbody id="monthBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="export-section">
+      <h6 class="fw-bold mb-1"><i class="fa-solid fa-download me-2"></i>Export</h6>
+      <p class="text-muted small mb-3">Downloads use the period selected above (the tenant list is always current).</p>
+      <div class="row g-3">
+        <div class="col-sm-6 col-lg-3"><div class="export-card" onclick="exportData('summary')"><div class="d-flex align-items-center gap-3"><div class="export-icon bg-primary bg-opacity-10 text-primary"><i class="fa-solid fa-file-lines"></i></div><div><div class="fw-bold">Full report</div><small class="text-muted">Totals, months, houses</small></div></div></div></div>
+        <div class="col-sm-6 col-lg-3"><div class="export-card" onclick="exportData('payments')"><div class="d-flex align-items-center gap-3"><div class="export-icon bg-success bg-opacity-10 text-success"><i class="fa-solid fa-file-invoice-dollar"></i></div><div><div class="fw-bold">Payments</div><small class="text-muted">In this period</small></div></div></div></div>
+        <div class="col-sm-6 col-lg-3"><div class="export-card" onclick="exportData('expenses')"><div class="d-flex align-items-center gap-3"><div class="export-icon bg-danger bg-opacity-10 text-danger"><i class="fa-solid fa-receipt"></i></div><div><div class="fw-bold">Expenses</div><small class="text-muted">In this period</small></div></div></div></div>
+        <div class="col-sm-6 col-lg-3"><div class="export-card" onclick="exportData('tenants')"><div class="d-flex align-items-center gap-3"><div class="export-icon bg-warning bg-opacity-10 text-warning"><i class="fa-solid fa-users"></i></div><div><div class="fw-bold">Tenant roster</div><small class="text-muted">Current balances</small></div></div></div></div>
+      </div>
+    </div>
   </main>
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-
-
-    <script src="global.js"></script>
-    <script src="js/dev-auth.js"></script>
-    <script type="module">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <script src="global.js"></script>
+  <script src="js/report-math.js"></script>
+  <script src="js/dev-auth.js"></script>
+  <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
     import { getAuth, onAuthStateChanged as firebaseOnAuthStateChanged, signOut as firebaseSignOut } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 
-    const firebaseConfig = {
-        apiKey: "AIzaSyBwJEOW3jVBHLizWiJjT4a_Tay-2yUCZwk",
-        authDomain: "rentpro-saas.firebaseapp.com",
-        projectId: "rentpro-saas",
-        storageBucket: "rentpro-saas.firebasestorage.app",
-        messagingSenderId: "120985965272",
-        appId: "1:120985965272:web:c86eae74aa75460b17fdad"
-    };
+    const auth = getAuth(initializeApp({ apiKey: "AIzaSyBwJEOW3jVBHLizWiJjT4a_Tay-2yUCZwk", authDomain: "rentpro-saas.firebaseapp.com", projectId: "rentpro-saas" }));
+    const $ = (id) => document.getElementById(id);
+    const R = window.RentProReport;
+    const kes = (n) => 'KES ' + Math.round(Number(n) || 0).toLocaleString('en-KE');
+    const short = (n) => Math.round(Number(n) || 0).toLocaleString('en-KE');
+    const pct = (x) => x === null || x === undefined ? '–' : Math.round(x * 100) + '%';
+    const RANGE_KEY = 'rentpro_report_range';
+    let data = null;
+    let report = null;
+    const charts = {};
 
-    const app = initializeApp(firebaseConfig);
-    const auth = getAuth(app);
-    let currentUserUID = null;
-
-    // RAW DATA STORES (Contains Everything)
-    let rawTenants = [];
-    let rawPayments = [];
-    let rawExpenses = [];
-
-    // FILTERED DATA STORES (For Display & Export)
-    let filteredTenants = [];
-    let filteredPayments = [];
-    let filteredExpenses = [];
-
-    // 🔴 WEB APP URL 🔴
-    const WEB_APP_URL = window.API_URL;
+    // Remember the chosen period for the visit.
+    try {
+      const saved = JSON.parse(sessionStorage.getItem(RANGE_KEY) || 'null');
+      if (saved) { $('timeRange').value = saved.range; $('fromMonth').value = saved.from || ''; $('toMonth').value = saved.to || ''; }
+    } catch (e) { /* optional */ }
+    const now = new Date();
+    const monthValue = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    if (!$('fromMonth').value) $('fromMonth').value = monthValue(new Date(now.getFullYear(), now.getMonth() - 5, 1));
+    if (!$('toMonth').value) $('toMonth').value = monthValue(now);
 
     RentProDevAuth.onAuthStateChanged(auth, (user) => {
-        if (user) {
-            currentUserUID = user.uid;
-            loadReports();
-        } else {
-            window.location.href = "index.html";
-        }
+        if (user) loadReports(); else window.location.href = "index.html";
     }, firebaseOnAuthStateChanged);
 
-    const money = (val) => new Intl.NumberFormat('en-KE', { style: 'currency', currency: 'KES', minimumFractionDigits: 0 }).format(val).replace('KES','').trim();
-
-    // 1. FETCH DATA ONCE
-    window.loadReports = async function() {
-        if(!currentUserUID) return;
-
-        // Show loading state
-        document.getElementById('expectedVal').innerText = "...";
-        document.getElementById('collectedVal').innerText = "...";
-
+    window.loadReports = async function () {
+        $('periodLine').innerText = 'Loading…';
         try {
-            const [tRes, pRes, eRes] = await Promise.all([
-                fetch(`${WEB_APP_URL}?action=getTenants&t=${Date.now()}`).then(r=>r.json()),
-                fetch(`${WEB_APP_URL}?action=getPayments&t=${Date.now()}`).then(r=>r.json()),
-                fetch(`${WEB_APP_URL}?action=getExpenses&t=${Date.now()}`).then(r=>r.json())
+            const [t, p, e, u, a] = await Promise.all([
+                apiRequest({ action: 'getTenants' }),
+                apiRequest({ action: 'getPayments' }),
+                apiRequest({ action: 'getExpenses' }),
+                apiRequest({ action: 'getUtilityBills' }).catch(() => ({ data: [] })),
+                apiRequest({ action: 'getArchivedData' }).catch(() => ({ archives: [] }))
             ]);
-
-            const allTenants = Array.isArray(tRes) ? tRes : (tRes.data || []);
-            const allPayments = Array.isArray(pRes) ? pRes : (pRes.data || []);
-            const allExpenses = Array.isArray(eRes) ? eRes : (eRes.data || []);
-
-            // Initial Filter by Owner
-            rawTenants = allTenants;
-            rawPayments = allPayments;
-            rawExpenses = allExpenses;
-
-            // Apply Time Filter
-            updateDashboard();
-
+            data = { tenants: t.data || [], payments: p.data || [], expenses: e.data || [], utilities: u.data || [], former: a.archives || [] };
+            update();
         } catch (error) {
             console.error(error);
-            alert("Failed to load data.");
+            $('periodLine').innerHTML = `<span class="text-danger">Couldn't load report data: ${escapeHtml(error.message)}</span>`;
         }
-    }
-
-    // 2. FILTER & UPDATE DASHBOARD LOGIC
-    document.getElementById('timeRange').addEventListener('change', updateDashboard);
-
-    function updateDashboard() {
-        const range = document.getElementById('timeRange').value;
-        const now = new Date();
-        const curMonth = now.getMonth();
-        const curYear = now.getFullYear();
-
-        // Helper to check date range
-        const isInRange = (dateStr) => {
-            if(!dateStr) return false;
-            const d = new Date(dateStr);
-            if(isNaN(d)) return false;
-
-            if (range === 'this_month') {
-                return d.getMonth() === curMonth && d.getFullYear() === curYear;
-            } 
-            else if (range === 'last_month') {
-                const lastMonth = curMonth === 0 ? 11 : curMonth - 1;
-                const lastMonthYear = curMonth === 0 ? curYear - 1 : curYear;
-                return d.getMonth() === lastMonth && d.getFullYear() === lastMonthYear;
-            }
-            else if (range === 'last_3_months') {
-                const threeMonthsAgo = new Date();
-                threeMonthsAgo.setMonth(now.getMonth() - 3);
-                return d >= threeMonthsAgo && d <= now;
-            }
-            else if (range === 'this_year') {
-                return d.getFullYear() === curYear;
-            }
-            else if (range === 'all_time') {
-                return true;
-            }
-            return false;
-        };
-
-        // Filter Data
-        filteredPayments = rawPayments.filter(p => isInRange(p.Date || p.date));
-        filteredExpenses = rawExpenses.filter(e => isInRange(e.Date || e.date));
-        filteredTenants = rawTenants; // Tenants are always "active"
-
-        // Calculate Metrics
-        const totalExpected = filteredTenants.reduce((sum, t) => sum + Number(t.Rent || 0), 0);
-        
-        const totalCollected = filteredPayments.reduce((sum, p) => sum + Number(p.Amount || p.amount || 0), 0);
-        const totalExpenses = filteredExpenses.reduce((sum, e) => sum + Number(e.Amount || e.amount || 0), 0);
-        const netProfit = totalCollected - totalExpenses;
-
-        // Update Text
-        document.getElementById('expectedVal').innerText = money(totalExpected); 
-        document.getElementById('collectedVal').innerText = money(totalCollected);
-        document.getElementById('expensesVal').innerText = money(totalExpenses);
-        document.getElementById('profitVal').innerText = money(netProfit);
-        
-        // Update Chart Label
-        const labelMap = {
-            'this_month': 'This Month', 'last_month': 'Last Month', 
-            'last_3_months': 'Last 3 Months', 'this_year': 'This Year', 'all_time': 'All Time'
-        };
-        document.getElementById('chartLabel').innerText = labelMap[range];
-
-        // Update Charts
-        renderCashFlowChart(totalCollected, totalExpenses, netProfit);
-        renderEfficiencyChart(totalCollected, totalExpected); 
-    }
-
-    // --- CHARTS ---
-    let cashChart = null;
-    let effChart = null;
-
-    function renderCashFlowChart(income, expense, profit) {
-        const ctx = document.getElementById('cashFlowChart').getContext('2d');
-        if(cashChart) cashChart.destroy();
-
-        cashChart = new Chart(ctx, {
-            type: 'bar',
-            data: {
-                labels: ['Income', 'Expenses', 'Net Profit'],
-                datasets: [{
-                    label: 'Amount (KES)',
-                    data: [income, expense, profit],
-                    backgroundColor: ['#10b981', '#ef4444', '#8b5cf6'],
-                    borderRadius: 6,
-                    barThickness: 50
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: { legend: { display: false } },
-                scales: { 
-                    y: { beginAtZero: true, grid: { borderDash: [4,4] } },
-                    x: { grid: { display: false } }
-                }
-            }
-        });
-    }
-
-    function renderEfficiencyChart(collected, expected) {
-        // Warning: This chart logic assumes 'expected' is the Monthly Rent. 
-        const range = document.getElementById('timeRange').value;
-        let adjustedExpected = expected;
-
-        if (range === 'this_year') adjustedExpected = expected * 12;
-        if (range === 'last_3_months') adjustedExpected = expected * 3;
-        
-        const outstanding = Math.max(0, adjustedExpected - collected);
-        
-        const ctx = document.getElementById('efficiencyChart').getContext('2d');
-        if(effChart) effChart.destroy();
-
-        effChart = new Chart(ctx, {
-            type: 'doughnut',
-            data: {
-                labels: ['Collected', 'Outstanding'],
-                datasets: [{
-                    data: [collected, outstanding],
-                    backgroundColor: ['#3b82f6', '#e2e8f0'],
-                    borderWidth: 0
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                cutout: '75%',
-                plugins: { legend: { position: 'bottom' } }
-            }
-        });
-    }
-
-    // --- EXPORT LOGIC ---
-    window.exportData = (type) => {
-        let data = [];
-        let headers = [];
-        let filename = `rentpro_${type}_${document.getElementById('timeRange').value}.csv`;
-
-        if (type === 'tenants') {
-            if(!rawTenants.length) return alert("No data");
-            headers = ['Name', 'House', 'Phone', 'Rent', 'Balance', 'NationalID'];
-            data = rawTenants.map(t => ({
-                Name: t.Name, House: t.House, Phone: t.Phone, 
-                Rent: t.Rent, Balance: t.Balance, NationalID: t.NationalID 
-            }));
-        } else if (type === 'payments') {
-            if(!filteredPayments.length) return alert("No payment data for selected period.");
-            headers = ['Date', 'Tenant', 'House', 'Payer', 'Amount', 'Reference', 'Status'];
-            data = filteredPayments.map(p => ({
-                Date: new Date(p.Date).toLocaleDateString(),
-                Tenant: p.Tenant,
-                House: p.House,
-                Payer: p.Payer || p.Tenant,
-                Amount: p.Amount,
-                Reference: p.Reference || "MANUAL",
-                Status: p.Notes
-            }));
-        } else if (type === 'expenses') {
-            if(!filteredExpenses.length) return alert("No expense data for selected period.");
-            headers = ['Date', 'Category', 'Description', 'Amount'];
-            data = filteredExpenses.map(e => ({
-                Date: new Date(e.Date).toLocaleDateString(), 
-                Category: e.Category, 
-                Description: e.Description, 
-                Amount: e.Amount
-            }));
-        }
-
-        downloadCSV(data, headers, filename);
     };
 
-    function downloadCSV(data, headers, filename) {
-        const csvRows = [headers.join(',')];
-        for (const row of data) {
-            const values = headers.map(header => {
-                const val = row[header] === undefined ? '' : row[header];
-                return `"${String(val).replace(/"/g, '""')}"`;
-            });
-            csvRows.push(values.join(','));
-        }
-        const blob = new Blob([csvRows.join('\n')], { type: 'text/csv' });
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url; a.download = filename; a.click();
+    function currentPeriod() {
+        const range = $('timeRange').value;
+        return R.periodFor(range, new Date(), { from: $('fromMonth').value, to: $('toMonth').value, earliestDate: R.earliestDate(data) });
     }
 
-    if(document.getElementById('logoutBtn')) document.getElementById('logoutBtn').addEventListener('click', () => RentProDevAuth.signOut(auth, firebaseSignOut));
+    function update() {
+        if (!data) return;
+        $('customRange').classList.toggle('show', $('timeRange').value === 'custom');
+        try { sessionStorage.setItem(RANGE_KEY, JSON.stringify({ range: $('timeRange').value, from: $('fromMonth').value, to: $('toMonth').value })); } catch (e) { /* optional */ }
 
+        const today = new Date();
+        const period = currentPeriod();
+        report = R.buildReport(data, period, today);
+        const previous = R.buildReport(data, R.previousPeriod(period), today);
+        const months = period.months.length;
+        $('periodLine').innerHTML = `Showing <strong>${escapeHtml(period.label)}</strong> · ${months} month${months === 1 ? '' : 's'} · compared with the ${months === 1 ? 'month' : months + ' months'} before`;
+        $('printDate').innerText = `${period.label} · printed ${today.toLocaleDateString('en-GB', { dateStyle: 'long' })}`;
+
+        renderKpis(report, previous);
+        renderTrend(report);
+        renderCollection(report);
+        renderHouses(report);
+        renderArrears(report);
+        renderOther(report);
+        renderCategories(report);
+        renderMonths(report);
+    }
+
+    function delta(nowValue, before, { higherIsBad = false } = {}) {
+        const c = R.change(nowValue, before);
+        if (c === null) return '<span class="text-muted">no earlier data</span>';
+        const dir = c >= 0 ? 'up' : 'down';
+        return `<span class="delta ${dir} ${higherIsBad ? 'bad' : ''}">${c >= 0 ? '▲' : '▼'} ${Math.abs(Math.round(c * 100))}%</span> vs before`;
+    }
+
+    function renderKpis(r, prev) {
+        $('kExpected').innerText = kes(r.expected);
+        $('kExpectedSub').innerText = r.period.months.length > 1 ? `${r.period.months.length} months of rent` : 'Rent due this period';
+        $('kCollected').innerText = kes(r.collected);
+        $('kCollectedSub').innerHTML = delta(r.collected, prev.collected);
+        $('kRate').innerText = pct(r.collectionRate);
+        $('kRateBar').style.width = Math.min(100, Math.round((r.collectionRate || 0) * 100)) + '%';
+        $('kExpenses').innerText = kes(r.expenses);
+        $('kExpensesSub').innerHTML = delta(r.expenses, prev.expenses, { higherIsBad: true });
+        $('kNet').innerText = kes(r.net);
+        $('kNet').className = 'value ' + (r.net < 0 ? 'text-danger' : '');
+        $('kNetSub').innerHTML = r.margin === null ? '' : `${pct(r.margin)} of income kept`;
+        $('kOwed').innerText = kes(r.currentArrears.total);
+        $('kOwed').className = 'value ' + (r.currentArrears.total > 0 ? 'text-danger' : 'text-success');
+        $('kOwedSub').innerText = r.currentArrears.count ? `${r.currentArrears.count} tenant${r.currentArrears.count === 1 ? '' : 's'} with a balance` : 'Everyone is paid up';
+    }
+
+    function chart(id, config) {
+        if (charts[id]) charts[id].destroy();
+        charts[id] = new Chart($(id).getContext('2d'), config);
+    }
+    const moneyTicks = { callback: (v) => (Math.abs(v) >= 1000 ? (v / 1000).toLocaleString() + 'k' : v) };
+    const tooltipMoney = { callbacks: { label: (ctx) => `${ctx.dataset.label || ctx.label}: ${kes(ctx.parsed.y ?? ctx.parsed)}` } };
+
+    function renderTrend(r) {
+        chart('trendChart', {
+            data: {
+                labels: r.monthly.map(m => m.label),
+                datasets: [
+                    { type: 'bar', label: 'Collected', data: r.monthly.map(m => m.collected), backgroundColor: '#22c55e', borderRadius: 6, maxBarThickness: 28, order: 2 },
+                    { type: 'bar', label: 'Expenses', data: r.monthly.map(m => m.expenses), backgroundColor: '#f87171', borderRadius: 6, maxBarThickness: 28, order: 2 },
+                    { type: 'line', label: 'Net', data: r.monthly.map(m => m.net), borderColor: '#6366f1', backgroundColor: '#6366f1', tension: 0.3, pointRadius: 3, order: 1 },
+                    { type: 'line', label: 'Expected rent', data: r.monthly.map(m => m.expected), borderColor: '#cbd5e1', borderDash: [5, 5], pointRadius: 0, order: 0 }
+                ]
+            },
+            options: {
+                responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false },
+                plugins: { legend: { display: false }, tooltip: tooltipMoney },
+                scales: { y: { beginAtZero: true, ticks: moneyTicks, grid: { color: '#eef0f5' } }, x: { grid: { display: false } } }
+            }
+        });
+    }
+
+    function renderCollection(r) {
+        const outstanding = Math.max(0, r.expected - r.collected);
+        const extra = Math.max(0, r.collected - r.expected);
+        $('rateBadge').innerText = r.collectionRate === null ? 'No rent due' : `${pct(r.collectionRate)} collected`;
+        chart('collectionChart', {
+            type: 'doughnut',
+            data: {
+                labels: extra ? ['Collected (expected)', 'Extra / advance'] : ['Collected', 'Not yet collected'],
+                datasets: [{ data: extra ? [r.expected, extra] : [r.collected, outstanding], backgroundColor: extra ? ['#22c55e', '#86efac'] : ['#22c55e', '#e5e7eb'], borderWidth: 0 }]
+            },
+            options: { responsive: true, maintainAspectRatio: false, cutout: '72%', plugins: { legend: { position: 'bottom' }, tooltip: { callbacks: { label: (ctx) => `${ctx.label}: ${kes(ctx.parsed)}` } } } }
+        });
+    }
+
+    function renderHouses(r) {
+        if (!r.houses.length) {
+            $('houseBody').innerHTML = '<tr><td colspan="7" class="r-empty">No houses with activity in this period.</td></tr>';
+            $('houseFoot').innerHTML = '';
+            return;
+        }
+        $('houseBody').innerHTML = r.houses.map(h => `
+            <tr>
+              <td class="td-primary"><strong>House ${escapeHtml(h.house)}</strong></td>
+              <td data-label="Tenant">${h.tenant ? escapeHtml(h.tenant) : '<span class="text-muted">Vacant / unmatched</span>'}</td>
+              <td data-label="Expected" class="text-end">${short(h.expected)}</td>
+              <td data-label="Collected" class="text-end pos">${short(h.collected)}</td>
+              <td data-label="Expenses" class="text-end ${h.expenses ? 'neg' : ''}">${short(h.expenses)}</td>
+              <td data-label="Net" class="text-end fw-bold ${h.net < 0 ? 'neg' : ''}">${short(h.net)}</td>
+              <td data-label="Balance now" class="text-end ${h.balance > 0 ? 'neg fw-bold' : h.balance < 0 ? 'text-primary' : 'text-muted'}">${h.balance < 0 ? 'Credit ' + short(-h.balance) : short(h.balance)}</td>
+            </tr>`).join('');
+        const sum = (k) => r.houses.reduce((s, h) => s + h[k], 0);
+        const shared = r.expenses - sum('expenses');
+        $('houseFoot').innerHTML = `
+            <tr><td colspan="2">Total${shared ? ` <span class="small text-muted fw-normal">(plus ${kes(shared)} shared expenses)</span>` : ''}</td>
+            <td class="text-end">${short(sum('expected'))}</td><td class="text-end">${short(sum('collected'))}</td>
+            <td class="text-end">${short(sum('expenses'))}</td><td class="text-end">${short(sum('net'))}</td>
+            <td class="text-end">${short(r.houses.reduce((s, h) => s + Math.max(0, h.balance), 0))}</td></tr>`;
+    }
+
+    function renderArrears(r) {
+        const top = r.currentArrears.top;
+        $('arrearsList').innerHTML = top.length
+            ? top.map(t => `<div class="arrear"><span><strong>${escapeHtml(t.name)}</strong> <span class="text-muted small">House ${escapeHtml(t.house)}</span></span><span class="neg fw-bold">${kes(t.balance)}</span></div>`).join('')
+            : '<div class="r-empty"><i class="fa-solid fa-circle-check text-success me-1"></i>Nobody owes rent right now.</div>';
+    }
+
+    function renderOther(r) {
+        const rows = [
+            ['Payments received', `${r.paymentsCount}`],
+            ['Average payment', kes(r.averagePayment)],
+            ['Unmatched payments', r.unmatched.count ? `<a href="reconcile.html">${r.unmatched.count} · ${kes(r.unmatched.amount)}</a>` : '0'],
+            ['Utilities billed', kes(r.utilities.billed)],
+            ['Utilities paid', `${kes(r.utilities.paid)}${r.utilities.unpaidCount ? ` <span class="text-danger small">(${r.utilities.unpaidCount} unpaid)</span>` : ''}`]
+        ];
+        $('otherStats').innerHTML = rows.map(([k, v]) => `<div class="mini-stat"><span class="text-muted">${k}</span><span class="fw-semibold">${v}</span></div>`).join('');
+    }
+
+    function renderCategories(r) {
+        const palette = ['#6366f1', '#f87171', '#22c55e', '#f59e0b', '#a855f7', '#94a3b8'];
+        if (!r.categories.length) {
+            if (charts.categoryChart) { charts.categoryChart.destroy(); delete charts.categoryChart; }
+            $('categoryChart').parentElement.innerHTML = '<canvas id="categoryChart"></canvas><div class="r-empty position-absolute top-50 start-50 translate-middle w-100">No expenses in this period.</div>';
+            return;
+        }
+        $('categoryChart').parentElement.querySelector('.r-empty')?.remove();
+        chart('categoryChart', {
+            type: 'doughnut',
+            data: { labels: r.categories.map(c => c.name), datasets: [{ data: r.categories.map(c => c.amount), backgroundColor: palette, borderWidth: 0 }] },
+            options: { responsive: true, maintainAspectRatio: false, cutout: '62%', plugins: { legend: { position: 'right' }, tooltip: { callbacks: { label: (ctx) => `${ctx.label}: ${kes(ctx.parsed)}` } } } }
+        });
+    }
+
+    function renderMonths(r) {
+        $('monthBody').innerHTML = r.monthly.slice().reverse().map(m => `
+            <tr>
+              <td class="td-primary"><strong>${escapeHtml(m.label)}</strong></td>
+              <td data-label="Expected" class="text-end">${short(m.expected)}</td>
+              <td data-label="Collected" class="text-end pos">${short(m.collected)}</td>
+              <td data-label="Rate" class="text-end ${m.rate !== null && m.rate < 0.8 ? 'neg' : ''}">${pct(m.rate)}</td>
+              <td data-label="Expenses" class="text-end">${short(m.expenses)}</td>
+              <td data-label="Net" class="text-end fw-bold ${m.net < 0 ? 'neg' : ''}">${short(m.net)}</td>
+            </tr>`).join('');
+    }
+
+    $('timeRange').addEventListener('change', update);
+    $('fromMonth').addEventListener('change', update);
+    $('toMonth').addEventListener('change', update);
+
+    // "Explain with AI": opens the Ask AI panel with this period's figures.
+    $('rp-ai-btn').addEventListener('click', () => {
+        if (!report || !window.RentProAIPanel) return;
+        const r = report;
+        window.RentProAIPanel.open();
+        window.RentProAIPanel.ask(`Explain my report for ${r.period.label} in simple terms and suggest what to do next. ` +
+            `Expected rent ${kes(r.expected)}, collected ${kes(r.collected)} (${pct(r.collectionRate)}), expenses ${kes(r.expenses)}, ` +
+            `net ${kes(r.net)}, owed right now ${kes(r.currentArrears.total)}, unmatched payments ${r.unmatched.count}.`);
+    });
+
+    // --- Export ---
+    const quote = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+    const day = (v) => { const d = new Date(v); return isNaN(d) ? '' : d.toISOString().slice(0, 10); };
+    function download(rows, filename) {
+        const blob = new Blob([rows.map(r => r.map(quote).join(',')).join('\n')], { type: 'text/csv' });
+        const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = filename; document.body.appendChild(a); a.click(); a.remove();
+    }
+    window.exportData = (type) => {
+        if (!report) return;
+        const r = report;
+        const tag = r.period.label.replace(/[^A-Za-z0-9]+/g, '_');
+        if (type === 'summary') {
+            const rows = [['RentPro report', r.period.label], [],
+                ['Expected rent', r.expected], ['Collected', r.collected], ['Collection rate', pct(r.collectionRate)], ['Expenses', r.expenses], ['Net profit', r.net], ['Owed right now', r.currentArrears.total], [],
+                ['Month', 'Expected', 'Collected', 'Rate', 'Expenses', 'Net'], ...r.monthly.map(m => [m.label, m.expected, m.collected, pct(m.rate), m.expenses, m.net]), [],
+                ['House', 'Tenant', 'Expected', 'Collected', 'Expenses', 'Net', 'Balance now'], ...r.houses.map(h => [h.house, h.tenant, h.expected, h.collected, h.expenses, h.net, h.balance]), [],
+                ['Expense category', 'Amount'], ...r.categories.map(c => [c.name, c.amount])];
+            return download(rows, `RentPro_Report_${tag}.csv`);
+        }
+        if (type === 'payments') {
+            if (!r.payments.length) return alert('No payments in this period.');
+            return download([['Date', 'Tenant', 'House', 'Payer', 'Amount', 'Reference', 'Method', 'Status'],
+                ...r.payments.map(p => [day(p.Date), p.Tenant, p.House, p.Payer || p.Tenant, p.Amount, p.Reference, p.Method, p.Notes])], `RentPro_Payments_${tag}.csv`);
+        }
+        if (type === 'expenses') {
+            if (!r.expensesList.length) return alert('No expenses in this period.');
+            return download([['Date', 'Category', 'Description', 'House', 'Amount'],
+                ...r.expensesList.map(e => [day(e.Date), e.Category, e.Description, e.House, e.Amount])], `RentPro_Expenses_${tag}.csv`);
+        }
+        if (type === 'tenants') {
+            return download([['Name', 'House', 'Phone', 'Rent', 'Paid', 'Balance', 'Due day'],
+                ...data.tenants.map(t => [t.Name, t.House, t.Phone, t.Rent, t.AmountPaid, Number(t.Rent || 0) - Number(t.AmountPaid || 0), t.DueDate])], 'RentPro_Tenants.csv');
+        }
+    };
+
+    if ($('logoutBtn')) $('logoutBtn').addEventListener('click', () => RentProDevAuth.signOut(auth, firebaseSignOut));
   </script>
 </body>
 </html>

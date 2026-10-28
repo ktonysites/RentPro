@@ -7,6 +7,7 @@
         { section: 'Overview' },
         { id: 'dashboard', label: 'Dashboard', icon: 'fa-chart-pie', href: 'dashboard.html' },
         { id: 'reports', label: 'Reports', icon: 'fa-chart-column', href: 'reports.html' },
+        { id: 'assistant', label: 'AI Assistant', icon: 'fa-wand-magic-sparkles', href: 'assistant.html' },
         { section: 'Property' },
         { id: 'tenants', label: 'Tenants', icon: 'fa-users', href: 'tenants.html' },
         { id: 'payments', label: 'Payments', icon: 'fa-money-bill-wave', href: 'payments.html' },
@@ -18,7 +19,7 @@
         { id: 'pay', label: 'Payment Lookup', icon: 'fa-magnifying-glass-dollar', href: 'pay.html' }
     ];
     const TABS = ['dashboard', 'tenants', 'payments', 'expenses'];
-    const MORE = ['utilities', 'reports', 'reconcile', 'archives', 'pay'];
+    const MORE = ['assistant', 'utilities', 'reports', 'reconcile', 'archives', 'pay'];
     // Detail pages highlight their parent and show a back arrow on phones.
     const PARENT = { 'tenant-profile': 'tenants', moveout: 'tenants', reconcile: 'payments', archives: 'tenants' };
     const TITLES = { 'tenant-profile': 'Tenant', moveout: 'Move Out', reconcile: 'Unmatched', archives: 'Archives', pay: 'Payment Lookup' };
@@ -96,10 +97,18 @@
     }
     window.RentProShell = { showUnmatched };
 
+    // "Ask AI" button and page-specific panel (needs global.js, so it loads once the page is parsed).
+    window.addEventListener('DOMContentLoaded', () => {
+        const script = document.createElement('script');
+        script.src = 'js/ai-panel.js';
+        document.body.appendChild(script);
+    });
+
     // Android app: the phone's Back button closes the menu, then goes back a page, then leaves the app.
     const appPlugin = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.App;
     if (appPlugin) {
         appPlugin.addListener('backButton', ({ canGoBack }) => {
+            if (window.RentProAIPanel && window.RentProAIPanel.isOpen()) return window.RentProAIPanel.close();
             if (document.body.classList.contains('rp-sheet-open')) return closeSheet();
             const modal = document.querySelector('.modal.show');
             if (modal && window.bootstrap) return bootstrap.Modal.getInstance(modal)?.hide();

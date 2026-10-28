@@ -63,6 +63,27 @@ function escapeHtml(input) {
 	return String(input ?? "").replace(/[&<>"']/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
 }
 
+// Renders AI replies: escapes everything first, then allows **bold**, _italic_, "# headings" and "- " bullet lists.
+function renderAiText(text) {
+	const inline = (line) => escapeHtml(line)
+		.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+		.replace(/(^|\s)_(.+?)_(?=\s|$|[.,!?])/g, "$1<em>$2</em>");
+	const html = [];
+	let list = null;
+	const closeList = () => { if (list) { html.push(`<ul>${list.join("")}</ul>`); list = null; } };
+	String(text || "").split(/\r?\n/).forEach((raw) => {
+		const line = raw.trim();
+		const bullet = line.match(/^[-*•]\s+(.*)$/) || line.match(/^\d+[.)]\s+(.*)$/);
+		if (bullet) { (list = list || []).push(`<li>${inline(bullet[1])}</li>`); return; }
+		closeList();
+		if (!line) return;
+		const heading = line.match(/^#{1,4}\s+(.*)$/);
+		html.push(heading ? `<p class="ai-heading"><strong>${inline(heading[1])}</strong></p>` : `<p>${inline(line)}</p>`);
+	});
+	closeList();
+	return html.join("");
+}
+
 // Keeps the navigation's unmatched-payments badge in step with a freshly loaded count.
 function updateUnmatchedBadge(count) {
 	try { sessionStorage.setItem("rentpro_unmatched", JSON.stringify({ at: Date.now(), count })); } catch (error) { /* storage is optional */ }
