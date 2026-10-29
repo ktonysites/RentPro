@@ -8,7 +8,6 @@
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
   <link rel="stylesheet" href="styles/app.css">
   <link rel="manifest" href="manifest.webmanifest">
   <meta name="theme-color" content="#0c1022">
@@ -19,16 +18,6 @@
     .avatar-lg { width: 88px; height: 88px; background: var(--rp-primary-soft); color: var(--rp-primary); font-size: 2.3rem; font-weight: 800; display: grid; place-items: center; border-radius: 50%; margin: 0 auto 14px; border: 4px solid #fff; box-shadow: 0 6px 18px rgba(79, 70, 229, 0.2); }
     .label-text { font-size: 0.68rem; text-transform: uppercase; color: var(--rp-subtle); font-weight: 700; letter-spacing: 0.06em; margin-bottom: 2px; }
     .value-text { font-size: 0.95rem; color: var(--rp-ink); font-weight: 500; margin-bottom: 12px; border-bottom: 1px solid #f1f2f6; padding-bottom: 8px; word-break: break-word; }
-    /* PDF template (hidden on screen) */
-    #printableReport { display: none; padding: 40px; background: white; font-family: 'Inter', sans-serif; color: #000; }
-    .pdf-header { border-bottom: 2px solid #000; padding-bottom: 20px; margin-bottom: 30px; display: flex; justify-content: space-between; align-items: end; }
-    .pdf-title { font-size: 24px; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; }
-    .pdf-meta { font-size: 12px; text-align: right; }
-    .pdf-section { margin-bottom: 30px; }
-    .pdf-sec-title { font-size: 14px; font-weight: 700; text-transform: uppercase; border-bottom: 1px solid #ddd; padding-bottom: 5px; margin-bottom: 15px; color: #444; }
-    .pdf-table { width: 100%; border-collapse: collapse; font-size: 12px; }
-    .pdf-table th { background: #f3f4f6; padding: 8px; text-align: left; border: 1px solid #ddd; }
-    .pdf-table td { padding: 8px; border: 1px solid #ddd; }
     @media (max-width: 767.98px) {
       .page-actions { display: grid !important; grid-template-columns: repeat(2, minmax(0, 1fr)); }
       .card-profile { padding: 16px; }
@@ -46,8 +35,8 @@
         <h2 id="pHeaderName">Loading...</h2>
       </div>
       <div class="page-actions">
-          <button class="btn btn-outline-secondary" onclick="downloadPDF()" aria-label="Download tenant report" title="Download report">
-            <i class="fa-solid fa-file-pdf me-2"></i> Report
+          <button class="btn btn-outline-secondary" id="statementPdfBtn" onclick="downloadPDF()" aria-label="Download tenant statement PDF" title="Tenant statement PDF">
+            <i class="fa-solid fa-file-pdf me-2"></i> Statement
           </button>
           <button class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#meterModal" aria-label="Record meter reading" title="Record reading"><i class="fa-solid fa-faucet me-2"></i> Reading</button>
           <button class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#reminderModal" aria-label="Draft rent reminder with AI" title="Draft reminder"><i class="fa-solid fa-wand-magic-sparkles me-2"></i> Reminder</button>
@@ -102,7 +91,7 @@
            <div class="p-3 border-bottom bg-light fw-bold"><i class="fa-solid fa-clock-rotate-left me-2"></i> Payment History</div>
            <div class="table-responsive" style="max-height: 300px; overflow-y:auto;">
               <table class="table table-hover mb-0 align-middle">
-                 <thead class="table-light sticky-top"><tr><th>Date</th><th>Method</th><th>Amount</th></tr></thead>
+                 <thead class="table-light sticky-top"><tr><th>Date</th><th>Method</th><th>Amount</th><th class="text-end">Receipt</th></tr></thead>
                  <tbody id="historyBody"></tbody>
               </table>
            </div>
@@ -110,65 +99,6 @@
       </div>
     </div>
   </main>
-
-  <div id="printableReport">
-      <div class="pdf-header">
-          <div>
-              <div class="pdf-title">Tenant Statement</div>
-              <div style="font-size:14px; margin-top:5px;">RentPro Property Management</div>
-          </div>
-          <div class="pdf-meta">
-              Generated: <span id="pdfDate"></span><br>
-              Reference: <span id="pdfRef"></span>
-          </div>
-      </div>
-
-      <div class="pdf-section">
-          <div class="pdf-sec-title">Tenant Details</div>
-          <table style="width:100%; font-size:13px;">
-              <tr>
-                  <td style="width:15%; color:#666;">Name:</td><td style="font-weight:bold;" id="pdfName"></td>
-                  <td style="width:15%; color:#666;">House No:</td><td style="font-weight:bold;" id="pdfHouse"></td>
-              </tr>
-              <tr>
-                  <td style="color:#666;">National ID:</td><td id="pdfNatID"></td>
-                  <td style="color:#666;">Phone:</td><td id="pdfPhone"></td>
-              </tr>
-              <tr>
-                  <td style="color:#666;">Monthly Rent:</td><td id="pdfRent"></td>
-                  <td style="color:#666;">Current Balance:</td><td id="pdfBal" style="color:red; font-weight:bold;"></td>
-              </tr>
-              <tr>
-                  <td style="color:#666;">Next of Kin:</td><td id="pdfNextOfKin"></td>
-                  <td style="color:#666;">Relation:</td><td id="pdfKinRelation"></td>
-              </tr>
-              <tr>
-                  <td style="color:#666;">Kin Phone:</td><td id="pdfKinPhone"></td>
-                  <td></td><td></td>
-              </tr>
-          </table>
-      </div>
-
-      <div class="pdf-section">
-          <div class="pdf-sec-title">Financial History</div>
-          <table class="pdf-table">
-              <thead><tr><th>Date</th><th>Type</th><th>Description/Ref</th><th>Amount</th></tr></thead>
-              <tbody id="pdfHistoryBody"></tbody>
-          </table>
-      </div>
-
-      <div class="pdf-section">
-          <div class="pdf-sec-title">Utility Usage (Water & Garbage)</div>
-          <table class="pdf-table">
-              <thead><tr><th>Month</th><th>Readings</th><th>Units</th><th>Total Cost</th><th>Status</th></tr></thead>
-              <tbody id="pdfUtilityBody"></tbody>
-          </table>
-      </div>
-      
-      <div style="margin-top:50px; border-top:1px solid #eee; padding-top:10px; font-size:10px; text-align:center; color:#999;">
-          This is a system generated report from RentPro. No signature required.
-      </div>
-  </div>
 
   <div class="modal fade" id="reminderModal" tabindex="-1">
     <div class="modal-dialog modal-dialog-centered">
@@ -254,6 +184,9 @@
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
     <script src="global.js"></script>
+    <script src="js/vendor/jspdf.umd.min.js"></script>
+    <script src="js/vendor/jspdf.plugin.autotable.min.js"></script>
+    <script src="js/pdf.js"></script>
     <script src="js/dev-auth.js"></script>
     <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
@@ -265,6 +198,8 @@
     let currentUserUID = null;
     let tenantId = new URLSearchParams(window.location.search).get('id');
     let tenantData = {};
+    let tenantPayments = [];
+    let tenantBills = [];
     let lastReading = 0;
 
     const WEB_APP_URL = window.API_URL;
@@ -304,24 +239,12 @@
             document.getElementById('pPhone').innerText = tenant.Phone;
             document.getElementById('pHouse').innerText = "House " + tenant.House;
             document.getElementById('pRent').innerText = "KES " + Number(tenant.Rent).toLocaleString();
-            document.getElementById('pBal').innerText = "KES " + Number(tenant.Balance).toLocaleString();
+            const balance = Number(tenant.Rent || 0) - Number(tenant.AmountPaid || 0);
+            document.getElementById('pBal').innerText = balance < 0 ? "Credit KES " + (-balance).toLocaleString() : "KES " + balance.toLocaleString();
             document.getElementById('pNextOfKin').innerText = tenant.NextOfKin || "N/A";
             document.getElementById('pKinRelation').innerText = tenant.KinRelation || "N/A";
             document.getElementById('pKinPhone').innerText = tenant.NextOfKinPhone || "N/A";
             document.getElementById('pAvatar').innerText = tenant.Name.charAt(0).toUpperCase();
-
-            // 🔥 2. FILL PDF TEMPLATE
-            document.getElementById('pdfName').innerText = tenant.Name;
-            document.getElementById('pdfHouse').innerText = tenant.House;
-            document.getElementById('pdfNatID').innerText = tenant.NationalID;
-            document.getElementById('pdfPhone').innerText = tenant.Phone;
-            document.getElementById('pdfRent').innerText = "KES " + Number(tenant.Rent).toLocaleString();
-            document.getElementById('pdfBal').innerText = "KES " + Number(tenant.Balance).toLocaleString();
-            document.getElementById('pdfNextOfKin').innerText = tenant.NextOfKin || "N/A";
-            document.getElementById('pdfKinRelation').innerText = tenant.KinRelation || "N/A";
-            document.getElementById('pdfKinPhone').innerText = tenant.NextOfKinPhone || "N/A";
-            document.getElementById('pdfDate').innerText = new Date().toLocaleDateString();
-            document.getElementById('pdfRef').innerText = "RP-" + Math.floor(Math.random()*10000);
 
             document.getElementById('editName').value = tenant.Name || '';
             document.getElementById('editPhone').value = tenant.Phone || '';
@@ -344,8 +267,8 @@
             // 3. UTILITIES
             const myUtils = (uRes.data || []).filter(u => String(u.House) === String(tenant.House));
             const uBody = document.getElementById('utilityBody');
-            const pdfUBody = document.getElementById('pdfUtilityBody'); // PDF Table
-            uBody.innerHTML = ""; pdfUBody.innerHTML = "";
+            tenantBills = myUtils;
+            uBody.innerHTML = "";
 
             if(myUtils.length > 0) {
                 myUtils.sort((a,b) => b.ID.localeCompare(a.ID));
@@ -358,8 +281,6 @@
                     
                     // Web Row
                     uBody.innerHTML += `<tr><td>${escapeHtml(u.Month)}</td><td>${escapeHtml(u.PrevRead)} &rarr; <b>${escapeHtml(u.CurrRead)}</b></td><td>${escapeHtml(u.UnitsUsed)}</td><td>${total}</td><td>${status}</td></tr>`;
-                    // PDF Row
-                    pdfUBody.innerHTML += `<tr><td>${escapeHtml(u.Month)}</td><td>${escapeHtml(u.PrevRead)}-${escapeHtml(u.CurrRead)}</td><td>${escapeHtml(u.UnitsUsed)}</td><td>${total}</td><td>${escapeHtml(u.Status)}</td></tr>`;
                 });
             } else {
                 uBody.innerHTML = `<tr><td colspan="5" class="text-center text-muted p-3">No readings.</td></tr>`;
@@ -377,18 +298,17 @@
                 return tenantHouse && String(p.House || '') === tenantHouse && !isNaN(movedIn) && new Date(p.Date) >= movedIn;
             });
             const hBody = document.getElementById('historyBody');
-            const pdfHBody = document.getElementById('pdfHistoryBody'); // PDF Table
-            hBody.innerHTML = ""; pdfHBody.innerHTML = "";
+            hBody.innerHTML = "";
 
             myPayments.sort((a,b) => new Date(b.Date) - new Date(a.Date));
-            myPayments.forEach(p => {
-                let dStr = new Date(p.Date).toLocaleDateString();
-                // Web Row
+            tenantPayments = myPayments;
+            myPayments.forEach((p, i) => {
+                let dStr = new Date(p.Date).toLocaleDateString('en-GB');
                 const ref = p.Reference ? ` <span class="text-muted small">${escapeHtml(p.Reference)}</span>` : '';
-                hBody.innerHTML += `<tr><td>${dStr}</td><td>${escapeHtml(p.Method)}${ref}</td><td class="fw-bold text-success">+${Number(p.Amount).toLocaleString()}</td></tr>`;
-                // PDF Row
-                pdfHBody.innerHTML += `<tr><td>${dStr}</td><td>Payment</td><td>${escapeHtml(p.Method)} ${escapeHtml(p.Reference || '')}</td><td>${Number(p.Amount).toLocaleString()}</td></tr>`;
+                hBody.innerHTML += `<tr><td>${dStr}</td><td>${escapeHtml(p.Method)}${ref}</td><td class="fw-bold text-success">+${Number(p.Amount).toLocaleString()}</td>
+                  <td class="text-end"><button class="btn btn-sm btn-light border" onclick="downloadReceipt(${i}, this)" title="Receipt PDF" aria-label="Download receipt"><i class="fa-solid fa-receipt"></i></button></td></tr>`;
             });
+            if (!myPayments.length) hBody.innerHTML = '<tr><td colspan="4" class="text-center text-muted p-3">No payments yet.</td></tr>';
 
         } catch(e) {
             console.error("Tenant profile failed to load:", e);
@@ -428,25 +348,83 @@
         }
     });
 
-    // 🔥 5. GENERATE PDF FUNCTION
-    window.downloadPDF = () => {
-        const element = document.getElementById('printableReport');
-        // Temporarily make it visible to capture it, then hide
-        element.style.display = 'block';
-        
-        const opt = {
-            margin:       10,
-            filename:     `${tenantData.Name}_Report.pdf`,
-            image:        { type: 'jpeg', quality: 0.98 },
-            html2canvas:  { scale: 2 },
-            jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
-        };
+    // PDFs: the tenant's statement and a receipt for any payment (work in the browser and the Android app).
+    const P = () => window.RentProPDF;
+    async function busy(button, build) {
+        const label = button ? button.innerHTML : '';
+        if (button) { button.disabled = true; button.innerHTML = '<span class="spinner-border spinner-border-sm"></span>'; }
+        try { await build(); }
+        catch (error) { console.error(error); alert("Couldn't make the PDF: " + error.message); }
+        finally { if (button) { button.disabled = false; button.innerHTML = label; } }
+    }
+    const fileName = (text) => String(text || 'Tenant').trim().replace(/[^A-Za-z0-9]+/g, '_');
+    const shortDate = (v) => { const d = new Date(v); return isNaN(d) ? String(v || '') : d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }); };
 
-        // Generate and Save
-        html2pdf().set(opt).from(element).save().then(() => {
-            element.style.display = 'none'; // Hide again
+    window.downloadPDF = () => busy(document.getElementById('statementPdfBtn'), async () => {
+        const t = tenantData;
+        const rent = Number(t.Rent || 0), paid = Number(t.AmountPaid || 0), balance = rent - paid;
+        const pdf = P().create({ title: 'Tenant Statement', subtitle: `${t.Name} · House ${t.House}` });
+        pdf.details([
+            ['Tenant', t.Name], ['House', t.House], ['Phone', t.Phone], ['National ID', t.NationalID],
+            ['Monthly rent', P().kes(rent)], ['Rent due day', t.DueDate ? `${t.DueDate}${[, 'st', 'nd', 'rd'][t.DueDate % 100 >> 3 ^ 1 && t.DueDate % 10] || 'th'} of each month` : '–'],
+            ['Tenant since', shortDate(t.DateAdded)], ['Next of kin', [t.NextOfKin, t.KinRelation, t.NextOfKinPhone].filter(Boolean).join(' · ') || '–']
+        ], 2);
+        const total = tenantPayments.reduce((s, p) => s + Number(p.Amount || 0), 0);
+        pdf.tiles([
+            ['Total paid (all time)', P().kes(total), 'good'],
+            ['Payments', String(tenantPayments.length)],
+            [balance < 0 ? 'In credit' : 'Balance owed', P().kes(Math.abs(balance)), balance > 0 ? 'bad' : 'good']
+        ]);
+        pdf.heading('Payment history');
+        pdf.table({
+            head: [['Date', 'Method', 'Reference', 'Amount (KES)']],
+            body: tenantPayments.length ? tenantPayments.map(p => [shortDate(p.Date), p.Method || '', p.Reference || '', P().money(p.Amount)]) : [['No payments yet', '', '', '']],
+            foot: tenantPayments.length ? [['Total', '', '', P().money(total)]] : undefined,
+            columnStyles: { 3: { halign: 'right', fontStyle: 'bold' } },
+            didParseCell: (c) => { if (c.section === 'foot' && c.column.index === 3) c.cell.styles.halign = 'right'; }
         });
-    };
+        if (tenantBills.length) {
+            pdf.heading('Water and garbage');
+            pdf.table({
+                head: [['Month', 'Meter readings', 'Units', 'Water', 'Garbage', 'Total', 'Status']],
+                body: tenantBills.map(u => [u.Month, `${u.PrevRead || 0} to ${u.CurrRead || 0}`, u.UnitsUsed || 0, P().money(u.Water), P().money(u.Garbage),
+                    P().money(Number(u.Water || 0) + Number(u.Garbage || 0)), u.Status || 'Unpaid']),
+                columnStyles: { 3: { halign: 'right' }, 4: { halign: 'right' }, 5: { halign: 'right', fontStyle: 'bold' } },
+                didParseCell: (c) => { if (c.section === 'body' && c.column.index === 6) c.cell.styles.textColor = c.cell.raw === 'Paid' ? [22, 163, 74] : [220, 38, 38]; }
+            });
+        }
+        pdf.paragraph(balance > 0
+            ? `Amount due now: ${P().kes(balance)}. ${P().PROPERTY.payment.replace('<house>', t.House)}.`
+            : `Thank you, the account is fully paid${balance < 0 ? ` with ${P().kes(-balance)} in credit` : ''}.`, { color: [17, 24, 39], size: 9.5 });
+        pdf.signatures(['Landlord / agent']);
+        await pdf.save(`Statement_${fileName(t.Name)}_House_${fileName(t.House)}.pdf`);
+    });
+
+    window.downloadReceipt = (index, button) => busy(button, async () => {
+        const p = tenantPayments[index], t = tenantData;
+        if (!p) throw new Error('Payment not found. Reload the page and try again.');
+        const pdf = P().create({ title: 'Payment Receipt', subtitle: `${t.Name} · House ${t.House}`, format: 'a5' });
+        const number = (String(p.ID || '').replace(/\D/g, '') || String(new Date(p.Date).getTime())).slice(-8);
+        pdf.details([['Receipt no.', 'RP-' + number], ['Date paid', shortDate(p.Date)], ['Received from', t.Name], ['House', t.House]], 2);
+        const doc = pdf.doc;
+        pdf.ensure(30);
+        doc.setFillColor(238, 242, 255); doc.roundedRect(pdf.M, pdf.y, pdf.W - 2 * pdf.M, 24, 3, 3, 'F');
+        doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(79, 70, 229);
+        doc.text('AMOUNT RECEIVED', pdf.M + 5, pdf.y + 7);
+        doc.setFont('helvetica', 'bold'); doc.setFontSize(20); doc.setTextColor(17, 24, 39);
+        doc.text(P().kes(p.Amount), pdf.M + 5, pdf.y + 16);
+        doc.setFont('helvetica', 'italic'); doc.setFontSize(8); doc.setTextColor(107, 114, 128);
+        doc.text(doc.splitTextToSize(P().amountInWords(p.Amount), pdf.W - 2 * pdf.M - 10)[0], pdf.M + 5, pdf.y + 21);
+        pdf.y += 31;
+        const balance = Number(t.Rent || 0) - Number(t.AmountPaid || 0);
+        pdf.ledger([
+            ['Payment method', p.Method || 'M-Pesa'], ['Reference', p.Reference || '–'], ['For', 'Rent and charges, House ' + t.House],
+            ['Monthly rent', P().kes(t.Rent)], [balance < 0 ? 'Credit on account today' : 'Balance on account today', P().kes(Math.abs(balance)), { bold: true }]
+        ]);
+        pdf.paragraph('Thank you for your payment.', { color: [17, 24, 39], size: 10 });
+        pdf.signatures(['Received by']);
+        await pdf.save(`Receipt_${fileName(t.Name)}_${new Date(p.Date).toISOString().slice(0, 10)}.pdf`);
+    });
 
     // AI RENT REMINDER (drafted by the assistant; the landlord reviews and sends it from their own phone)
     const reminderText = document.getElementById('reminderText');

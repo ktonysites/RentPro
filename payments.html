@@ -107,9 +107,13 @@
         <p>Every rent payment received, newest first. Select payments to clear them from the history.</p>
       </div>
       <div class="page-actions">
-          <button onclick="downloadCSV()" class="btn btn-outline-secondary">
-            <i class="fa-solid fa-file-csv me-2"></i> Export
-          </button>
+          <div class="dropdown">
+            <button class="btn btn-outline-secondary dropdown-toggle w-100" data-bs-toggle="dropdown" aria-expanded="false"><i class="fa-solid fa-download me-2"></i> Export</button>
+            <ul class="dropdown-menu dropdown-menu-end shadow border-0 rounded-3">
+              <li><button class="dropdown-item" onclick="downloadListPDF()"><i class="fa-solid fa-file-pdf me-2 text-danger"></i>PDF</button></li>
+              <li><button class="dropdown-item" onclick="downloadCSV()"><i class="fa-solid fa-file-csv me-2 text-success"></i>Excel (CSV)</button></li>
+            </ul>
+          </div>
           <button onclick="reloadAll()" class="btn btn-outline-secondary">
             <i class="fa-solid fa-rotate me-2"></i> Refresh
           </button>
@@ -180,6 +184,9 @@
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
   <script src="global.js"></script>
+  <script src="js/vendor/jspdf.umd.min.js"></script>
+  <script src="js/vendor/jspdf.plugin.autotable.min.js"></script>
+  <script src="js/pdf.js"></script>
   <script src="js/dev-auth.js"></script>
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
@@ -455,20 +462,32 @@
     window.downloadCSV = () => {
         const items = visibleItems();
         if (!items.length) { toast('Nothing to export.', true); return; }
-        const quote = (val) => `"${String(val ?? '').replace(/"/g, '""')}"`;
-        let csvContent = "Date,Reference,Tenant,House,Payer,Method,Amount,Status\n";
-        items.forEach(p => {
-            let dateStr = p.Date || '';
-            try { dateStr = new Date(p.Date).toISOString().split('T')[0]; } catch(e){}
-            csvContent += [dateStr, p.Reference, p.Tenant, p.House, p.Payer, p.Method, p.Amount || 0, p.Notes || 'Confirmed'].map(quote).join(",") + "\n";
-        });
-        // A Blob keeps '#' in references from truncating the file, which a data: URI would.
-        const link = document.createElement("a");
-        link.href = URL.createObjectURL(new Blob([csvContent], { type: "text/csv" }));
-        link.download = state.tab === 'bin' ? "RentPro_Deleted_Payments.csv" : "RentPro_Payments.csv";
-        document.body.appendChild(link);
-        link.click();
-        link.remove();
+        const day = (v) => { const d = new Date(v); return isNaN(d) ? String(v || '') : d.toISOString().split('T')[0]; };
+        RentProFiles.saveCsv([["Date", "Reference", "Tenant", "House", "Payer", "Method", "Amount", "Status"],
+            ...items.map(p => [day(p.Date), p.Reference, p.Tenant, p.House, p.Payer, p.Method, p.Amount || 0, p.Notes || 'Confirmed'])],
+            state.tab === 'bin' ? "RentPro_Deleted_Payments.csv" : "RentPro_Payments.csv").catch(error => alert("Couldn't save the file: " + error.message));
+    };
+
+    // --- PDF EXPORT (current tab, current filters) ---
+    window.downloadListPDF = async () => {
+        const items = visibleItems().slice().sort((a, b) => new Date(b.Date) - new Date(a.Date));
+        if (!items.length) { toast('Nothing to export.', true); return; }
+        try {
+            const P = window.RentProPDF;
+            const bin = state.tab === 'bin';
+            const total = items.reduce((s, p) => s + Number(p.Amount || 0), 0);
+            const dates = items.map(p => new Date(p.Date)).filter(d => !isNaN(d));
+            const span = dates.length ? `${P.dateText(new Date(Math.min(...dates)))} – ${P.dateText(new Date(Math.max(...dates)))}` : '';
+            const pdf = P.create({ title: bin ? 'Deleted Payments' : 'Payments Received', subtitle: `${P.PROPERTY.name}${span ? ' · ' + span : ''}`, orientation: 'landscape' });
+            const unmatched = items.filter(p => /unmatched|unassigned/i.test(p.Notes || ''));
+            pdf.tiles([['Total', P.kes(total), 'good'], ['Payments', String(items.length)], ['Average', P.kes(total / items.length)],
+                ['Unmatched', unmatched.length ? `${unmatched.length} · ${P.kes(unmatched.reduce((s, p) => s + Number(p.Amount || 0), 0))}` : 'None', unmatched.length ? 'bad' : 'good']]);
+            pdf.table({ head: [['Date', 'Tenant', 'House', 'Payer', 'Method', 'Reference', 'Status', 'Amount (KES)']],
+                body: items.map(p => [new Date(p.Date).toLocaleDateString('en-GB'), p.Tenant || '', p.House || '', p.Payer || '', p.Method || '', p.Reference || '', p.Notes || 'Confirmed', P.money(p.Amount)]),
+                foot: [['Total', '', '', '', '', '', '', P.money(total)]], columnStyles: { 7: { halign: 'right', fontStyle: 'bold' } },
+                didParseCell: (c) => { if (c.section === 'foot' && c.column.index === 7) c.cell.styles.halign = 'right'; if (c.section === 'body' && c.column.index === 6 && /unmatched|unassigned/i.test(c.cell.raw)) c.cell.styles.textColor = [220, 38, 38]; } });
+            await pdf.save(bin ? 'RentPro_Deleted_Payments.pdf' : 'RentPro_Payments.pdf');
+        } catch (error) { console.error(error); alert("Couldn't make the PDF: " + error.message); }
     };
 
     if ($('logoutBtn')) $('logoutBtn').addEventListener('click', () => RentProDevAuth.signOut(auth, firebaseSignOut));

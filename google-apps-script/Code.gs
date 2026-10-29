@@ -15,6 +15,14 @@ var PAYMENT_RETENTION_DAYS = 90;
 var PAYMENT_HEADERS = ["Date", "Amount", "Tenant", "Reference", "Method", "House", "Notes", "Payer", "SmsText", "ID"];
 var PAYMENT_ID_COLUMN = 10;
 
+var SHEET_HEADERS = {};
+SHEET_HEADERS[SHEET_TENANTS] = ["ID", "UID", "Name", "Phone", "NationalID", "House", "Rent", "DueDate", "DateAdded", "AmountPaid", "Balance", "Property", "NextOfKin", "KinRelation", "NextOfKinPhone"];
+SHEET_HEADERS[SHEET_PAYMENTS] = PAYMENT_HEADERS;
+SHEET_HEADERS[SHEET_DELETED_PAYMENTS] = PAYMENT_HEADERS.concat(["DeletedAt"]);
+SHEET_HEADERS[SHEET_EXPENSES] = ["ID", "UID", "Date", "Category", "Description", "Amount", "House"];
+SHEET_HEADERS[SHEET_ARCHIVES] = SHEET_HEADERS[SHEET_TENANTS].concat(["MoveOutReason", "DepositStatus", "ArchivedDate"]);
+SHEET_HEADERS[SHEET_UTILITIES] = ["ID", "Month", "House", "TenantName", "Water", "Garbage", "Status", "DatePaid", "PrevRead", "CurrRead", "UnitsUsed"];
+
 var WATER_RATE = 120;
 var GARBAGE_FEE = 150;
 
@@ -25,7 +33,8 @@ var SMS_TOKEN_PROPERTY = "SMS_WEBHOOK_TOKEN";
 
 var READ_ACTIONS = {
   getTenants: true, getPayments: true, getExpenses: true, getUtilityBills: true,
-  getArchivedData: true, getUnmatched: true, getDeletedPayments: true, aiAssist: true
+  getArchivedData: true, getUnmatched: true, getDeletedPayments: true, aiAssist: true,
+  getStatement: true, getStatementSettings: true
 };
 
 function doGet(e) {
@@ -97,6 +106,9 @@ function routeAction(action, params) {
       case "restorePayments": return restorePayments(params);
       case "purgeDeletedPayments": return purgeDeletedPayments(params);
       case "aiAssist": return aiAssist(params);
+      case "getStatement": return getStatement(params);
+      case "getStatementSettings": return response(true, "Statement settings loaded", statementSettings());
+      case "saveStatementSettings": return saveStatementSettings(params);
       default: return response(false, "Unknown action: " + action);
     }
 }
@@ -144,17 +156,47 @@ function sheet(name) {
   return SpreadsheetApp.getActiveSpreadsheet().getSheetByName(name);
 }
 
+// Rows are written by position. Header cells left blank ("Column 1") or named by an older version of RentPro
+// (e.g. "House No") are read as RentPro's own column names, as long as they sit where that column belongs.
+var HEADER_ALIASES = {};
+HEADER_ALIASES[SHEET_PAYMENTS] = { "M-Pesa Name": "Tenant", "Ref Code": "Reference", "Match Status": "Method", "House No": "House", "Raw Message": "Notes", "OwnerID": "Payer" };
+HEADER_ALIASES[SHEET_DELETED_PAYMENTS] = HEADER_ALIASES[SHEET_PAYMENTS];
+// Only RentPro writes the Archives sheet (archiveTenantRow), so its rows are always in RentPro's order.
+var FIXED_LAYOUT = {};
+FIXED_LAYOUT[SHEET_ARCHIVES] = true;
+
 function rowsAsObjects(name) {
   var currentSheet = sheet(name);
   var values = currentSheet.getDataRange().getValues();
   if (values.length <= 1) return [];
-  var headers = values[0];
+  if (name === SHEET_EXPENSES) return expenseObjects(values.slice(1));
+  var known = SHEET_HEADERS[name] || [];
+  var aliases = HEADER_ALIASES[name] || {};
+  var headers = values[0].map(function(header, index) {
+    var label = String(header).trim();
+    if (FIXED_LAYOUT[name] && known[index]) return known[index];
+    if (aliases[label] && aliases[label] === known[index]) return known[index];
+    if ((!label || /^Column \d+$/.test(label)) && known[index]) return known[index];
+    return header;
+  });
   return values.slice(1).map(function(row) {
     var item = {};
     headers.forEach(function(header, index) {
       item[String(header)] = row[index];
     });
     return item;
+  });
+}
+
+// Expenses: RentPro writes ID, UID, Date, Category, Description, Amount, House. Sheets started with an older
+// version also hold rows laid out as id, date, category, description, amount; each row is read by its own layout.
+function expenseObjects(rows) {
+  var isDate = function(cell) { return Object.prototype.toString.call(cell) === "[object Date]" || (typeof cell === "string" && /^\d{4}-\d{2}-\d{2}/.test(cell)); };
+  return rows.filter(function(row) { return row.some(function(cell) { return cell !== "" && cell !== null; }); }).map(function(row) {
+    if (!isDate(row[2]) && isDate(row[1])) {
+      return { ID: row[0], UID: "", Date: row[1], Category: row[2], Description: row[3], Amount: row[4], House: "General" };
+    }
+    return { ID: row[0], UID: row[1], Date: row[2], Category: row[3], Description: row[4], Amount: row[5], House: row[6] || "General" };
   });
 }
 
@@ -616,16 +658,7 @@ function archiveTenantRow(row, reason, depositStatus) {
 }
 
 function getArchivedData() {
-  var currentSheet = sheet(SHEET_ARCHIVES);
-  var values = currentSheet.getDataRange().getValues();
-  if (values.length <= 1) return archiveResponse([]);
-  var headers = values[0];
-  var archived = values.slice(1).map(function(row) {
-    var item = {};
-    headers.forEach(function(header, index) { item[String(header)] = row[index]; });
-    return item;
-  });
-  return archiveResponse(archived);
+  return archiveResponse(rowsAsObjects(SHEET_ARCHIVES));
 }
 
 function deleteArchivedTenants(data) {
@@ -909,14 +942,7 @@ function textValue(input) {
 
 function initSheets() {
   var spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
-  var definitions = [
-    { name: SHEET_TENANTS, headers: ["ID", "UID", "Name", "Phone", "NationalID", "House", "Rent", "DueDate", "DateAdded", "AmountPaid", "Balance", "Property", "NextOfKin", "KinRelation", "NextOfKinPhone"] },
-    { name: SHEET_PAYMENTS, headers: PAYMENT_HEADERS },
-    { name: SHEET_DELETED_PAYMENTS, headers: PAYMENT_HEADERS.concat(["DeletedAt"]) },
-    { name: SHEET_EXPENSES, headers: ["ID", "UID", "Date", "Category", "Description", "Amount", "House"] },
-    { name: SHEET_ARCHIVES, headers: ["ID", "UID", "Name", "Phone", "NationalID", "House", "Rent", "DueDate", "DateAdded", "AmountPaid", "Balance", "Property", "NextOfKin", "KinRelation", "NextOfKinPhone", "MoveOutReason", "DepositStatus", "ArchivedDate"] },
-    { name: SHEET_UTILITIES, headers: ["ID", "Month", "House", "TenantName", "Water", "Garbage", "Status", "DatePaid", "PrevRead", "CurrRead", "UnitsUsed"] }
-  ];
+  var definitions = Object.keys(SHEET_HEADERS).map(function(name) { return { name: name, headers: SHEET_HEADERS[name] }; });
 
   definitions.forEach(function(definition) {
     var currentSheet = spreadsheet.getSheetByName(definition.name);
@@ -930,6 +956,266 @@ function initSheets() {
       currentSheet.getRange(1, currentSheet.getLastColumn() + 1, 1, missingHeaders.length).setValues([missingHeaders]);
     }
   });
+}
+
+/* ---------- Monthly statement ----------
+ * An agent-style statement for one billing period (by default the 16th to the 15th, e.g. 16 Sep – 15 Oct):
+ * per house, what was due (balance brought forward, rent, deposit and tenancy fee for new tenants, penalty,
+ * garbage, water) against what was paid, then the settlement: deductions, rental income tax, management fee,
+ * VAT and the net amount for the landlord. Period keys are "yyyy-MM", the month the period ends in.
+ * Balances run forward from the first period (settings.firstPeriod, else the first period with a payment),
+ * starting from settings.openingBalances (house -> amount owed; negative = credit).
+ */
+var STATEMENT_SETTINGS_PROPERTY = "STATEMENT_SETTINGS";
+var STATEMENT_DEFAULTS = {
+  startDay: 16, garbageFee: 150, tenancyFee: 500, depositMonths: 1, latePenaltyPercent: 0,
+  caretakerFee: 5000, rentalTaxPercent: 10, managementPercent: 7, vatPercent: 16,
+  firstPeriod: "", openingBalances: {}
+};
+var STATEMENT_NUMBER_LIMITS = {
+  startDay: [1, 28], garbageFee: [0, 100000], tenancyFee: [0, 1000000], depositMonths: [0, 12], latePenaltyPercent: [0, 100],
+  caretakerFee: [0, 10000000], rentalTaxPercent: [0, 100], managementPercent: [0, 100], vatPercent: [0, 100]
+};
+
+function statementSettings() {
+  var saved = {};
+  try { saved = JSON.parse(PropertiesService.getScriptProperties().getProperty(STATEMENT_SETTINGS_PROPERTY) || "{}") || {}; } catch (error) { saved = {}; }
+  return cleanStatementSettings(saved);
+}
+
+function cleanStatementSettings(input) {
+  var out = {};
+  Object.keys(STATEMENT_NUMBER_LIMITS).forEach(function(key) {
+    var limits = STATEMENT_NUMBER_LIMITS[key];
+    var number = input[key] === undefined || input[key] === "" || input[key] === null ? STATEMENT_DEFAULTS[key] : Number(input[key]);
+    out[key] = isNaN(number) ? STATEMENT_DEFAULTS[key] : Math.min(limits[1], Math.max(limits[0], number));
+  });
+  out.startDay = Math.round(out.startDay);
+  out.firstPeriod = /^\d{4}-\d{2}$/.test(String(input.firstPeriod || "")) ? String(input.firstPeriod) : "";
+  out.openingBalances = {};
+  var balances = input.openingBalances && typeof input.openingBalances === "object" ? input.openingBalances : {};
+  Object.keys(balances).slice(0, 300).forEach(function(house) {
+    var amount = Number(balances[house]);
+    if (String(house).trim() && !isNaN(amount) && amount !== 0) out.openingBalances[String(house).trim()] = amount;
+  });
+  return out;
+}
+
+function saveStatementSettings(data) {
+  var input = data.settings;
+  if (typeof input === "string") {
+    try { input = JSON.parse(input); } catch (error) { return response(false, "Settings could not be read"); }
+  }
+  if (!input || typeof input !== "object") return response(false, "No settings sent");
+  var clean = cleanStatementSettings(input);
+  PropertiesService.getScriptProperties().setProperty(STATEMENT_SETTINGS_PROPERTY, JSON.stringify(clean));
+  return response(true, "Statement settings saved", clean);
+}
+
+function statementKey(index) {
+  return Math.floor(index / 12) + "-" + ("0" + (index % 12 + 1)).slice(-2);
+}
+
+// The period containing a date.
+function statementKeyFor(date, startDay) {
+  return statementKey(aiMonth(date) + (startDay > 1 && date.getDate() >= startDay ? 1 : 0));
+}
+
+function statementPeriod(key, startDay) {
+  var parts = String(key).split("-");
+  var year = Number(parts[0]), month = Number(parts[1]) - 1;
+  var start = startDay > 1 ? new Date(year, month - 1, startDay) : new Date(year, month, 1);
+  var next = startDay > 1 ? new Date(year, month, startDay) : new Date(year, month + 1, 1);
+  var end = new Date(next.getTime() - 1);
+  var short = function(d) { return d.getDate() + " " + AI_MONTH_NAMES[d.getMonth()].slice(0, 3); };
+  return {
+    key: key, index: year * 12 + month, start: start, end: end,
+    billMonth: AI_MONTH_NAMES[month].slice(0, 3) + " " + year,
+    label: short(start) + (start.getFullYear() !== end.getFullYear() ? " " + start.getFullYear() : "") + " – " + short(end) + " " + end.getFullYear()
+  };
+}
+
+function statementRows() {
+  return { tenants: rowsAsObjects(SHEET_TENANTS), former: rowsAsObjects(SHEET_ARCHIVES), payments: rowsAsObjects(SHEET_PAYMENTS),
+    utilities: rowsAsObjects(SHEET_UTILITIES), expenses: rowsAsObjects(SHEET_EXPENSES) };
+}
+
+function getStatement(data) {
+  var settings = statementSettings();
+  var key = String(value(data, ["period"], "")) || statementKeyFor(new Date(), settings.startDay);
+  if (!/^\d{4}-\d{2}$/.test(key)) return response(false, "Choose a statement period");
+  return response(true, "Statement ready", buildStatement(statementRows(), settings, key));
+}
+
+function buildStatement(rows, settings, key) {
+  var startDay = settings.startDay;
+  var target = statementPeriod(key, startDay);
+  var round2 = function(n) { return Math.round(n * 100) / 100; };
+  var day = function(d) { return d.getFullYear() + "-" + ("0" + (d.getMonth() + 1)).slice(-2) + "-" + ("0" + d.getDate()).slice(-2); };
+
+  var payments = (rows.payments || []).filter(function(p) { return !/unmatched|unassigned/i.test(String(p.Notes || "")); }).map(function(p) {
+    return { date: aiDate(p.Date), amount: aiNum(p.Amount), nameKey: aiNameKey(p.Tenant), houseKey: normalizeHouse(p.House),
+      tenant: String(p.Tenant || ""), house: String(p.House || ""), reference: String(p.Reference || "") };
+  }).filter(function(p) { return p.date && p.amount; }).sort(function(a, b) { return a.date - b.date; });
+
+  var earliest = payments.length ? payments[0].date : null;
+  var first = statementPeriod(settings.firstPeriod || (earliest ? statementKeyFor(earliest, startDay) : key), startDay);
+  if (first.index > target.index) first = target;
+
+  var tenancy = function(t, former) {
+    return { name: String(t.Name || "").trim(), nameKey: aiNameKey(t.Name), house: String(t.House || "").trim(), houseKey: normalizeHouse(t.House),
+      rent: aiNum(t.Rent), dueDay: aiNum(t.DueDate) || 15, since: aiDate(t.DateAdded), movedOut: former ? aiDate(t.ArchivedDate) : null,
+      former: former, balance: 0 };
+  };
+  var tenancies = (rows.tenants || []).map(function(t) { return tenancy(t, false); })
+    .concat((rows.former || []).map(function(a) { return tenancy(a, true); }));
+  var occupies = function(t, period) {
+    return (!t.since || t.since <= period.end) && (!t.movedOut || t.movedOut >= period.start);
+  };
+
+  // Opening balances belong to whoever lived in the house at the start (current tenants first).
+  Object.keys(settings.openingBalances || {}).forEach(function(house) {
+    var houseKey = normalizeHouse(house);
+    var match = tenancies.filter(function(t) { return t.houseKey === houseKey && occupies(t, first) && !t.former; })[0] ||
+      tenancies.filter(function(t) { return t.houseKey === houseKey && occupies(t, first); })[0];
+    if (match) match.balance += aiNum(settings.openingBalances[house]);
+  });
+
+  // Each payment goes to the tenant it names, else to whoever lived in that house on the day.
+  var unassigned = [];
+  payments.forEach(function(p) {
+    var named = tenancies.filter(function(t) { return t.nameKey && t.nameKey === p.nameKey; });
+    p.owner = named.filter(function(t) { return !t.former; })[0] || named[0] ||
+      tenancies.filter(function(t) { return p.houseKey && t.houseKey === p.houseKey && (!t.since || t.since <= p.date) && (!t.movedOut || t.movedOut >= p.date); })
+        .sort(function(a, b) { return (b.since || 0) - (a.since || 0); })[0] || null;
+    if (!p.owner && p.date >= target.start && p.date <= target.end) unassigned.push(p);
+  });
+
+  var bills = {};
+  (rows.utilities || []).forEach(function(u) {
+    bills[String(u.Month) + "|" + normalizeHouse(u.House)] = { water: aiNum(u.Water), garbage: aiNum(u.Garbage), paid: u.Status === "Paid" };
+  });
+
+  var order = ["arrears", "penalty", "deposit", "tenancyFee", "rent", "garbage", "water"];
+  var lines = [];
+  for (var index = first.index; index <= target.index; index++) {
+    var period = index === target.index ? target : statementPeriod(statementKey(index), startDay);
+    tenancies.forEach(function(t) {
+      if (!occupies(t, period)) return;
+      // A house is charged once: a tenant who moved out as someone else moved in that period leaves it to the newcomer.
+      if (t.former && t.movedOut && t.movedOut <= period.end && tenancies.some(function(other) {
+        return other !== t && other.houseKey === t.houseKey && other.since && other.since >= period.start && other.since <= period.end;
+      })) return;
+      var isNew =!!t.since && t.since >= period.start && period.index > first.index;
+      var bill = bills[period.billMonth + "|" + t.houseKey];
+      var charges = {
+        arrears: Math.max(0, t.balance), penalty: 0,
+        deposit: isNew ? Math.round(t.rent * settings.depositMonths) : 0, tenancyFee: isNew ? settings.tenancyFee : 0,
+        rent: t.rent, garbage: bill ? bill.garbage : settings.garbageFee, water: bill ? bill.water : 0
+      };
+      var paidHere = payments.filter(function(p) { return p.owner === t && p.date >= period.start && p.date <= period.end; });
+      var separately = bill && bill.paid ? bill.water + bill.garbage : 0; // utility bills marked paid outside M-Pesa
+
+      if (settings.latePenaltyPercent > 0 && !isNew) {
+        var dueOn = Math.min(t.dueDay, 28);
+        var due = new Date(period.start.getFullYear(), period.start.getMonth(), dueOn, 23, 59, 59);
+        if (due < period.start) due = new Date(period.end.getFullYear(), period.end.getMonth(), dueOn, 23, 59, 59);
+        var paidByDue = aiSum(paidHere.filter(function(p) { return p.date <= due; }), "amount");
+        if (due <= new Date() && paidByDue < charges.arrears + charges.rent) charges.penalty = Math.round(t.rent * settings.latePenaltyPercent / 100);
+      }
+
+      var paid = aiSum(paidHere, "amount") + separately;
+      var opening = t.balance;
+      var dueTotal = opening + charges.penalty + charges.deposit + charges.tenancyFee + charges.rent + charges.garbage + charges.water;
+      t.balance = dueTotal - paid;
+      if (index !== target.index) return;
+
+      // Credit brought forward covers charges first; then the money paid this period, in this order.
+      var left = {};
+      order.forEach(function(k) { left[k] = charges[k]; });
+      var credit = Math.max(0, -opening);
+      order.forEach(function(k) { var use = Math.min(credit, left[k]); left[k] -= use; credit -= use; });
+      var money = paid, allocated = {};
+      order.forEach(function(k) { allocated[k] = Math.min(money, left[k]); money -= allocated[k]; });
+      allocated.advance = money;
+
+      lines.push({
+        house: t.house, tenant: t.name, former: t.former, isNew: isNew,
+        broughtForward: opening, penalty: charges.penalty, deposit: charges.deposit, tenancyFee: charges.tenancyFee,
+        rent: charges.rent, garbage: charges.garbage, water: charges.water, totalDue: dueTotal,
+        paid: paid, paidDates: paidHere.map(function(p) { return day(p.date); }),
+        references: paidHere.map(function(p) { return p.reference; }).filter(String),
+        allocated: allocated, balance: t.balance
+      });
+    });
+  }
+  lines.sort(function(a, b) { return a.house.localeCompare(b.house, undefined, { numeric: true }) || a.tenant.localeCompare(b.tenant); });
+
+  var sum = function(field) { return lines.reduce(function(total, line) { return total + line[field]; }, 0); };
+  var allocatedSum = function(field) { return lines.reduce(function(total, line) { return total + line.allocated[field]; }, 0); };
+  var expenses = (rows.expenses || []).map(function(e) {
+    return { date: aiDate(e.Date), category: String(e.Category || "Other"), description: String(e.Description || ""), house: String(e.House || "General"), amount: aiNum(e.Amount) };
+  }).filter(function(e) { return e.date && e.date >= target.start && e.date <= target.end; });
+  var salaries = expenses.filter(function(e) { return e.category === "Salary"; });
+  var repairs = expenses.filter(function(e) { return e.category !== "Salary"; });
+
+  var collected = sum("paid") + aiSum(unassigned, "amount");
+  var deductions = {
+    deposits: allocatedSum("deposit"), tenancyFees: allocatedSum("tenancyFee"), penalties: allocatedSum("penalty"),
+    water: allocatedSum("water"), garbage: allocatedSum("garbage"),
+    caretaker: salaries.length ? aiSum(salaries, "amount") : settings.caretakerFee
+  };
+  var rentBase = collected - deductions.deposits - deductions.tenancyFees - deductions.penalties - deductions.water - deductions.garbage - deductions.caretaker;
+  // No tax or fee on a period that brought in less than it cost.
+  var rentalTax = round2(Math.max(0, rentBase) * settings.rentalTaxPercent / 100);
+  var afterTax = round2(rentBase - rentalTax);
+  var managementFee = round2(Math.max(0, afterTax) * settings.managementPercent / 100);
+  var vat = round2(managementFee * settings.vatPercent / 100);
+  var repairsTotal = aiSum(repairs, "amount");
+
+  var recent = [];
+  var latest = Math.max(target.index, statementPeriod(statementKeyFor(new Date(), startDay), startDay).index);
+  for (var k = latest; k > latest - 13; k--) recent.push({ key: statementKey(k), label: statementPeriod(statementKey(k), startDay).label });
+
+  return {
+    period: { key: target.key, label: target.label, start: day(target.start), end: day(target.end), billMonth: target.billMonth,
+      inProgress: new Date() <= target.end },
+    firstPeriod: { key: first.key, label: first.label },
+    periods: recent,
+    settings: settings,
+    lines: lines,
+    totals: {
+      broughtForward: sum("broughtForward"), penalty: sum("penalty"), deposit: sum("deposit"), tenancyFee: sum("tenancyFee"),
+      rent: sum("rent"), garbage: sum("garbage"), water: sum("water"), totalDue: sum("totalDue"), paid: sum("paid"),
+      owed: lines.reduce(function(total, line) { return total + Math.max(0, line.balance); }, 0),
+      credit: lines.reduce(function(total, line) { return total + Math.max(0, -line.balance); }, 0)
+    },
+    unassigned: unassigned.map(function(p) { return { date: day(p.date), amount: p.amount, tenant: p.tenant, house: p.house, reference: p.reference }; }),
+    settlement: {
+      collected: collected, deductions: deductions, rentBase: rentBase, rentalTax: rentalTax, afterTax: afterTax,
+      managementFee: managementFee, vat: vat, repairs: repairsTotal,
+      agentTotal: settings.managementPercent > 0 ? round2(managementFee + vat + deductions.tenancyFees + deductions.penalties + repairsTotal) : 0,
+      netToLandlord: round2(afterTax - managementFee - vat - repairsTotal),
+      depositsHeld: deductions.deposits
+    },
+    expenses: expenses.map(function(e) { return { date: day(e.date), category: e.category, description: e.description, house: e.house, amount: e.amount }; }),
+    newTenants: lines.filter(function(line) { return line.isNew; }).map(function(line) { return { house: line.house, tenant: line.tenant }; }),
+    owing: lines.filter(function(line) { return line.balance > 0; }).sort(function(a, b) { return b.balance - a.balance; })
+      .map(function(line) { return { house: line.house, tenant: line.tenant, balance: line.balance }; })
+  };
+}
+
+// The figures the assistant needs from a statement.
+function statementBrief(statement) {
+  var s = statement.settlement;
+  return {
+    period: statement.period.label, inProgress: statement.period.inProgress,
+    collected: s.collected, due: statement.totals.totalDue, owed: statement.totals.owed,
+    deductions: s.deductions, rentBase: s.rentBase, rentalTax: s.rentalTax, managementFee: s.managementFee, vat: s.vat,
+    expenses: s.repairs, netToLandlord: s.netToLandlord, agentTotal: s.agentTotal, depositsHeld: s.depositsHeld,
+    rates: { rentalTaxPercent: statement.settings.rentalTaxPercent, managementPercent: statement.settings.managementPercent, vatPercent: statement.settings.vatPercent },
+    owing: statement.owing.slice(0, 10), newTenants: statement.newTenants
+  };
 }
 
 /* ---------- AI assistant ----------
@@ -993,6 +1279,8 @@ function aiAssist(data) {
   var base = "You are RentPro's assistant for a Kenyan landlord managing one property. Amounts are in KES. " +
     "Use only the property data provided; if it doesn't contain the answer, say so plainly. Be concise and practical: keep answers under about 200 words unless asked for more detail. " +
     "The 'calculated' section holds exact figures worked out by RentPro (late payments, due dates, totals): prefer them over your own arithmetic. " +
+    "'statement' (current billing period) and 'lastStatement' (the last complete one) are the monthly statement like the managing agent's: " +
+    "collected, deductions (deposits, tenancy fees, penalties, water, garbage, caretaker), rental income tax, management fee, VAT, expenses and netToLandlord. Use them for questions about the statement, tax, the agent's fees or what the landlord will receive. " +
     "If asked how to use the app, answer from the 'appHelp' notes.";
   var request;
   if (mode === "ask") {
@@ -1143,6 +1431,16 @@ function aiContext(tenantId) {
       return { name: a.Name, house: a.House, rent: a.Rent, balance: a.Balance, reason: a.MoveOutReason, deposit: a.DepositStatus, since: a.DateAdded, movedOut: a.ArchivedDate };
     })
   };
+  // The statement for the current billing period and the last complete one.
+  try {
+    var settings = statementSettings();
+    var rows = { tenants: tenants, former: rowsAsObjects(SHEET_ARCHIVES), payments: payments, utilities: utilities, expenses: rowsAsObjects(SHEET_EXPENSES) };
+    var current = statementPeriod(statementKeyFor(new Date(), settings.startDay), settings.startDay);
+    context.statement = statementBrief(buildStatement(rows, settings, current.key));
+    context.lastStatement = statementBrief(buildStatement(rows, settings, statementKey(current.index - 1)));
+  } catch (error) {
+    Logger.log("Statement for the assistant failed: " + error.message);
+  }
   var focus = tenantId && tenants.filter(function(t) { return String(t.ID) === tenantId; })[0];
   if (focus) {
     var name = String(focus.Name || "").trim().toLowerCase();
@@ -1201,6 +1499,8 @@ function aiModelContext(context) {
       return { name: a.name, house: a.house, rent: aiNum(a.rent), balance: aiNum(a.balance), reason: a.reason, deposit: a.deposit, movedOut: day(a.movedOut) };
     })
   };
+  if (context.statement) compact.statement = context.statement;
+  if (context.lastStatement) compact.lastStatement = context.lastStatement;
   if (context.focusTenant) {
     var f = context.focusTenant;
     compact.focusTenant = { id: f.id, name: f.name, house: f.house, rent: aiNum(f.rent), paid: aiNum(f.paid), balance: aiNum(f.rent) - aiNum(f.paid),
@@ -1393,7 +1693,9 @@ function freeFacts(context) {
       return { name: String(a.name || "").trim(), house: String(a.house || "").trim(), rent: aiNum(a.rent), balance: aiNum(a.balance),
         reason: String(a.reason || "").trim(), deposit: String(a.deposit || "").trim(), since: aiDate(a.since), movedOut: aiDate(a.movedOut) };
     }),
-    focus: focus || null
+    focus: focus || null,
+    statement: context.statement || null,
+    lastStatement: context.lastStatement || null
   };
 }
 
@@ -1509,6 +1811,11 @@ function freeAnswer(f, page, question, history) {
   if (has(/paybill|account number|business number|till/)) return freePayInstructions(tenant);
 
   // Former tenants
+  // The monthly statement: settlement, tax, the agent's fees, what the landlord receives
+  if (has(/statement|settlement|landlord'?s? (share|net|payout|money)|net to (the )?landlord|management fee|agent'?s? (fee|commission|share|cut)|\bcommission\b|rental (income )?tax|income tax|\bkra\b|\bmri\b|\bvat\b|deposits? (held|collected|received)|brought forward|\bb\/f\b|how much (will|do|should|did) i (get|receive|be paid|take home)|take.?home|payable to/)) {
+    return freeStatement(f, has(/last|previous|ended|october|september|november|december|august|complete/) ? "last" : "current");
+  }
+
   if (has(/former|archiv|moved out|move-out reason|ex-tenant|previous tenant|tenants (who )?(left|leave)|why .*(leave|left)/)) {
     return has(/why|reason|pattern/) ? freeMoveOutReasons(f) : freeFormerBalances(f);
   }
@@ -1566,6 +1873,36 @@ function freeAnswer(f, page, question, history) {
   return freePageOverview(f, page) + "\n\n" + freeHelp(f, page, true);
 }
 
+// The monthly statement in words: what came in, what is taken off, and what the landlord receives.
+function freeStatement(f, which) {
+  var s = which === "last" ? f.lastStatement : f.statement;
+  if (!s) return "I couldn't work out the statement right now. Open **Reports → Monthly statement** to see it.";
+  var d = s.deductions || {};
+  var rates = s.rates || {};
+  var lines = [
+    "Collected: **" + kes(s.collected) + "** of " + kes(s.due) + " due"
+  ];
+  var off = [["deposits (refundable)", d.deposits], ["tenancy fees", d.tenancyFees], ["penalties", d.penalties], ["water", d.water], ["garbage", d.garbage], ["caretaker", d.caretaker]]
+    .filter(function(x) { return x[1]; }).map(function(x) { return x[0] + " " + kes(x[1]); });
+  if (off.length) lines.push("Less " + off.join(", "));
+  lines.push("Rent income: **" + kes(s.rentBase) + "**");
+  if (rates.rentalTaxPercent) lines.push("Rental income tax (" + rates.rentalTaxPercent + "%): " + kes(s.rentalTax));
+  if (rates.managementPercent) lines.push("Management fee (" + rates.managementPercent + "%): " + kes(s.managementFee) + " + VAT " + kes(s.vat));
+  if (s.expenses) lines.push("Repairs and other expenses: " + kes(s.expenses));
+  lines.push("**Net to you: " + kes(s.netToLandlord) + "**");
+
+  var out = "**Statement for " + s.period + "**" + (s.inProgress ? " (period still running, so these are figures so far)" : "") + "\n" + aiBullets(lines);
+  if (s.agentTotal) out += "\n\nThe agent's share (fee, VAT, tenancy fees, penalties and repairs they paid for): " + kes(s.agentTotal) + ".";
+  if (s.depositsHeld) out += "\nDeposits held this period: " + kes(s.depositsHeld) + ". These are refundable when tenants move out.";
+  if (s.owing && s.owing.length) {
+    out += "\n\n**Still owing (" + kes(s.owed) + "):**\n" + aiBullets(s.owing.slice(0, 6).map(function(o) { return aiHouseLabel(o.house) + ", " + o.tenant + ": " + kes(o.balance); }));
+  }
+  if (s.newTenants && s.newTenants.length) {
+    out += "\n\n**New tenants:** " + s.newTenants.map(function(t) { return t.tenant + " (" + aiHouseLabel(t.house) + ")"; }).join(", ");
+  }
+  return out + "\n\nThe full table is in **Reports → Monthly statement**, where you can change the rates and print it.";
+}
+
 function freeHelp(f, page, short) {
   var examples = {
     dashboard: ["Today's briefing", "Who is late with rent?", "Who is due this week?", "Compare this month with last month"],
@@ -1575,7 +1912,7 @@ function freeHelp(f, page, short) {
     reconcile: ["Who might the unmatched payments belong to?", "How should I match these?"],
     utilities: ["Who hasn't paid utilities?", "Highest water use", "Total owed in utilities"],
     expenses: ["Expenses this year by category", "Unusual spending", "Where can I save?"],
-    reports: ["Explain my numbers", "Collection rate over the last 6 months", "What should I improve?"],
+    reports: ["Explain my numbers", "This month's statement", "How much will I get after fees and tax?", "What should I improve?"],
     archives: ["Unpaid balances of former tenants", "Why do tenants leave?"],
     pay: ["Payment instructions message"],
     moveout: ["Move-out checklist", "Deposit refund message", "Goodbye message"]
@@ -1586,6 +1923,7 @@ function freeHelp(f, page, short) {
       "**Tenants:** a summary of any tenant or house, payment record, missing details, tenants to watch",
       "**Payments:** latest payments, find an M-Pesa reference, duplicates, unmatched payments and who they belong to",
       "**Money:** expenses by category or house, unusual spending, where to save, profit, month-by-month comparisons",
+      "**Statement:** this or last billing period, rental tax, the agent's fee and VAT, what you receive",
       "**Utilities & former tenants:** unpaid bills, water use, balances left, why tenants leave",
       "**Messages:** reminders (English or Kiswahili), payment instructions, deposit and goodbye messages, move-out checklist",
       "**Using RentPro:** _how do I…_ add a tenant, record a payment, assign, restore, export, generate bills…"

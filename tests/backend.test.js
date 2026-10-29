@@ -627,7 +627,7 @@ test("Gemini gets a compact copy of the data: recent records and monthly totals"
   api.get({ action: "aiAssist", mode: "ask", question: "Who owes rent?" });
   const system = calls[0].body.systemInstruction.parts[0].text;
   const data = JSON.parse(system.split("Property data (JSON):\n")[1].split("\n\ncalculated (JSON):")[0]);
-  assert.deepEqual(Object.keys(data), ["today", "paybill", "tenants", "monthlyTotals", "recentPayments", "unmatched", "recentExpenses", "utilities", "formerTenants"]);
+  assert.deepEqual(Object.keys(data), ["today", "paybill", "tenants", "monthlyTotals", "recentPayments", "unmatched", "recentExpenses", "utilities", "formerTenants", "statement", "lastStatement"]);
   assert.equal(data.monthlyTotals.length, 12);
   assert.ok(data.monthlyTotals.some((m) => m.collected === 6500), "old payment counted in monthly totals");
   assert.ok(!data.recentPayments.some((p) => p.reference === "OLDPAYMENT1"), "old payment left out of the recent list");

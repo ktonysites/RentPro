@@ -71,7 +71,8 @@
         <div class="dropdown">
           <button class="btn btn-outline-secondary dropdown-toggle w-100" data-bs-toggle="dropdown" aria-expanded="false"><i class="fa-solid fa-ellipsis me-2"></i>More</button>
           <ul class="dropdown-menu dropdown-menu-end shadow border-0 rounded-3">
-            <li><button class="dropdown-item" onclick="downloadCSV()"><i class="fa-solid fa-file-csv me-2 text-success"></i>Export to CSV</button></li>
+            <li><button class="dropdown-item" onclick="downloadListPDF()"><i class="fa-solid fa-file-pdf me-2 text-danger"></i>Tenant list (PDF)</button></li>
+            <li><button class="dropdown-item" onclick="downloadCSV()"><i class="fa-solid fa-file-csv me-2 text-success"></i>Tenant list (Excel)</button></li>
             <li><a class="dropdown-item" href="archives.html"><i class="fa-solid fa-box-archive me-2 text-muted"></i>Former tenants</a></li>
             <li><hr class="dropdown-divider"></li>
             <li><button class="dropdown-item text-danger" data-bs-toggle="modal" data-bs-target="#deleteAllModal"><i class="fa-solid fa-trash-can me-2"></i>Delete all tenants…</button></li>
@@ -222,6 +223,9 @@
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
   <script src="global.js"></script>
+  <script src="js/vendor/jspdf.umd.min.js"></script>
+  <script src="js/vendor/jspdf.plugin.autotable.min.js"></script>
+  <script src="js/pdf.js"></script>
   <script src="js/dev-auth.js"></script>
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
@@ -420,11 +424,29 @@
     // --- Export (exports what you're looking at) ---
     window.downloadCSV = () => {
       const rows = currentTenants.filter(t => matchesFilter(t) && matchesSearch(t)).sort(SORTERS[view.sort] || SORTERS.house);
-      let csv = "Name,Phone,National ID,House,Rent,Paid,Balance,Due Day,Next of Kin,Relation,Next of Kin Phone\n";
-      rows.forEach(t => { csv += [t.Name, t.Phone, t.NationalID, t.House, t.rent, t.paid, t.balance, t.dueDay, t.NextOfKin, t.KinRelation, t.NextOfKinPhone].map(csvValue).join(",") + "\n"; });
-      const link = document.createElement("a"); link.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" })); link.download = "RentPro_Tenants.csv"; document.body.appendChild(link); link.click(); link.remove();
+      RentProFiles.saveCsv([["Name", "Phone", "National ID", "House", "Rent", "Paid", "Balance", "Due Day", "Next of Kin", "Relation", "Next of Kin Phone"],
+        ...rows.map(t => [t.Name, t.Phone, t.NationalID, t.House, t.rent, t.paid, t.balance, t.dueDay, t.NextOfKin, t.KinRelation, t.NextOfKinPhone])], "RentPro_Tenants.csv").catch(error => alert("Couldn't save the file: " + error.message));
     };
-    function csvValue(value) { return `"${String(value ?? "").replace(/"/g, '""')}"`; }
+
+    window.downloadListPDF = async () => {
+      const rows = currentTenants.filter(t => matchesFilter(t) && matchesSearch(t)).sort(SORTERS[view.sort] || SORTERS.house);
+      if (!rows.length) { alert("No tenants to export."); return; }
+      try {
+        const P = window.RentProPDF;
+        const sum = (k) => rows.reduce((s, t) => s + Number(t[k] || 0), 0);
+        const owing = rows.filter(t => t.balance > 0);
+        const pdf = P.create({ title: 'Tenant List', subtitle: `${P.PROPERTY.name} · ${rows.length} tenant${rows.length === 1 ? '' : 's'} · ${P.dateText()}`, orientation: 'landscape' });
+        pdf.tiles([['Tenants', String(rows.length)], ['Monthly rent', P.kes(sum('rent'))], ['Paid', P.kes(sum('paid')), 'good'],
+          ['Owed', `${P.kes(owing.reduce((s, t) => s + t.balance, 0))} · ${owing.length} tenant${owing.length === 1 ? '' : 's'}`, owing.length ? 'bad' : 'good']]);
+        pdf.table({ head: [['House', 'Name', 'Phone', 'National ID', 'Rent', 'Paid', 'Balance', 'Due day', 'Next of kin']],
+          body: rows.map(t => [t.House, t.Name, t.Phone || '', t.NationalID || '', P.money(t.rent), P.money(t.paid), t.balance < 0 ? 'Cr ' + P.money(-t.balance) : P.money(t.balance), t.dueDay || '',
+            [t.NextOfKin, t.NextOfKinPhone].filter(Boolean).join(' · ')]),
+          foot: [['', 'Total', '', '', P.money(sum('rent')), P.money(sum('paid')), P.money(sum('balance')), '', '']],
+          columnStyles: { 0: { fontStyle: 'bold', cellWidth: 14 }, 4: { halign: 'right' }, 5: { halign: 'right' }, 6: { halign: 'right', fontStyle: 'bold' } },
+          didParseCell: (c) => { if (c.section === 'body' && c.column.index === 6) c.cell.styles.textColor = rows[c.row.index].balance > 0 ? [220, 38, 38] : [22, 163, 74]; if (c.section === 'foot' && c.column.index >= 4 && c.column.index <= 6) c.cell.styles.halign = 'right'; } });
+        await pdf.save('RentPro_Tenants.pdf');
+      } catch (error) { console.error(error); alert("Couldn't make the PDF: " + error.message); }
+    };
 
     // --- Record payment (pre-filled with the balance) ---
     window.openPayModal = (id) => {

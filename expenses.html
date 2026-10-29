@@ -28,9 +28,13 @@
           <button id="generateGarbageBtn" class="btn btn-outline-secondary">
             <i class="fa-solid fa-dumpster me-2"></i> Garbage Bills
           </button>
-          <button onclick="downloadCSV()" class="btn btn-outline-secondary">
-            <i class="fa-solid fa-file-csv me-2"></i> Export
-          </button>
+          <div class="dropdown">
+            <button class="btn btn-outline-secondary dropdown-toggle w-100" data-bs-toggle="dropdown" aria-expanded="false"><i class="fa-solid fa-download me-2"></i> Export</button>
+            <ul class="dropdown-menu dropdown-menu-end shadow border-0 rounded-3">
+              <li><button class="dropdown-item" onclick="downloadListPDF()"><i class="fa-solid fa-file-pdf me-2 text-danger"></i>PDF</button></li>
+              <li><button class="dropdown-item" onclick="downloadCSV()"><i class="fa-solid fa-file-csv me-2 text-success"></i>Excel (CSV)</button></li>
+            </ul>
+          </div>
           <button id="addExpenseBtn" class="btn btn-primary">
             <i class="fa-solid fa-plus me-2"></i> Add Expense
           </button>
@@ -143,6 +147,9 @@
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 
     <script src="global.js"></script>
+    <script src="js/vendor/jspdf.umd.min.js"></script>
+    <script src="js/vendor/jspdf.plugin.autotable.min.js"></script>
+    <script src="js/pdf.js"></script>
     <script src="js/dev-auth.js"></script>
     <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
@@ -389,19 +396,41 @@
 
         if(dataToExport.length === 0) { alert("No data to export."); return; }
 
-        const quote = (val) => `"${String(val ?? '').replace(/"/g, '""')}"`;
-        let csv = "Date,House,Category,Description,Amount\n";
-        dataToExport.forEach(e => {
-            let d = e.Date;
-            try { d = new Date(e.Date).toISOString().split('T')[0]; } catch(err){}
-            csv += [d, e.House || 'General', e.Category, e.Description, e.Amount].map(quote).join(",") + "\n";
-        });
-        const link = document.createElement("a");
-        link.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
-        link.download = "RentPro_Expenses.csv";
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
+        const day = (v) => { const d = new Date(v); return isNaN(d) ? String(v || '') : d.toISOString().split('T')[0]; };
+        RentProFiles.saveCsv([["Date", "House", "Category", "Description", "Amount"],
+            ...dataToExport.map(e => [day(e.Date), e.House || 'General', e.Category, e.Description, e.Amount])], "RentPro_Expenses.csv").catch(error => alert("Couldn't save the file: " + error.message));
+    };
+
+    // --- PDF EXPORT (what the filters show) ---
+    function filteredExpenses() {
+        const searchVal = document.getElementById('searchInput').value.toLowerCase();
+        const houseVal = document.getElementById('houseFilter').value;
+        return currentExpenses.filter(item => (item.Description || "").toLowerCase().includes(searchVal) && (houseVal === 'all' || String(item.House) == String(houseVal)))
+            .sort((a, b) => new Date(b.Date) - new Date(a.Date));
+    }
+    window.downloadListPDF = async () => {
+        const items = filteredExpenses();
+        if (!items.length) { alert("No expenses to export."); return; }
+        try {
+            const P = window.RentProPDF;
+            const houseVal = document.getElementById('houseFilter').value;
+            const total = items.reduce((s, e) => s + Number(e.Amount || 0), 0);
+            const dates = items.map(e => new Date(e.Date)).filter(d => !isNaN(d));
+            const span = dates.length ? `${P.dateText(new Date(Math.min(...dates)))} – ${P.dateText(new Date(Math.max(...dates)))}` : '';
+            const pdf = P.create({ title: 'Expenses', subtitle: `${P.PROPERTY.name}${houseVal !== 'all' ? ' · House ' + houseVal : ''}${span ? ' · ' + span : ''}` });
+            const byCategory = {};
+            items.forEach(e => { byCategory[e.Category || 'Other'] = (byCategory[e.Category || 'Other'] || 0) + Number(e.Amount || 0); });
+            pdf.tiles([['Total spent', P.kes(total), 'bad'], ['Expenses', String(items.length)], ['Biggest category', Object.entries(byCategory).sort((a, b) => b[1] - a[1])[0][0]]]);
+            pdf.heading('By category');
+            pdf.table({ head: [['Category', 'Amount', 'Share']], body: Object.entries(byCategory).sort((a, b) => b[1] - a[1]).map(([c, a]) => [c, P.kes(a), Math.round(a / total * 100) + '%']),
+                columnStyles: { 1: { halign: 'right' }, 2: { halign: 'right' } } });
+            pdf.heading('All expenses');
+            pdf.table({ head: [['Date', 'House', 'Category', 'Description', 'Amount (KES)']],
+                body: items.map(e => [new Date(e.Date).toLocaleDateString('en-GB'), e.House || 'General', e.Category || '', e.Description || '', P.money(e.Amount)]),
+                foot: [['Total', '', '', '', P.money(total)]], columnStyles: { 4: { halign: 'right', fontStyle: 'bold' } },
+                didParseCell: (c) => { if (c.section === 'foot' && c.column.index === 4) c.cell.styles.halign = 'right'; } });
+            await pdf.save('RentPro_Expenses.pdf');
+        } catch (error) { console.error(error); alert("Couldn't make the PDF: " + error.message); }
     };
 
     if(document.getElementById('logoutBtn')) document.getElementById('logoutBtn').addEventListener('click', () => RentProDevAuth.signOut(auth, firebaseSignOut));

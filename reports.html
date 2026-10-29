@@ -61,6 +61,25 @@
       .chart-box { height: 250px; }
       .r-card { padding: 16px; }
     }
+    .st-actions { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+    .st-actions .form-select { width: auto; min-width: 190px; font-weight: 600; }
+    .st-kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+    .st-kpis > div { background: var(--rp-surface-2); border-radius: 10px; padding: 10px 12px; min-width: 0; }
+    .st-kpis span { display: block; font-size: 0.72rem; color: var(--rp-muted); text-transform: uppercase; letter-spacing: 0.04em; }
+    .st-kpis strong { font-size: 1.05rem; font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .st-table td, .st-table th { padding: 8px 10px; font-variant-numeric: tabular-nums; }
+    .st-table .tag { font-size: 0.66rem; font-weight: 700; border-radius: 6px; padding: 1px 6px; margin-left: 4px; background: #e0e7ff; color: #3730a3; }
+    .st-line { display: flex; justify-content: space-between; gap: 10px; padding: 7px 0; border-bottom: 1px dashed #edeff4; font-size: 0.9rem; }
+    .st-line.sub { padding-left: 14px; color: var(--rp-muted); font-size: 0.85rem; }
+    .st-line.total { font-weight: 800; border-bottom: 0; border-top: 2px solid var(--rp-border); margin-top: 4px; padding-top: 10px; }
+    .st-line span:last-child { font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .st-note { font-size: 0.88rem; padding: 8px 0; border-bottom: 1px solid #f0f1f5; }
+    .st-note:last-child { border-bottom: 0; }
+    @media (max-width: 767.98px) {
+      .st-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .st-actions { width: 100%; }
+      .st-actions .form-select { flex: 1 1 100%; min-width: 0; }
+    }
     @media print {
       body { background: #fff; }
       .page-actions, .r-controls, .export-section, .ai-fab, #rp-ai-btn { display: none !important; }
@@ -98,7 +117,7 @@
           <input type="month" id="toMonth" class="form-control" aria-label="To month">
         </div>
         <button class="btn btn-outline-secondary" id="rp-ai-btn" type="button"><i class="fa-solid fa-wand-magic-sparkles me-2"></i>Explain with AI</button>
-        <button class="btn btn-outline-secondary" type="button" onclick="window.print()"><i class="fa-solid fa-print me-2"></i>Print / PDF</button>
+        <button class="btn btn-outline-secondary" type="button" id="reportPdfBtn"><i class="fa-solid fa-file-pdf me-2"></i>PDF</button>
         <button class="btn btn-primary" type="button" onclick="loadReports()"><i class="fa-solid fa-rotate me-2"></i>Refresh</button>
       </div>
     </div>
@@ -178,6 +197,87 @@
       </div>
     </div>
 
+    <section id="statementSection" class="mb-4">
+      <div class="r-card p-0 overflow-hidden mb-3">
+        <div class="head px-3 pt-3">
+          <div>
+            <h6><i class="fa-solid fa-file-invoice me-2 text-primary"></i>Monthly statement</h6>
+            <div class="small text-muted" id="stSubtitle">Like the agent's statement: what each house owed and paid, then the settlement.</div>
+          </div>
+          <div class="st-actions">
+            <select id="stPeriod" class="form-select form-select-sm" aria-label="Statement period"></select>
+            <button class="btn btn-sm btn-outline-secondary" type="button" id="stSettingsBtn"><i class="fa-solid fa-sliders me-1"></i>Settings</button>
+            <button class="btn btn-sm btn-outline-secondary" type="button" id="stAiBtn"><i class="fa-solid fa-wand-magic-sparkles me-1"></i>Explain</button>
+            <button class="btn btn-sm btn-outline-secondary" type="button" id="stPdfBtn"><i class="fa-solid fa-file-pdf me-1"></i>PDF</button>
+            <button class="btn btn-sm btn-primary" type="button" id="stExportBtn"><i class="fa-solid fa-file-excel me-1"></i>Excel</button>
+          </div>
+        </div>
+        <p class="print-only px-3 mb-2" id="stPrintTitle"></p>
+        <div class="st-kpis px-3 pb-3">
+          <div><span>Due</span><strong id="stDue">–</strong></div>
+          <div><span>Collected</span><strong class="text-success" id="stCollected">–</strong></div>
+          <div><span>Still owed</span><strong class="text-danger" id="stOwed">–</strong></div>
+          <div><span>Net to you</span><strong id="stNet">–</strong></div>
+        </div>
+        <div class="table-responsive">
+          <table class="table table-stack r-table st-table mb-0 align-middle">
+            <thead><tr>
+              <th>House</th><th>Tenant</th><th class="text-end">Bal b/f</th><th class="text-end">Rent</th><th class="text-end">Deposit &amp; fee</th>
+              <th class="text-end">Penalty</th><th class="text-end">Garbage</th><th class="text-end">Water</th><th class="text-end">Total due</th>
+              <th class="text-end">Paid</th><th>Date paid</th><th class="text-end">Balance</th>
+            </tr></thead>
+            <tbody id="stBody"><tr><td colspan="12" class="r-empty">Loading…</td></tr></tbody>
+            <tfoot id="stFoot"></tfoot>
+          </table>
+        </div>
+      </div>
+      <div class="row g-3">
+        <div class="col-lg-6">
+          <div class="r-card">
+            <div class="head"><h6>Settlement</h6><span class="small text-muted" id="stRates"></span></div>
+            <div id="stSettlement"></div>
+          </div>
+        </div>
+        <div class="col-lg-6">
+          <div class="r-card">
+            <div class="head"><h6>Notes for this period</h6></div>
+            <div id="stNotes"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <div class="modal fade" id="stSettingsModal" tabindex="-1" aria-labelledby="stSettingsTitle" aria-hidden="true">
+      <div class="modal-dialog modal-dialog-scrollable">
+        <div class="modal-content">
+          <div class="modal-header"><h5 class="modal-title" id="stSettingsTitle">Statement settings</h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
+          <div class="modal-body">
+            <form id="stSettingsForm" class="row g-3">
+              <div class="col-6"><label class="form-label" for="sStartDay">Period starts on day</label><input type="number" min="1" max="28" class="form-control" id="sStartDay"><div class="form-text">16 = 16th to 15th</div></div>
+              <div class="col-6"><label class="form-label" for="sFirst">Start statements from</label><input type="month" class="form-control" id="sFirst"><div class="form-text">Period ending in this month</div></div>
+              <div class="col-6"><label class="form-label" for="sGarbage">Garbage fee</label><input type="number" min="0" class="form-control" id="sGarbage"></div>
+              <div class="col-6"><label class="form-label" for="sCaretaker">Caretaker fee</label><input type="number" min="0" class="form-control" id="sCaretaker"><div class="form-text">Used when no Salary expense is recorded</div></div>
+              <div class="col-6"><label class="form-label" for="sDeposit">Deposit (months of rent)</label><input type="number" min="0" max="12" step="0.5" class="form-control" id="sDeposit"></div>
+              <div class="col-6"><label class="form-label" for="sTenancyFee">Tenancy fee</label><input type="number" min="0" class="form-control" id="sTenancyFee"></div>
+              <div class="col-6"><label class="form-label" for="sPenalty">Late penalty (% of rent)</label><input type="number" min="0" max="100" step="0.5" class="form-control" id="sPenalty"><div class="form-text">0 = no penalty</div></div>
+              <div class="col-6"><label class="form-label" for="sTax">Rental income tax %</label><input type="number" min="0" max="100" step="0.5" class="form-control" id="sTax"></div>
+              <div class="col-6"><label class="form-label" for="sMgmt">Management fee %</label><input type="number" min="0" max="100" step="0.5" class="form-control" id="sMgmt"><div class="form-text">0 if you manage it yourself</div></div>
+              <div class="col-6"><label class="form-label" for="sVat">VAT on the fee %</label><input type="number" min="0" max="100" step="0.5" class="form-control" id="sVat"></div>
+              <div class="col-12">
+                <label class="form-label" for="sOpening">Balances at the start</label>
+                <textarea class="form-control font-monospace" id="sOpening" rows="6" placeholder="4 = 13700&#10;22 = 18050&#10;9 = -200"></textarea>
+                <div class="form-text">One house per line: what the tenant owed when the first statement period began (minus for credit).</div>
+              </div>
+            </form>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+            <button type="button" class="btn btn-primary" id="stSaveBtn">Save</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <div class="export-section">
       <h6 class="fw-bold mb-1"><i class="fa-solid fa-download me-2"></i>Export</h6>
       <p class="text-muted small mb-3">Downloads use the period selected above (the tenant list is always current).</p>
@@ -194,6 +294,9 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <script src="global.js"></script>
   <script src="js/report-math.js"></script>
+  <script src="js/vendor/jspdf.umd.min.js"></script>
+  <script src="js/vendor/jspdf.plugin.autotable.min.js"></script>
+  <script src="js/pdf.js"></script>
   <script src="js/dev-auth.js"></script>
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
@@ -221,7 +324,7 @@
     if (!$('toMonth').value) $('toMonth').value = monthValue(now);
 
     RentProDevAuth.onAuthStateChanged(auth, (user) => {
-        if (user) loadReports(); else window.location.href = "index.html";
+        if (user) { loadReports(); loadStatement(); } else window.location.href = "index.html";
     }, firebaseOnAuthStateChanged);
 
     window.loadReports = async function () {
@@ -418,12 +521,261 @@
             `net ${kes(r.net)}, owed right now ${kes(r.currentArrears.total)}, unmatched payments ${r.unmatched.count}.`);
     });
 
+    // --- Monthly statement (worked out by the backend: getStatement) ---
+    let statement = null;
+    const signed = (n) => n < 0 ? `<span class="text-primary">Credit ${short(-n)}</span>` : n > 0 ? `<span class="neg fw-bold">${short(n)}</span>` : '<span class="text-muted">0</span>';
+    const zeroDash = (n) => n ? short(n) : '<span class="text-muted">–</span>';
+    const dayLabel = (iso) => { const d = new Date(iso + 'T00:00:00'); return isNaN(d) ? iso : d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }); };
+
+    window.loadStatement = async function (period) {
+        $('stBody').innerHTML = '<tr><td colspan="12" class="r-empty">Loading…</td></tr>';
+        try {
+            const res = await apiRequest({ action: 'getStatement', period: period || $('stPeriod').value || '' });
+            if (!res.data || !res.data.period) throw new Error(res.message || 'The statement could not be worked out. Update Code.gs in Apps Script and redeploy.');
+            statement = res.data;
+            renderStatement(statement);
+        } catch (error) {
+            console.error(error);
+            $('stBody').innerHTML = `<tr><td colspan="12" class="r-empty text-danger">Couldn't load the statement: ${escapeHtml(error.message)}</td></tr>`;
+        }
+    };
+
+    function renderStatement(s) {
+        $('stPeriod').innerHTML = s.periods.map(p => `<option value="${p.key}" ${p.key === s.period.key ? 'selected' : ''}>${escapeHtml(p.label)}</option>`).join('');
+        $('stSubtitle').innerText = `${s.period.label}${s.period.inProgress ? ' · still running, figures so far' : ''} · water and garbage from the ${s.period.billMonth} bills`;
+        $('stPrintTitle').innerHTML = `<strong>Statement of account · ${escapeHtml(s.period.label)}</strong> · printed ${new Date().toLocaleDateString('en-GB', { dateStyle: 'long' })}`;
+        const t = s.totals, st = s.settlement;
+        $('stDue').innerText = kes(t.totalDue);
+        $('stCollected').innerText = kes(st.collected);
+        $('stOwed').innerText = kes(t.owed);
+        $('stNet').innerText = kes(st.netToLandlord);
+        $('stNet').className = st.netToLandlord < 0 ? 'text-danger' : '';
+
+        $('stBody').innerHTML = s.lines.length ? s.lines.map(l => `
+            <tr>
+              <td class="td-primary"><strong>${escapeHtml(l.house || '—')}</strong></td>
+              <td data-label="Tenant">${escapeHtml(l.tenant)}${l.isNew ? '<span class="tag">NEW</span>' : ''}${l.former ? ' <span class="text-muted small">(moved out)</span>' : ''}</td>
+              <td data-label="Bal b/f" class="text-end">${signed(l.broughtForward)}</td>
+              <td data-label="Rent" class="text-end">${short(l.rent)}</td>
+              <td data-label="Deposit & fee" class="text-end">${zeroDash(l.deposit + l.tenancyFee)}</td>
+              <td data-label="Penalty" class="text-end">${zeroDash(l.penalty)}</td>
+              <td data-label="Garbage" class="text-end">${zeroDash(l.garbage)}</td>
+              <td data-label="Water" class="text-end">${zeroDash(l.water)}</td>
+              <td data-label="Total due" class="text-end fw-semibold">${short(l.totalDue)}</td>
+              <td data-label="Paid" class="text-end pos">${zeroDash(l.paid)}</td>
+              <td data-label="Date paid">${l.paidDates.length ? l.paidDates.map(dayLabel).join(', ') : '<span class="text-muted">–</span>'}</td>
+              <td data-label="Balance" class="text-end">${signed(l.balance)}</td>
+            </tr>`).join('') : '<tr><td colspan="12" class="r-empty">No tenants in this period.</td></tr>';
+        $('stFoot').innerHTML = s.lines.length ? `
+            <tr><td colspan="2">Total · ${s.lines.length} houses</td>
+              <td data-label="Bal b/f" class="text-end">${short(t.broughtForward)}</td><td data-label="Rent" class="text-end">${short(t.rent)}</td><td data-label="Deposit & fee" class="text-end">${short(t.deposit + t.tenancyFee)}</td>
+              <td data-label="Penalty" class="text-end">${short(t.penalty)}</td><td data-label="Garbage" class="text-end">${short(t.garbage)}</td><td data-label="Water" class="text-end">${short(t.water)}</td>
+              <td data-label="Total due" class="text-end">${short(t.totalDue)}</td><td data-label="Paid" class="text-end">${short(t.paid)}</td><td class="d-none d-md-table-cell"></td>
+              <td data-label="Still owed" class="text-end">${short(t.owed)}${t.credit ? ` <span class="small text-primary fw-normal">(credit ${short(t.credit)})</span>` : ''}</td></tr>` : '';
+
+        const r = s.settings, d = st.deductions;
+        $('stRates').innerText = `Tax ${r.rentalTaxPercent}% · fee ${r.managementPercent}% · VAT ${r.vatPercent}%`;
+        const line = (label, amount, cls = '') => `<div class="st-line ${cls}"><span>${label}</span><span>${kes(amount)}</span></div>`;
+        const less = [['Deposits (refundable)', d.deposits], ['Tenancy fees', d.tenancyFees], ['Penalties', d.penalties], ['Water', d.water], ['Garbage', d.garbage], ['Caretaker', d.caretaker]].filter(x => x[1]);
+        $('stSettlement').innerHTML =
+            line('<strong>Total collected</strong>', st.collected) +
+            less.map(([k, v]) => line('Less ' + k.toLowerCase(), -v, 'sub')).join('') +
+            line('<strong>Rent income</strong>', st.rentBase) +
+            (r.rentalTaxPercent ? line(`Rental income tax ${r.rentalTaxPercent}%`, -st.rentalTax, 'sub') : '') +
+            (r.managementPercent ? line(`Management fee ${r.managementPercent}%`, -st.managementFee, 'sub') + line(`VAT ${r.vatPercent}% on the fee`, -st.vat, 'sub') : '') +
+            (st.repairs ? line('Repairs and other expenses', -st.repairs, 'sub') : '') +
+            line('Net to you', st.netToLandlord, 'total');
+
+        const notes = [];
+        if (st.agentTotal) notes.push(`<strong>Payable to the agent:</strong> ${kes(st.agentTotal)} (fee, VAT, tenancy fees, penalties and repairs)`);
+        if (st.depositsHeld) notes.push(`<strong>Deposits held:</strong> ${kes(st.depositsHeld)}. Refundable when the tenant leaves.`);
+        if (s.newTenants.length) notes.push(`<strong>New tenants:</strong> ${s.newTenants.map(n => `${escapeHtml(n.tenant)} (House ${escapeHtml(n.house)})`).join(', ')}`);
+        if (s.owing.length) notes.push(`<strong>Still owing:</strong> ${s.owing.slice(0, 6).map(o => `House ${escapeHtml(o.house)} ${kes(o.balance)}`).join(' · ')}${s.owing.length > 6 ? ` and ${s.owing.length - 6} more` : ''}`);
+        if (s.expenses.length) notes.push(`<strong>Expenses:</strong> ${s.expenses.map(e => `${escapeHtml(e.description || e.category)} ${kes(e.amount)}`).join(' · ')}`);
+        if (s.unassigned.length) notes.push(`<span class="text-danger"><strong>Payments not linked to a tenant:</strong> ${s.unassigned.length} · ${kes(s.unassigned.reduce((a, p) => a + p.amount, 0))}</span>`);
+        notes.push(`<span class="text-muted">Balances run from ${escapeHtml(s.firstPeriod.label)}. Change rates, the start period or opening balances in <a href="#" id="stSettingsLink">Settings</a>.</span>`);
+        $('stNotes').innerHTML = notes.map(n => `<div class="st-note">${n}</div>`).join('');
+        $('stSettingsLink').addEventListener('click', (e) => { e.preventDefault(); openStatementSettings(); });
+    }
+
+    $('stPeriod').addEventListener('change', () => loadStatement($('stPeriod').value));
+    $('stAiBtn').addEventListener('click', () => {
+        if (!statement || !window.RentProAIPanel) return;
+        window.RentProAIPanel.open();
+        window.RentProAIPanel.ask(`Explain my statement for ${statement.period.label}: what came in, what was taken off, what I receive and who still owes.`);
+    });
+
+    // Settings
+    const settingsModal = () => bootstrap.Modal.getOrCreateInstance($('stSettingsModal'));
+    async function openStatementSettings() {
+        const s = statement ? statement.settings : (await apiRequest({ action: 'getStatementSettings' })).data;
+        $('sStartDay').value = s.startDay; $('sGarbage').value = s.garbageFee; $('sCaretaker').value = s.caretakerFee;
+        $('sDeposit').value = s.depositMonths; $('sTenancyFee').value = s.tenancyFee; $('sPenalty').value = s.latePenaltyPercent;
+        $('sTax').value = s.rentalTaxPercent; $('sMgmt').value = s.managementPercent; $('sVat').value = s.vatPercent;
+        $('sFirst').value = s.firstPeriod || (statement ? statement.firstPeriod.key : '');
+        $('sOpening').value = Object.entries(s.openingBalances || {}).map(([h, v]) => `${h} = ${v}`).join('\n');
+        settingsModal().show();
+    }
+    $('stSettingsBtn').addEventListener('click', openStatementSettings);
+    $('stSaveBtn').addEventListener('click', async () => {
+        const openingBalances = {};
+        const bad = [];
+        $('sOpening').value.split('\n').map(x => x.trim()).filter(Boolean).forEach(row => {
+            const m = row.match(/^(?:house\s*)?(.+?)\s*[=:,\s]\s*(-?[\d,]+(?:\.\d+)?)$/i);
+            if (m) openingBalances[m[1].trim()] = Number(m[2].replace(/,/g, '')); else bad.push(row);
+        });
+        if (bad.length) return alert(`Couldn't read: ${bad.join(', ')}\nWrite one house per line, e.g. "4 = 13700".`);
+        const settings = {
+            startDay: $('sStartDay').value, garbageFee: $('sGarbage').value, caretakerFee: $('sCaretaker').value, depositMonths: $('sDeposit').value,
+            tenancyFee: $('sTenancyFee').value, latePenaltyPercent: $('sPenalty').value, rentalTaxPercent: $('sTax').value,
+            managementPercent: $('sMgmt').value, vatPercent: $('sVat').value, firstPeriod: $('sFirst').value, openingBalances
+        };
+        $('stSaveBtn').disabled = true;
+        try {
+            const res = await apiRequest({ action: 'saveStatementSettings', settings: JSON.stringify(settings) });
+            if (!res.success) throw new Error(res.message);
+            settingsModal().hide();
+            loadStatement($('stPeriod').value);
+        } catch (error) {
+            alert("Couldn't save the settings: " + error.message);
+        } finally {
+            $('stSaveBtn').disabled = false;
+        }
+    });
+
+    $('stExportBtn').addEventListener('click', () => {
+        if (!statement) return;
+        const s = statement, st = s.settlement, d = st.deductions;
+        const rows = [['Statement of account', s.period.label], [],
+            ['House', 'Tenant', 'Bal b/f', 'Rent', 'Deposit', 'Tenancy fee', 'Penalty', 'Garbage', 'Water', 'Total due', 'Paid', 'Date paid', 'M-Pesa codes', 'Balance'],
+            ...s.lines.map(l => [l.house, l.tenant + (l.isNew ? ' (new)' : ''), l.broughtForward, l.rent, l.deposit, l.tenancyFee, l.penalty, l.garbage, l.water, l.totalDue, l.paid, l.paidDates.join(' & '), l.references.join(' '), l.balance]),
+            ['Total', '', s.totals.broughtForward, s.totals.rent, s.totals.deposit, s.totals.tenancyFee, s.totals.penalty, s.totals.garbage, s.totals.water, s.totals.totalDue, s.totals.paid, '', '', s.totals.owed],
+            [], ['Settlement'], ['Total collected', st.collected],
+            ['Less deposits', d.deposits], ['Less tenancy fees', d.tenancyFees], ['Less penalties', d.penalties], ['Less water', d.water], ['Less garbage', d.garbage], ['Less caretaker', d.caretaker],
+            ['Rent income', st.rentBase], [`Rental income tax ${s.settings.rentalTaxPercent}%`, st.rentalTax], ['After tax', st.afterTax],
+            [`Management fee ${s.settings.managementPercent}%`, st.managementFee], [`VAT ${s.settings.vatPercent}%`, st.vat], ['Repairs and other expenses', st.repairs],
+            ['Net to landlord', st.netToLandlord], ['Payable to agent', st.agentTotal], ['Deposits held', st.depositsHeld],
+            [], ['Expenses', 'Date', 'Category', 'House', 'Amount'], ...s.expenses.map(e => [e.description, e.date, e.category, e.house, e.amount])];
+        download(rows, `RentPro_Statement_${s.period.key}.csv`);
+    });
+
+    // --- PDFs (work in the browser and the Android app) ---
+    async function makePdf(button, build) {
+        const label = button.innerHTML;
+        button.disabled = true;
+        button.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>PDF';
+        try { await build(); }
+        catch (error) { console.error(error); alert("Couldn't make the PDF: " + error.message); }
+        finally { button.disabled = false; button.innerHTML = label; }
+    }
+    const signedCell = (n) => n < 0 ? 'Cr ' + RentProPDF.money(-n) : RentProPDF.money(n);
+    const dashCell = (n) => n ? RentProPDF.money(n) : '–';
+
+    $('stPdfBtn').addEventListener('click', () => makePdf($('stPdfBtn'), async () => {
+        if (!statement) throw new Error('The statement is still loading.');
+        const s = statement, t = s.totals, st = s.settlement, d = st.deductions, r = s.settings;
+        const pdf = RentProPDF.create({ title: 'Statement of Account', subtitle: `${RentProPDF.PROPERTY.name} · ${s.period.label}`, orientation: 'landscape' });
+        pdf.details([
+            ['Property', RentProPDF.PROPERTY.name], ['Period', s.period.label + (s.period.inProgress ? ' (in progress)' : '')],
+            ['Houses', String(s.lines.length)], ['Prepared on', RentProPDF.dateText()]
+        ], 4);
+        pdf.tiles([
+            ['Total due', RentProPDF.kes(t.totalDue)], ['Collected', RentProPDF.kes(st.collected), 'good'],
+            ['Still owed', RentProPDF.kes(t.owed), t.owed ? 'bad' : 'good'], ['Net to landlord', RentProPDF.kes(st.netToLandlord), st.netToLandlord < 0 ? 'bad' : undefined]
+        ]);
+        pdf.heading('Expected and actual collections');
+        const right = { halign: 'right' };
+        pdf.table({
+            head: [['House', 'Tenant', 'Bal b/f', 'Rent', 'Deposit', 'Tenancy fee', 'Penalty', 'Garbage', 'Water', 'Total due', 'Paid', 'Date paid', 'Balance']],
+            body: s.lines.map(l => [l.house, l.tenant + (l.isNew ? ' (new)' : '') + (l.former ? ' (moved out)' : ''), signedCell(l.broughtForward), RentProPDF.money(l.rent),
+                dashCell(l.deposit), dashCell(l.tenancyFee), dashCell(l.penalty), dashCell(l.garbage), dashCell(l.water), RentProPDF.money(l.totalDue),
+                dashCell(l.paid), l.paidDates.map(x => x.slice(8, 10) + '/' + x.slice(5, 7)).join(', ') || '–', signedCell(l.balance)]),
+            foot: [['', 'Total', RentProPDF.money(t.broughtForward), RentProPDF.money(t.rent), RentProPDF.money(t.deposit), RentProPDF.money(t.tenancyFee), RentProPDF.money(t.penalty),
+                RentProPDF.money(t.garbage), RentProPDF.money(t.water), RentProPDF.money(t.totalDue), RentProPDF.money(t.paid), '', RentProPDF.money(t.owed)]],
+            columnStyles: { 0: { cellWidth: 13, fontStyle: 'bold' }, 1: { cellWidth: 42 }, 2: right, 3: right, 4: right, 5: right, 6: right, 7: right, 8: right, 9: { halign: 'right', fontStyle: 'bold' }, 10: right, 12: { halign: 'right', fontStyle: 'bold' } },
+            didParseCell: (cell) => {
+                if (cell.section === 'body' && cell.column.index === 12) cell.cell.styles.textColor = s.lines[cell.row.index].balance > 0 ? [220, 38, 38] : s.lines[cell.row.index].balance < 0 ? [79, 70, 229] : [17, 24, 39];
+                if (cell.section !== 'body' && cell.column.index >= 2) cell.cell.styles.halign = 'right';
+            }
+        });
+
+        pdf.ensure(80);
+        const top = pdf.y, half = (pdf.W - 2 * pdf.M - 8) / 2;
+        pdf.heading('Settlement');
+        const less = [['Deposits (refundable)', d.deposits], ['Tenancy fees', d.tenancyFees], ['Penalties', d.penalties], ['Water', d.water], ['Garbage', d.garbage], ['Caretaker', d.caretaker]].filter(x => x[1]);
+        pdf.ledger([
+            ['Total collected', st.collected, { bold: true }],
+            ...less.map(([k, v]) => ['Less ' + k.toLowerCase(), -v, { indent: true }]),
+            ['Rent income', st.rentBase, { bold: true }],
+            ...(r.rentalTaxPercent ? [[`Rental income tax (${r.rentalTaxPercent}%)`, -st.rentalTax, { indent: true }]] : []),
+            ...(r.managementPercent ? [[`Management fee (${r.managementPercent}%)`, -st.managementFee, { indent: true }], [`VAT on the fee (${r.vatPercent}%)`, -st.vat, { indent: true }]] : []),
+            ...(st.repairs ? [['Repairs and other expenses', -st.repairs, { indent: true }]] : []),
+            ['Net to landlord', st.netToLandlord, { total: true }]
+        ], { width: half });
+        const leftEnd = pdf.y;
+
+        // Notes beside the settlement.
+        pdf.y = top;
+        const notes = [];
+        if (st.agentTotal) notes.push(['Payable to the agent (fee, VAT, fees, penalties, repairs)', RentProPDF.kes(st.agentTotal)]);
+        if (st.depositsHeld) notes.push(['Deposits held (refundable)', RentProPDF.kes(st.depositsHeld)]);
+        s.newTenants.forEach(n => notes.push(['New tenant', `${n.tenant}, House ${n.house}`]));
+        s.owing.slice(0, 8).forEach(o => notes.push([`Owing: House ${o.house}`, `${o.tenant} · ${RentProPDF.kes(o.balance)}`]));
+        s.expenses.forEach(e => notes.push([`Expense ${e.date.slice(8, 10)}/${e.date.slice(5, 7)}`, `${e.description || e.category} · ${RentProPDF.kes(e.amount)}`]));
+        pdf.doc.setFont('helvetica', 'bold'); pdf.doc.setFontSize(11.5); pdf.doc.setTextColor(17, 24, 39);
+        pdf.doc.text('Notes', pdf.M + half + 8, top);
+        pdf.y = top + 7;
+        pdf.table({ startY: pdf.y, margin: { left: pdf.M + half + 8, right: pdf.M, top: 20, bottom: 18 }, theme: 'plain',
+            body: notes.length ? notes : [['Nothing else to note for this period.', '']],
+            styles: { fontSize: 8, cellPadding: 1.6 }, columnStyles: { 0: { textColor: [107, 114, 128], cellWidth: half * 0.45 }, 1: { fontStyle: 'bold' } } });
+        pdf.y = Math.max(pdf.y, leftEnd);
+        pdf.paragraph(`Balances are carried forward from ${s.firstPeriod.label}. Payments clear arrears first, then penalties, deposit, tenancy fee, rent, garbage and water. "Cr" means the tenant has credit.`, { size: 7.5 });
+        pdf.signatures(['Prepared by', 'Approved by']);
+        await pdf.save(`RentPro_Statement_${s.period.key}.pdf`);
+    }));
+
+    $('reportPdfBtn').addEventListener('click', () => makePdf($('reportPdfBtn'), async () => {
+        if (!report) throw new Error('The report is still loading.');
+        const r = report;
+        const pdf = RentProPDF.create({ title: 'Financial Report', subtitle: `${RentProPDF.PROPERTY.name} · ${r.period.label}` });
+        pdf.tiles([['Expected rent', RentProPDF.kes(r.expected)], ['Collected', RentProPDF.kes(r.collected), 'good'], ['Collection rate', pct(r.collectionRate)]]);
+        pdf.tiles([['Expenses', RentProPDF.kes(r.expenses), 'bad'], ['Net profit', RentProPDF.kes(r.net), r.net < 0 ? 'bad' : 'good'], ['Owed right now', RentProPDF.kes(r.currentArrears.total), r.currentArrears.total ? 'bad' : 'good']]);
+        const right = { halign: 'right' };
+        pdf.heading('Month by month');
+        pdf.table({
+            head: [['Month', 'Expected', 'Collected', 'Rate', 'Expenses', 'Net']],
+            body: r.monthly.map(m => [m.label, RentProPDF.money(m.expected), RentProPDF.money(m.collected), pct(m.rate), RentProPDF.money(m.expenses), RentProPDF.money(m.net)]),
+            foot: [['Total', RentProPDF.money(r.expected), RentProPDF.money(r.collected), pct(r.collectionRate), RentProPDF.money(r.expenses), RentProPDF.money(r.net)]],
+            columnStyles: { 1: right, 2: right, 3: right, 4: right, 5: { halign: 'right', fontStyle: 'bold' } },
+            didParseCell: (c) => { if (c.section === 'foot' && c.column.index) c.cell.styles.halign = 'right'; }
+        });
+        pdf.heading('By house');
+        pdf.table({
+            head: [['House', 'Tenant', 'Expected', 'Collected', 'Expenses', 'Net', 'Balance now']],
+            body: r.houses.map(h => [h.house, h.tenant || 'Vacant / unmatched', RentProPDF.money(h.expected), RentProPDF.money(h.collected), RentProPDF.money(h.expenses), RentProPDF.money(h.net), signedCell(h.balance)]),
+            columnStyles: { 0: { fontStyle: 'bold', cellWidth: 14 }, 2: right, 3: right, 4: right, 5: right, 6: { halign: 'right', fontStyle: 'bold' } }
+        });
+        if (r.currentArrears.top.length) {
+            pdf.heading('Who owes the most');
+            pdf.table({ head: [['Tenant', 'House', 'Owes']], body: r.currentArrears.top.map(t => [t.name, t.house, RentProPDF.kes(t.balance)]), columnStyles: { 2: { halign: 'right', fontStyle: 'bold', textColor: [220, 38, 38] } } });
+        }
+        if (r.categories.length) {
+            pdf.heading('Expenses by category');
+            pdf.table({ head: [['Category', 'Amount', 'Share']], body: r.categories.map(c => [c.name, RentProPDF.kes(c.amount), pct(r.expenses ? c.amount / r.expenses : null)]), columnStyles: { 1: right, 2: right } });
+        }
+        pdf.heading('Other figures');
+        pdf.ledger([
+            ['Payments received', String(r.paymentsCount)], ['Average payment', r.averagePayment],
+            ['Unmatched payments', `${r.unmatched.count} · ${RentProPDF.kes(r.unmatched.amount)}`],
+            ['Utilities billed', r.utilities.billed], ['Utilities paid', r.utilities.paid]
+        ], { width: (pdf.W - 2 * pdf.M) / 2 });
+        await pdf.save(`RentPro_Report_${r.period.label.replace(/[^A-Za-z0-9]+/g, '_')}.pdf`);
+    }));
+
     // --- Export ---
-    const quote = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
     const day = (v) => { const d = new Date(v); return isNaN(d) ? '' : d.toISOString().slice(0, 10); };
     function download(rows, filename) {
-        const blob = new Blob([rows.map(r => r.map(quote).join(',')).join('\n')], { type: 'text/csv' });
-        const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = filename; document.body.appendChild(a); a.click(); a.remove();
+        RentProFiles.saveCsv(rows, filename).catch(error => alert("Couldn't save the file: " + error.message));
     }
     window.exportData = (type) => {
         if (!report) return;
