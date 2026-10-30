@@ -44,12 +44,25 @@
         }
     }
 
+    // The signed-in user, so API calls can attach a Firebase ID token (see global.js).
+    let signedInUser = null;
+    let resolveAuthReady;
+    const authReady = new Promise((resolve) => { resolveAuthReady = resolve; });
+    const remember = (user) => { signedInUser = user || null; resolveAuthReady(); };
+
     window.RentProDevAuth = {
         enabled,
         credentials: enabled ? { ...devCredentials } : null,
         isAllowedUser,
         nativeAuth,
         // Email of a Google account that was just refused, shown once on the login page.
+        // Resolves to a fresh Firebase ID token ("" for the local dev user or when signed out).
+        // Waits up to 10 seconds for sign-in to finish so early page requests still carry it.
+        async getIdToken() {
+            await Promise.race([authReady, new Promise((resolve) => setTimeout(resolve, 10000))]);
+            if (!signedInUser || typeof signedInUser.getIdToken !== 'function') return '';
+            try { return await signedInUser.getIdToken(); } catch (error) { return ''; }
+        },
         takeDeniedEmail() {
             const email = sessionStorage.getItem(deniedKey);
             sessionStorage.removeItem(deniedKey);
@@ -71,6 +84,7 @@
         onAuthStateChanged(auth, outerCallback, firebaseOnAuthStateChanged) {
             // Every auth result (user or null) is also broadcast, e.g. for the loading screen.
             const callback = (user) => {
+                remember(user);
                 window.dispatchEvent(new CustomEvent('rentpro:auth', { detail: user || null }));
                 outerCallback(user);
             };

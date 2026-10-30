@@ -24,13 +24,16 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Build the site into www/
+        run: node tools/build-web.cjs
+
       - name: Configure Pages
         uses: actions/configure-pages@v5
 
       - name: Upload site
         uses: actions/upload-pages-artifact@v3
         with:
-          path: .
+          path: www
 
       - name: Deploy to GitHub Pages
         id: deployment

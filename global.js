@@ -11,11 +11,14 @@ window.fetch = function (resource, options) {
 		return nativeFetch(resource, options);
 	}
 
-	return new Promise((resolve, reject) => {
+	// The backend refuses requests without the signed-in user's Firebase ID token.
+	const tokenReady = window.RentProDevAuth ? window.RentProDevAuth.getIdToken() : Promise.resolve("");
+	return tokenReady.then((idToken) => new Promise((resolve, reject) => {
 		const callbackName = "rentProJsonp_" + Date.now() + Math.floor(Math.random() * 1000);
 		const script = document.createElement("script");
 		const url = new URL(requestUrl);
 		url.searchParams.set("callback", callbackName);
+		if (idToken) url.searchParams.set("idToken", idToken);
 
 		const cleanup = () => {
 			delete window[callbackName];
@@ -34,7 +37,7 @@ window.fetch = function (resource, options) {
 		};
 		script.src = url.toString();
 		document.head.appendChild(script);
-	});
+	}));
 };
 
 // Installable web app (not needed inside the Android app, which bundles its own files).

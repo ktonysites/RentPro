@@ -81,7 +81,9 @@ function formatDate(date, tz, pattern) {
 
 function createBackend(options = {}) {
   const sheets = {};
-  const properties = Object.assign({}, options.properties || {});
+  // Most tests exercise the actions themselves; pass { requireAuth: true } to test the sign-in check.
+  const properties = Object.assign(options.requireAuth ? {} : { AUTH_DISABLED: "true" }, options.properties || {});
+  const cacheStore = {};
   const logs = [];
 
   const spreadsheet = {
@@ -109,6 +111,7 @@ function createBackend(options = {}) {
         deleteProperty: (key) => { delete properties[key]; }
       })
     },
+    CacheService: { getScriptCache: () => ({ get: (key) => (key in cacheStore ? cacheStore[key] : null), put: (key, val) => { cacheStore[key] = String(val); } }) },
     LockService: { getScriptLock: () => ({ waitLock: () => {}, tryLock: () => true, releaseLock: () => {} }) },
     ScriptApp: { getService: () => ({ getUrl: () => "https://script.google.com/macros/s/TEST/exec" }) },
     // Outgoing HTTP (the Claude API). Tests pass options.urlFetch(url, params) => { code, body }.

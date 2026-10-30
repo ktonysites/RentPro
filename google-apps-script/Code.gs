@@ -31,6 +31,15 @@ var PAYMENT_ACCOUNT_PREFIX = "275515";
 // Script property holding the secret the SMS forwarder app must send as ?token=...
 var SMS_TOKEN_PROPERTY = "SMS_WEBHOOK_TOKEN";
 
+// Every request except the SMS webhook must carry the signed-in user's Firebase ID token (?idToken=...).
+// The app adds it automatically (global.js). Google accounts must be on this list; email/password
+// accounts are created by you in the Firebase console, so any of them is allowed.
+var FIREBASE_WEB_API_KEY = "AIzaSyBwJEOW3jVBHLizWiJjT4a_Tay-2yUCZwk";
+var GOOGLE_ALLOWED_EMAILS = ["ken05462@gmail.com", "nancyngari2@gmail.com"];
+var PUBLIC_ACTIONS = { incoming_sms: true };
+// A checked token is remembered this long so each page load does not wait on Google.
+var AUTH_CACHE_SECONDS = 300;
+
 var READ_ACTIONS = {
   getTenants: true, getPayments: true, getExpenses: true, getUtilityBills: true,
   getArchivedData: true, getUnmatched: true, getDeletedPayments: true, aiAssist: true,
@@ -57,6 +66,11 @@ function handleRequest(e) {
     var params = readRequest(e);
     var action = String(params.action || "");
     if (!action) return response(false, "No action provided");
+    if (!PUBLIC_ACTIONS[action]) {
+      var auth = verifyUser(params.idToken);
+      if (!auth.ok) return response(false, auth.message, { authError: true });
+    }
+    delete params.idToken;
 
     // Serialise writes so two payments arriving together cannot overwrite each other's balance.
     if (!READ_ACTIONS[action]) {
@@ -111,6 +125,39 @@ function routeAction(action, params) {
       case "saveStatementSettings": return saveStatementSettings(params);
       default: return response(false, "Unknown action: " + action);
     }
+}
+
+// Checks a Firebase ID token with Google and applies the account allow-list.
+// Returns { ok: true, email } or { ok: false, message }.
+function verifyUser(idToken) {
+  // Only for the local test harness and dev server; never set this property on the live script.
+  if (PropertiesService.getScriptProperties().getProperty("AUTH_DISABLED") === "true") return { ok: true, email: "" };
+
+  var token = String(idToken || "");
+  if (!token) return { ok: false, message: "Please sign in again." };
+
+  var cache = CacheService.getScriptCache();
+  var cacheKey = "auth_" + token.slice(-200);
+  var cached = cache.get(cacheKey);
+  if (cached) return { ok: true, email: cached };
+
+  var reply = UrlFetchApp.fetch("https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=" + FIREBASE_WEB_API_KEY, {
+    method: "post",
+    contentType: "application/json",
+    payload: JSON.stringify({ idToken: token }),
+    muteHttpExceptions: true
+  });
+  if (reply.getResponseCode() !== 200) return { ok: false, message: "Your sign-in has expired. Please sign in again." };
+
+  var user = (JSON.parse(reply.getContentText()).users || [])[0];
+  if (!user || user.disabled) return { ok: false, message: "This account is not allowed to use RentPro." };
+
+  var email = String(user.email || "").trim().toLowerCase();
+  var viaGoogle = (user.providerUserInfo || []).some(function(profile) { return profile.providerId === "google.com"; });
+  if (viaGoogle && GOOGLE_ALLOWED_EMAILS.indexOf(email) < 0) return { ok: false, message: "This account is not allowed to use RentPro." };
+
+  cache.put(cacheKey, email || "user", AUTH_CACHE_SECONDS);
+  return { ok: true, email: email };
 }
 
 // Merges query-string parameters, an optional JSON "payload" parameter (used for

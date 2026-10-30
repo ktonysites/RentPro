@@ -648,3 +648,65 @@ test("Gemini skips thinking parts and testAiConnection checks Gemini", () => {
   assert.equal(api.context.testAiConnection(), "connected");
   assert.match(api.logs.join("\n"), /✅ RentPro AI is connected to Gemini\./);
 });
+
+// Sign-in check: every action except the SMS webhook needs a valid Firebase ID token.
+function authBackend(users) {
+  const calls = [];
+  const api = createBackend({
+    requireAuth: true,
+    properties: { SMS_WEBHOOK_TOKEN: TOKEN },
+    urlFetch: (url, params) => {
+      calls.push(url);
+      assert.match(url, /identitytoolkit\.googleapis\.com\/v1\/accounts:lookup/);
+      const user = users[JSON.parse(params.payload).idToken];
+      return user ? { code: 200, body: { users: [user] } } : { code: 400, body: { error: { message: "INVALID_ID_TOKEN" } } };
+    }
+  });
+  return { api, calls };
+}
+const google = (email) => ({ email, providerUserInfo: [{ providerId: "google.com" }] });
+
+test("requests without a sign-in token are refused and change nothing", () => {
+  const { api } = authBackend({});
+  for (const action of ["getTenants", "deleteAllTenants", "aiAssist"]) {
+    const result = api.get({ action });
+    assert.equal(result.success, false, action);
+    assert.equal(result.data.authError, true);
+  }
+  assert.equal(api.get({ action: "addTenant", name: "Intruder", house: "9", rent: "1" }).success, false);
+  assert.equal(api.sheetRows("Tenants").length <= 1, true);
+});
+
+test("invalid or expired tokens are refused", () => {
+  const { api } = authBackend({});
+  assert.equal(api.get({ action: "getTenants", idToken: "forged" }).success, false);
+});
+
+test("an allowed Google account and an email/password account are let in", () => {
+  const { api } = authBackend({
+    "tok-google": google("ken05462@gmail.com"),
+    "tok-password": { email: "caretaker@example.com", providerUserInfo: [{ providerId: "password" }] }
+  });
+  assert.equal(api.get({ action: "getTenants", idToken: "tok-google" }).success, true);
+  assert.equal(api.get({ action: "getTenants", idToken: "tok-password" }).success, true);
+});
+
+test("a Google account that is not on the allow-list is refused", () => {
+  const { api } = authBackend({ "tok-stranger": google("stranger@gmail.com") });
+  assert.equal(api.get({ action: "getTenants", idToken: "tok-stranger" }).success, false);
+});
+
+test("a checked token is cached instead of asking Google on every request", () => {
+  const { api, calls } = authBackend({ "tok-google": google("ken05462@gmail.com") });
+  api.get({ action: "getTenants", idToken: "tok-google" });
+  api.get({ action: "getPayments", idToken: "tok-google" });
+  assert.equal(calls.length, 1);
+});
+
+test("the SMS webhook keeps working with only its own token", () => {
+  const { api, calls } = authBackend({});
+  const result = api.post({ message: SAMPLE_SMS }, { action: "incoming_sms", token: TOKEN });
+  assert.equal(result.success, true);
+  assert.equal(calls.length, 0);
+  assert.equal(api.post({ message: SAMPLE_SMS }, { action: "incoming_sms", token: "wrong" }).success, false);
+});

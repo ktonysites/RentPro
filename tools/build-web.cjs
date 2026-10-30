@@ -1,4 +1,4 @@
-// Copies the site files the Android app needs into www/ (Capacitor's webDir).
+// Copies the site files into www/: Capacitor's webDir and the folder Firebase Hosting and GitHub Pages publish.
 // Tests, the Apps Script source, docs and old server code stay out of the app.
 const fs = require("fs");
 const path = require("path");
@@ -9,7 +9,7 @@ const OUT = path.join(ROOT, "www");
 const FILES = [
   "index.html", "dashboard.html", "tenants.html", "tenant-profile.html", "payments.html", "reconcile.html",
   "pay.html", "assistant.html", "utilities.html", "expenses.html", "reports.html", "archives.html", "moveout.html", "404.html",
-  "global.js", "manifest.webmanifest",
+  "global.js", "sw.js", "manifest.webmanifest",
   "js/dev-auth.js", "js/require-auth.js", "js/shell.js", "js/splash.js", "js/ai-panel.js", "js/report-math.js", "js/pdf.js",
   "js/vendor/jspdf.umd.min.js", "js/vendor/jspdf.plugin.autotable.min.js"
 ];
