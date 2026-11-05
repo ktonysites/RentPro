@@ -710,3 +710,22 @@ test("the SMS webhook keeps working with only its own token", () => {
   assert.equal(calls.length, 0);
   assert.equal(api.post({ message: SAMPLE_SMS }, { action: "incoming_sms", token: "wrong" }).success, false);
 });
+
+test("money above the rent is moved to utilities, leaving no credit", () => {
+  const api = setup();
+  api.post({ message: SAMPLE_SMS.replace("8,700.00", "9,300.00") }, { action: "incoming_sms", token: TOKEN });
+  const before = tenantIn(api, "7");
+  assert.equal(Number(before.Balance), -600);
+  const dry = api.get({ action: "excessToUtilities", dryRun: "true" });
+  assert.equal(dry.data.changes.length, 1);
+  assert.equal(dry.data.changes[0].toUtilities, 600);
+  assert.equal(Number(tenantIn(api, "7").Balance), -600, "dry run changes nothing");
+  const res = api.get({ action: "excessToUtilities" });
+  assert.equal(res.data.total, 600);
+  const after = tenantIn(api, "7");
+  assert.equal(Number(after.Balance), 0);
+  assert.equal(Number(after.AmountPaid), 8700);
+  assert.match(String(payments(api).find((p) => p.Reference === "UJH7UAL03Q").Notes), /KES 600 for utilities/);
+  assert.equal(api.get({ action: "excessToUtilities" }).data.changes.length, 0, "running again does nothing");
+  assert.equal(Number(tenantIn(api, "House 12").Balance), 6500, "tenants without credit are untouched");
+});

@@ -115,6 +115,7 @@ function routeAction(action, params) {
       case "moveOut": return moveOut(params);
       case "getUnmatched": return getUnmatched();
       case "manualAssign": return manualAssign(params);
+      case "excessToUtilities": return excessToUtilities(params);
       case "deletePayments": return deletePayments(params);
       case "getDeletedPayments": return getDeletedPayments();
       case "restorePayments": return restorePayments(params);
@@ -768,6 +769,41 @@ function getUnmatched() {
     unmatched.push(item);
   }
   return response(true, "Unmatched payments loaded", unmatched);
+}
+
+// Money paid above a tenant's rent is treated as a utilities payment, not credit:
+// AmountPaid is brought back to the rent (balance 0) and the tenant's latest payment is noted
+// "KES n for utilities". Pass dryRun=true to see what would change without saving anything.
+function excessToUtilities(data) {
+  var dryRun = String(value(data, ["dryRun"], "")) === "true";
+  var tenantSheet = sheet(SHEET_TENANTS);
+  var tenants = tenantSheet.getDataRange().getValues();
+  var paySheet = sheet(SHEET_PAYMENTS);
+  var payments = paySheet.getLastRow() > 1 ? paySheet.getRange(2, 1, paySheet.getLastRow() - 1, 7).getValues() : [];
+  var changes = [];
+  for (var i = 1; i < tenants.length; i++) {
+    var rent = Number(tenants[i][6]) || 0, paid = Number(tenants[i][9]) || 0;
+    var excess = Math.round((paid - rent) * 100) / 100;
+    if (!rent || excess <= 0) continue;
+    var house = normalizeHouse(tenants[i][5]), name = String(tenants[i][2]);
+    // the tenant's most recent payment carries the note
+    var row = -1, latest = 0;
+    for (var p = 0; p < payments.length; p++) {
+      var mine = normalizeHouse(payments[p][5]) === house || aiNameKey(payments[p][2]) === aiNameKey(name);
+      var when = payments[p][0] instanceof Date ? payments[p][0].getTime() : Date.parse(payments[p][0]) || 0;
+      if (mine && !/unmatched|unassigned/i.test(String(payments[p][6])) && when >= latest) { latest = when; row = p; }
+    }
+    changes.push({ house: String(tenants[i][5]), tenant: name, rent: rent, paid: paid, toUtilities: excess,
+      payment: row >= 0 ? String(payments[row][3]) : "" });
+    if (dryRun) continue;
+    tenantSheet.getRange(i + 1, 10, 1, 2).setValues([[rent, 0]]);
+    if (row >= 0) {
+      var note = String(payments[row][6] || "");
+      if (note.indexOf("for utilities") < 0) paySheet.getRange(row + 2, 7).setValue((note ? note + " · " : "") + "KES " + excess + " for utilities");
+    }
+  }
+  return response(true, (dryRun ? "Would move " : "Moved ") + changes.length + " overpayment(s) to utilities", { changes: changes,
+    total: changes.reduce(function(s, c) { return s + c.toUtilities; }, 0), dryRun: dryRun });
 }
 
 function manualAssign(data) {
