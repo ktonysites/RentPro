@@ -1005,8 +1005,17 @@ function setupSmsWebhook(regenerate) {
     token = Utilities.getUuid().replace(/-/g, "");
     properties.setProperty(SMS_TOKEN_PROPERTY, token);
   }
-  var url = ScriptApp.getService().getUrl() + "?action=incoming_sms&token=" + token;
-  Logger.log("Paste this webhook URL into the SMS forwarder app: " + url);
+  // Run from the editor, getUrl() can give the /dev test address, which phones cannot use (it needs a Google sign-in).
+  // Save the live address once as the LIVE_WEB_APP_URL script property to always print the right one.
+  var base = properties.getProperty("LIVE_WEB_APP_URL") || ScriptApp.getService().getUrl();
+  var url = base + "?action=incoming_sms&token=" + token;
+  if (/\/dev$/.test(base)) {
+    Logger.log("WARNING: " + base + " is the /dev test address. The SMS forwarder needs the live address: " +
+      "Deploy > Manage deployments > copy the Web app URL (it ends in /exec), then add ?action=incoming_sms&token=" + token +
+      " to it. Tip: save that /exec address as the script property LIVE_WEB_APP_URL and this function will print the full URL.");
+  } else {
+    Logger.log("Paste this webhook URL into the SMS forwarder app: " + url);
+  }
   return url;
 }
 

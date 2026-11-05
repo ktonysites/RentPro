@@ -35,6 +35,9 @@ Tenant pays (account 275515 <house>)
    Paste this webhook URL into the SMS forwarder app:
    https://script.google.com/macros/s/AKfy.../exec?action=incoming_sms&token=3f9c...
    ```
+   If the log warns that the address ends in **`/dev`**, don't use it: phones can't reach `/dev` addresses.
+   Use the **Web app URL** from **Deploy → Manage deployments** (it ends in `/exec`) and add the
+   `?action=incoming_sms&token=…` part from the log.
 3. Copy that whole URL. **Treat it like a password.** Anyone who has it can post fake payments.
    Running `setupSmsWebhook` again shows the same URL. If the URL ever leaks, run
    **`rotateSmsWebhookToken`** to get a new one, then put the new one into the phone app.

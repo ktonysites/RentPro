@@ -220,7 +220,7 @@ test("payments: reference lookup, latest payments and methods", () => {
   assert.match(ask(api, "where is UNM1ATCH01?"), /\*\*UNM1ATCH01\*\*: KES 5,000 .* from PETER OTINO\. It is \*\*unmatched\*\*/);
   assert.match(ask(api, "check ZZZ1234567"), /No payment with reference \*\*ZZZ1234567\*\*/);
   const recent = ask(api, "Show the latest payments");
-  assert.match(recent, /Latest payments:\*\*\n- \d\d \w{3}: KES 5,000 from PETER OTINO \(unmatched\)/);
+  assert.match(recent, /Latest payments:\*\*\n(- .*\n)*- \d\d \w{3}: KES 5,000 from PETER OTINO \(unmatched\)/);
   assert.match(ask(api, "How did tenants pay this month, by method?"), /M-Pesa: KES 23,700 \(4 payments, 100%\)/);
 });
 

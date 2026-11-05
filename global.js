@@ -40,6 +40,24 @@ window.fetch = function (resource, options) {
 	}));
 };
 
+// Offline banner: say so plainly instead of showing failed requests.
+(function () {
+	const show = () => {
+		let bar = document.getElementById("rp-offline");
+		if (navigator.onLine) { if (bar) bar.remove(); return; }
+		if (bar) return;
+		bar = document.createElement("div");
+		bar.id = "rp-offline";
+		bar.setAttribute("role", "status");
+		bar.textContent = "You're offline. RentPro will refresh when the connection is back.";
+		bar.style.cssText = "position:fixed;left:50%;top:calc(10px + env(safe-area-inset-top,0px));transform:translateX(-50%);z-index:9999;background:#111827;color:#fff;padding:9px 16px;border-radius:999px;font:600 13px system-ui,sans-serif;box-shadow:0 8px 24px rgba(0,0,0,.25);max-width:92vw;text-align:center";
+		(document.body || document.documentElement).appendChild(bar);
+	};
+	window.addEventListener("offline", show);
+	window.addEventListener("online", () => { const was = !!document.getElementById("rp-offline"); show(); if (was) location.reload(); });
+	if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", show); else show();
+})();
+
 // Installable web app (not needed inside the Android app, which bundles its own files).
 if ("serviceWorker" in navigator && location.protocol === "https:" && !window.Capacitor) {
 	window.addEventListener("load", () => navigator.serviceWorker.register("sw.js").catch(() => {}));
