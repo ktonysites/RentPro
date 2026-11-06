@@ -12,6 +12,117 @@
   <meta name="theme-color" content="#0c1022">
   <link rel="icon" href="icons/icon-192.png">
   <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <style>
+    /* ---------- Utilities: water readings ---------- */
+    .ut-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; margin-bottom: 18px; }
+    @media (max-width: 767px) { .ut-stats { grid-template-columns: 1fr 1fr; } .ut-stats .ut-stat:first-child { grid-column: 1 / -1; } }
+    .ut-stat { background: var(--rp-surface); border: 1px solid var(--rp-border); border-radius: var(--rp-radius); box-shadow: var(--rp-shadow); padding: 16px 18px; display: flex; align-items: center; gap: 14px; animation: utUp .5s cubic-bezier(.2,.8,.2,1) both; }
+    .ut-stat:nth-child(2) { animation-delay: .06s } .ut-stat:nth-child(3) { animation-delay: .12s }
+    .ut-stat small { display: block; color: var(--rp-muted); font-size: .75rem; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; }
+    .ut-stat b { font-size: 1.35rem; color: var(--rp-ink); letter-spacing: -.01em; }
+    .ut-ring { width: 54px; height: 54px; flex: 0 0 auto; }
+    .ut-ring circle { fill: none; stroke-width: 6; }
+    .ut-ring .bg { stroke: #e0f2fe; } .ut-ring .fg { stroke: #0ea5e9; stroke-linecap: round; transform: rotate(-90deg); transform-origin: 50% 50%; transition: stroke-dashoffset 1.1s cubic-bezier(.2,.8,.2,1); }
+    .ut-ico { width: 46px; height: 46px; border-radius: 12px; display: grid; place-items: center; font-size: 1.15rem; flex: 0 0 auto; }
+    .ut-card { background: var(--rp-surface); border: 1px solid var(--rp-border); border-radius: var(--rp-radius); box-shadow: var(--rp-shadow); margin-bottom: 18px; overflow: hidden; animation: utUp .5s .1s cubic-bezier(.2,.8,.2,1) both; }
+    .ut-card-h { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 16px 18px; border-bottom: 1px solid var(--rp-border); }
+    .ut-card-h h5 { margin: 0; font-weight: 700; color: var(--rp-ink); display: flex; align-items: center; gap: 10px; }
+    .ut-card-h h5 .drop { width: 32px; height: 32px; border-radius: 10px; background: linear-gradient(135deg, #38bdf8, #0284c7); color: #fff; display: grid; place-items: center; font-size: .9rem; box-shadow: 0 6px 16px rgba(14,165,233,.35); }
+    .ut-search { position: relative; min-width: 200px; flex: 1; max-width: 300px; }
+    .ut-search input { padding-left: 34px; border-radius: 999px; }
+    .ut-search i { position: absolute; left: 13px; top: 50%; transform: translateY(-50%); color: var(--rp-subtle); }
+    .ut-filter { display: flex; gap: 6px; }
+    .ut-filter button { border: 1px solid var(--rp-border); background: var(--rp-surface); border-radius: 999px; padding: 5px 12px; font-size: .8rem; font-weight: 600; color: var(--rp-muted); }
+    .ut-filter button.on { background: var(--rp-ink); border-color: var(--rp-ink); color: #fff; }
+    .ut-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; padding: 16px 18px 18px; }
+    .ut-tile { position: relative; text-align: left; border: 1px solid var(--rp-border); background: var(--rp-surface-2); border-radius: 14px; padding: 12px 12px 11px; cursor: pointer; transition: transform .15s, box-shadow .2s, border-color .2s; overflow: hidden; animation: utPop .45s cubic-bezier(.2,.8,.2,1) both; animation-delay: calc(var(--i) * 18ms); }
+    .ut-tile:hover { transform: translateY(-2px); box-shadow: 0 10px 24px rgba(15,23,42,.08); border-color: #bae6fd; }
+    .ut-tile:active { transform: scale(.97); }
+    .ut-tile .h { font-size: 1.15rem; font-weight: 800; color: var(--rp-ink); letter-spacing: -.02em; }
+    .ut-tile .n { font-size: .78rem; color: var(--rp-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .ut-tile .s { margin-top: 8px; font-size: .75rem; font-weight: 700; display: inline-flex; align-items: center; gap: 5px; padding: 3px 8px; border-radius: 999px; background: #eef2f7; color: var(--rp-muted); }
+    .ut-tile.read { background: linear-gradient(180deg, #f0f9ff, #fff); border-color: #bae6fd; }
+    .ut-tile.read .s { background: #e0f2fe; color: #0369a1; }
+    .ut-tile.paid .s { background: var(--rp-success-soft); color: #166534; }
+    .ut-tile.just { animation: utFlash 1.4s ease; }
+    .ut-tile .wave { position: absolute; right: -18px; bottom: -22px; width: 70px; height: 70px; border-radius: 45%; background: rgba(14,165,233,.10); animation: utSpin 7s linear infinite; }
+    .ut-tile.read .wave { background: rgba(14,165,233,.18); }
+    .ut-empty { padding: 34px 18px; text-align: center; color: var(--rp-muted); }
+    .ut-skel { height: 82px; border-radius: 14px; background: linear-gradient(90deg, #f1f3f8 0, #e8ebf2 50%, #f1f3f8 100%); background-size: 200% 100%; animation: utShim 1.1s infinite; }
+    @keyframes utUp { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
+    @keyframes utPop { from { opacity: 0; transform: scale(.92) translateY(8px); } to { opacity: 1; transform: none; } }
+    @keyframes utSpin { to { transform: rotate(360deg); } }
+    @keyframes utShim { to { background-position: -200% 0; } }
+    @keyframes utFlash { 0%, 100% { box-shadow: none; } 30% { box-shadow: 0 0 0 4px rgba(14,165,233,.35); } }
+
+    /* reading sheet */
+    #readModal .modal-content { border: 0; border-radius: 22px; overflow: hidden; }
+    @media (max-width: 575px) { #readModal .modal-content { border-radius: 0; } }
+    .rd-top { background: radial-gradient(120% 120% at 0% 0%, #0ea5e9 0, #0369a1 55%, #0c4a6e 100%); color: #fff; padding: 18px 20px 16px; position: relative; overflow: hidden; }
+    .rd-top .bub { position: absolute; border-radius: 50%; background: rgba(255,255,255,.12); animation: rdRise linear infinite; bottom: -30px; }
+    @keyframes rdRise { to { transform: translateY(-260px); opacity: 0; } }
+    .rd-top .lbl { font-size: .72rem; letter-spacing: .14em; text-transform: uppercase; opacity: .8; font-weight: 700; }
+    .rd-top h4 { margin: 2px 0 0; font-weight: 800; letter-spacing: -.02em; }
+    .rd-top .who { opacity: .9; font-size: .9rem; }
+    .rd-top .btn-close { position: absolute; right: 14px; top: 14px; filter: invert(1); opacity: .8; }
+    .rd-top .left { position: absolute; right: 18px; bottom: 16px; font-size: .78rem; background: rgba(255,255,255,.16); border-radius: 999px; padding: 3px 10px; font-weight: 600; }
+    .rd-body { padding: 18px 20px 6px; }
+    .rd-meter { display: flex; flex-direction: column; align-items: center; margin: -2px 0 8px; }
+    .rd-meter svg { width: 220px; height: 220px; }
+    .rd-meter .needle { transition: transform .9s cubic-bezier(.2,.9,.25,1.25); transform-origin: 110px 110px; }
+    .rd-meter .fill { transition: transform 1s cubic-bezier(.2,.8,.2,1); }
+    .rd-meter .wav { animation: rdWave 3.2s linear infinite; }
+    @keyframes rdWave { to { transform: translateX(-80px); } }
+    .odo { display: flex; gap: 3px; margin-top: -46px; position: relative; z-index: 2; background: #0f172a; padding: 5px 7px; border-radius: 9px; box-shadow: 0 6px 16px rgba(15,23,42,.25), inset 0 1px 0 rgba(255,255,255,.08); }
+    .odo .d { width: 20px; height: 28px; overflow: hidden; border-radius: 4px; background: linear-gradient(180deg, #1e293b, #0f172a 50%, #1e293b); position: relative; }
+    .odo .d.red { background: linear-gradient(180deg, #7f1d1d, #450a0a 50%, #7f1d1d); }
+    .odo .strip { display: flex; flex-direction: column; transition: transform .7s cubic-bezier(.2,.9,.25,1.1); }
+    .odo .strip span { height: 28px; line-height: 28px; text-align: center; color: #f8fafc; font: 700 17px ui-monospace, SFMono-Regular, Menlo, monospace; }
+    .odo .unit { color: #94a3b8; font-size: .72rem; align-self: center; margin-left: 4px; font-weight: 700; }
+    .rd-inputs { display: grid; grid-template-columns: 1fr 1.35fr; gap: 10px; margin-top: 6px; }
+    .rd-field { border: 1px solid var(--rp-border); border-radius: 14px; padding: 9px 12px; background: var(--rp-surface-2); }
+    .rd-field small { display: block; font-size: .7rem; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--rp-muted); }
+    .rd-field b { font-size: 1.35rem; color: var(--rp-ink); }
+    .rd-field.cur { background: #fff; border: 2px solid #0ea5e9; box-shadow: 0 0 0 4px rgba(14,165,233,.12); }
+    .rd-field.cur.bad { border-color: var(--rp-danger); box-shadow: 0 0 0 4px rgba(220,38,38,.12); animation: rdShake .4s; }
+    @keyframes rdShake { 25% { transform: translateX(-6px); } 50% { transform: translateX(5px); } 75% { transform: translateX(-3px); } }
+    .rd-cur { display: flex; align-items: center; gap: 6px; }
+    .rd-cur input { border: 0; outline: 0; width: 100%; min-width: 0; font-size: 1.5rem; font-weight: 800; color: var(--rp-ink); background: none; padding: 0; }
+    .rd-cur input::-webkit-outer-spin-button, .rd-cur input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+    .rd-cur input { -moz-appearance: textfield; appearance: textfield; }
+    .rd-cur button { width: 34px; height: 34px; border-radius: 10px; border: 1px solid var(--rp-border); background: var(--rp-surface-2); font-weight: 800; color: var(--rp-text); flex: 0 0 auto; }
+    .rd-cur button:active { transform: scale(.92); }
+    .rd-msg { font-size: .82rem; margin: 10px 2px 0; min-height: 20px; }
+    .rd-calc { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 10px; }
+    .rd-calc div { text-align: center; border-radius: 12px; padding: 8px 6px; background: var(--rp-surface-2); border: 1px solid var(--rp-border); }
+    .rd-calc small { display: block; font-size: .68rem; color: var(--rp-muted); font-weight: 700; text-transform: uppercase; letter-spacing: .05em; }
+    .rd-calc b { font-size: 1.02rem; color: var(--rp-ink); }
+    .rd-total { display: flex; justify-content: space-between; align-items: center; margin-top: 10px; padding: 12px 14px; border-radius: 14px; background: linear-gradient(135deg, #eef2ff, #e0f2fe); }
+    .rd-total small { font-weight: 700; color: #3730a3; text-transform: uppercase; font-size: .72rem; letter-spacing: .06em; }
+    .rd-total b { font-size: 1.45rem; color: var(--rp-ink); letter-spacing: -.02em; }
+    .rd-hist { margin-top: 14px; }
+    .rd-hist .t { font-size: .72rem; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--rp-muted); margin-bottom: 4px; }
+    .rd-hist svg { width: 100%; height: 96px; display: block; }
+    .rd-hist rect { transition: height .8s cubic-bezier(.2,.8,.2,1), y .8s cubic-bezier(.2,.8,.2,1); }
+    .rd-foot { display: flex; gap: 8px; padding: 14px 20px 18px; }
+    .rd-foot .btn { flex: 1; border-radius: 12px; font-weight: 700; padding: 11px; }
+    .btn-water { background: linear-gradient(135deg, #0ea5e9, #0284c7); border: 0; color: #fff; box-shadow: 0 6px 16px rgba(14,165,233,.35); }
+    .btn-water:hover { color: #fff; filter: brightness(1.05); }
+    .btn-water:disabled { opacity: .55; color: #fff; }
+    .rd-done { position: absolute; inset: 0; background: rgba(255,255,255,.96); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; z-index: 5; animation: utUp .3s both; }
+    .rd-done svg { width: 96px; height: 96px; }
+    .rd-done .ring { stroke-dasharray: 290; stroke-dashoffset: 290; animation: rdDraw .6s .05s forwards; }
+    .rd-done .tick { stroke-dasharray: 60; stroke-dashoffset: 60; animation: rdDraw .4s .5s forwards; }
+    .rd-done .rip { transform-origin: 48px 48px; animation: rdRip 1.2s .2s ease-out forwards; opacity: 0; }
+    @keyframes rdDraw { to { stroke-dashoffset: 0; } }
+    @keyframes rdRip { 0% { opacity: .5; transform: scale(.6); } 100% { opacity: 0; transform: scale(1.6); } }
+    .rd-done b { font-size: 1.1rem; color: var(--rp-ink); } .rd-done span { color: var(--rp-muted); font-size: .9rem; }
+    .ut-reading { font-size: .78rem; color: var(--rp-muted); }
+    .rp-toast-wrap { position: fixed; left: 50%; bottom: 22px; transform: translateX(-50%); z-index: 2000; display: flex; flex-direction: column; gap: 8px; align-items: center; pointer-events: none; }
+    .rp-toast { background: #0f172a; color: #fff; padding: 10px 16px; border-radius: 12px; font-size: .9rem; display: flex; gap: 9px; align-items: center; box-shadow: 0 10px 30px rgba(15,23,42,.3); animation: utUp .3s both; }
+    .rp-toast i { color: #4ade80; } .rp-toast.is-error i { color: #f87171; }
+    @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; } }
+  </style>
 </head>
 <body data-page="utilities">
   <script src="js/splash.js"></script>
@@ -20,27 +131,42 @@
   <main class="content">
     <div class="page-head">
       <div>
-        <h2 class="fw-bold mb-1">Utility Bills</h2>
-        <p class="text-muted small m-0">Track Water (120) & Garbage (150) payments.</p>
+        <h2 class="fw-bold mb-1">Utilities</h2>
+        <p class="text-muted small m-0">Water KES <span id="rateTxt">120</span> per unit · Garbage KES 150 a month</p>
       </div>
       <div class="page-actions">
-        <button id="generateBillsBtn" class="btn btn-primary">
-          <i class="fa-solid fa-plus-circle me-2"></i> Generate This Month's Bills
-        </button>
+        <button id="roundBtn" class="btn btn-water"><i class="fa-solid fa-droplet me-2"></i>Record readings</button>
+        <button id="generateBillsBtn" class="btn btn-outline-secondary"><i class="fa-solid fa-plus-circle me-2"></i>Generate this month's bills</button>
       </div>
     </div>
 
-    <div class="row mb-2">
-        <div class="col-md-6 col-xl-4">
-            <div class="card-stat">
-                <div>
-                    <div class="card-label">Total Unpaid Utilities</div>
-                    <h3 class="card-value text-danger" id="totalUnpaid">KES 0</h3>
-                </div>
-                <div class="icon-box bg-blue-light"><i class="fa-solid fa-faucet-drip"></i></div>
-            </div>
-        </div>
+    <div class="ut-stats">
+      <div class="ut-stat">
+        <svg class="ut-ring" viewBox="0 0 54 54" aria-hidden="true"><circle class="bg" cx="27" cy="27" r="22"/><circle class="fg" id="ringFg" cx="27" cy="27" r="22" stroke-dasharray="138.2" stroke-dashoffset="138.2"/></svg>
+        <div><small id="monthLbl">Readings this month</small><b id="readCount">–</b></div>
+      </div>
+      <div class="ut-stat">
+        <div class="ut-ico" style="background:#e0f2fe;color:#0284c7"><i class="fa-solid fa-faucet-drip"></i></div>
+        <div><small>Water used</small><b id="unitsTotal">–</b></div>
+      </div>
+      <div class="ut-stat">
+        <div class="ut-ico" style="background:var(--rp-danger-soft);color:var(--rp-danger)"><i class="fa-solid fa-file-invoice"></i></div>
+        <div><small>Unpaid utilities</small><b class="text-danger" id="totalUnpaid">KES 0</b></div>
+      </div>
     </div>
+
+    <section class="ut-card" aria-labelledby="readHead">
+      <div class="ut-card-h">
+        <h5 id="readHead"><span class="drop"><i class="fa-solid fa-droplet"></i></span>Water meter readings</h5>
+        <div class="ut-filter" role="group" aria-label="Filter houses">
+          <button class="on" data-f="all">All</button><button data-f="todo">Not read</button><button data-f="done">Read</button>
+        </div>
+        <div class="ut-search"><i class="fa-solid fa-magnifying-glass"></i><input id="houseSearch" class="form-control form-control-sm" type="search" placeholder="Find a house or tenant" aria-label="Find a house or tenant"></div>
+      </div>
+      <div class="ut-grid" id="houseGrid">
+        <div class="ut-skel"></div><div class="ut-skel"></div><div class="ut-skel"></div><div class="ut-skel"></div><div class="ut-skel"></div><div class="ut-skel"></div>
+      </div>
+    </section>
 
     <div class="card-table">
       <div class="table-wrap">
@@ -50,30 +176,107 @@
             <th class="ps-4">House</th>
             <th>Tenant Name</th>
             <th>Month</th>
-            <th>Water (120)</th>
-            <th>Garbage (150)</th>
+            <th>Reading</th>
+            <th>Water</th>
+            <th>Garbage</th>
             <th>Total Due</th>
             <th>Status</th>
             <th class="text-end pe-4">Action</th>
           </tr>
         </thead>
         <tbody id="billsTableBody">
-          <tr><td colspan="8" class="text-center p-5 text-muted"><i class="fa-solid fa-spinner fa-spin me-2"></i> Loading...</td></tr>
+          <tr><td colspan="9" class="text-center p-5 text-muted"><i class="fa-solid fa-spinner fa-spin me-2"></i> Loading...</td></tr>
         </tbody>
       </table>
       </div>
     </div>
   </main>
 
+  <!-- Reading sheet -->
+  <div class="modal fade" id="readModal" tabindex="-1" aria-labelledby="rdHouse">
+    <div class="modal-dialog modal-dialog-centered modal-fullscreen-sm-down">
+      <div class="modal-content position-relative">
+        <div class="rd-top" id="rdTop">
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          <div class="lbl">Water reading · <span id="rdMonth"></span></div>
+          <h4 id="rdHouse">House</h4>
+          <div class="who" id="rdWho"></div>
+          <div class="left" id="rdLeft"></div>
+        </div>
+        <div class="rd-body">
+          <div class="rd-meter" aria-hidden="true">
+            <svg viewBox="0 0 220 220">
+              <defs>
+                <radialGradient id="mFace" cx="50%" cy="40%" r="60%"><stop offset="0" stop-color="#ffffff"/><stop offset="1" stop-color="#e2e8f0"/></radialGradient>
+                <linearGradient id="mWater" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#38bdf8"/><stop offset="1" stop-color="#0369a1"/></linearGradient>
+                <clipPath id="mClip"><circle cx="110" cy="110" r="78"/></clipPath>
+              </defs>
+              <circle cx="110" cy="110" r="100" fill="#0f172a"/>
+              <circle cx="110" cy="110" r="94" fill="#1e293b"/>
+              <circle cx="110" cy="110" r="88" fill="url(#mFace)"/>
+              <g clip-path="url(#mClip)">
+                <g class="fill" id="mFill" style="transform:translateY(160px)">
+                  <path class="wav" fill="url(#mWater)" opacity=".85" d="M0 40 q20 -10 40 0 t40 0 t40 0 t40 0 t40 0 t40 0 t40 0 V220 H0z"/>
+                  <path class="wav" fill="#7dd3fc" opacity=".45" style="animation-duration:5s" d="M0 46 q20 -8 40 0 t40 0 t40 0 t40 0 t40 0 t40 0 t40 0 V220 H0z"/>
+                </g>
+              </g>
+              <g id="mTicks"></g>
+              <g class="needle" id="mNeedle" style="transform:rotate(-120deg)">
+                <path d="M110 110 L106 112 L110 40 L114 112 Z" fill="#dc2626"/>
+              </g>
+              <circle cx="110" cy="110" r="9" fill="#0f172a"/><circle cx="110" cy="110" r="4" fill="#f8fafc"/>
+              <text x="110" y="78" text-anchor="middle" font-size="9" font-weight="700" fill="#64748b" letter-spacing="1.5">UNITS USED</text>
+              <text x="110" y="94" text-anchor="middle" font-size="15" font-weight="800" fill="#0f172a" id="mUnits">0</text>
+            </svg>
+            <div class="odo" id="odo"></div>
+          </div>
+          <div class="rd-inputs">
+            <div class="rd-field"><small>Last reading</small><b id="rdPrev">0</b><div class="ut-reading" id="rdPrevWhen"></div></div>
+            <div class="rd-field cur" id="rdCurBox"><small><label for="rdCur">Meter now</label></small>
+              <div class="rd-cur"><button type="button" data-step="-1" aria-label="Minus one">−</button><input id="rdCur" type="number" inputmode="decimal" min="0" step="1" autocomplete="off"><button type="button" data-step="1" aria-label="Plus one">+</button></div>
+            </div>
+          </div>
+          <div class="rd-msg" id="rdMsg" role="status"></div>
+          <div class="rd-calc">
+            <div><small>Units</small><b id="cUnits">0</b></div>
+            <div><small>Water</small><b id="cWater">0</b></div>
+            <div><small>Garbage</small><b id="cGarb">150</b></div>
+          </div>
+          <div class="rd-total"><small>Utilities this month</small><b id="cTotal">KES 0</b></div>
+          <div class="rd-hist"><div class="t">Units used, recent months</div><svg id="rdHist" viewBox="0 0 320 96" preserveAspectRatio="none" role="img" aria-label="Units used in recent months"></svg></div>
+        </div>
+        <div class="rd-foot">
+          <button type="button" class="btn btn-light border" id="rdSkip">Skip</button>
+          <button type="button" class="btn btn-water" id="rdSave"><i class="fa-solid fa-check me-1"></i>Save &amp; next</button>
+        </div>
+        <div class="rd-done" id="rdDone" hidden>
+          <svg viewBox="0 0 96 96"><circle class="rip" cx="48" cy="48" r="40" fill="#0ea5e9"/><circle class="ring" cx="48" cy="48" r="40" fill="none" stroke="#0ea5e9" stroke-width="6" stroke-linecap="round" transform="rotate(-90 48 48)"/><path class="tick" d="M30 49 l12 12 l24 -26" fill="none" stroke="#0ea5e9" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <b id="rdDoneT">Saved</b><span id="rdDoneS"></span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="rp-toast-wrap" id="toasts" aria-live="polite"></div>
+
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
   <script src="global.js"></script>
   <script src="js/dev-auth.js"></script>
   <script type="module" src="js/require-auth.js"></script>
   <script type="module">
-    // 🔴 CHANGE THIS TO YOUR WEB APP URL
     const WEB_APP_URL = window.API_URL;
+    const WATER_RATE = 120, GARBAGE_FEE = 150;
+    const $ = (id) => document.getElementById(id);
+    const kes = (n) => 'KES ' + Math.round(Number(n) || 0).toLocaleString('en-KE');
+    const num = (n) => (Math.round((Number(n) || 0) * 100) / 100).toLocaleString('en-KE');
+    const REDUCED = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+    // Same month label as the backend (e.g. "Nov 2026")
+    const MONTH = new Date().toLocaleString('en-US', { month: 'short' }) + ' ' + new Date().getFullYear();
+    const houseKey = (h) => String(h || '').toLowerCase().replace(/house|hse|no\.?|#/g, '').replace(/\s+/g, '').replace(/^0+(?=\d)/, '');
+    const hasReading = (b) => b && b.CurrRead !== '' && b.CurrRead !== undefined && b.CurrRead !== null;
+    const state = { tenants: [], bills: [], filter: 'all', q: '', order: [], cur: null };
 
-    async function apiWrite(payload) {
+    async function api(payload) {
       const url = new URL(WEB_APP_URL);
       Object.entries(payload).forEach(([key, value]) => url.searchParams.set(key, value));
       const response = await fetch(url.toString());
@@ -81,86 +284,224 @@
       if (!result.success) throw new Error(result.message || 'Request failed.');
       return result;
     }
-
-    // Load Data on Start
-    loadBills();
-
-    async function loadBills() {
-        try {
-            const res = await fetch(`${WEB_APP_URL}?action=getUtilityBills`);
-            const json = await res.json();
-            renderTable(json.data);
-        } catch(e) {
-            console.error(e);
-            alert("Error loading bills.");
-        }
+    function toast(message, isError = false) {
+      const wrap = $('toasts'); const el = document.createElement('div');
+      el.className = 'rp-toast' + (isError ? ' is-error' : '');
+      el.innerHTML = `<i class="fa-solid ${isError ? 'fa-circle-exclamation' : 'fa-circle-check'}"></i><span>${escapeHtml(message)}</span>`;
+      wrap.appendChild(el); setTimeout(() => el.remove(), 3200);
     }
 
-    function renderTable(data) {
-        const tbody = document.getElementById('billsTableBody');
-        tbody.innerHTML = "";
-        let totalDue = 0;
-
-        // SAFEGUARD: If data is missing/undefined, treat it as an empty list
-        if (!data || !Array.isArray(data) || data.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="8" class="text-center p-5 text-muted">No bills found (or check if Backend is Deployed).</td></tr>`;
-            document.getElementById('totalUnpaid').innerText = "KES 0";
-            return;
-        }
-
-        data.forEach(item => {
-            // Ensure numbers are treated as numbers
-            const water = Number(item.Water) || 0;
-            const garbage = Number(item.Garbage) || 0;
-            const total = water + garbage;
-
-            if(item.Status === "Unpaid") totalDue += total;
-            
-            const badge = item.Status === "Paid" 
-                ? `<span class="badge-paid">PAID</span>` 
-                : `<span class="badge-unpaid">UNPAID</span>`;
-
-            const btn = item.Status === "Unpaid"
-                ? `<button class="btn btn-sm btn-outline-success" onclick="markPaid('${encodeURIComponent(item.ID).replace(/'/g, '%27')}')">Mark Paid</button>`
-                : `<button class="btn btn-sm btn-light text-muted" disabled>Paid</button>`;
-
-            tbody.innerHTML += `
-                <tr>
-                    <td class="td-primary ps-4 fw-bold">House ${escapeHtml(item.House)}</td>
-                    <td data-label="Tenant">${escapeHtml(item.TenantName)}</td>
-                    <td data-label="Month">${escapeHtml(item.Month)}</td>
-                    <td data-label="Water">${water}</td>
-                    <td data-label="Garbage">${garbage}</td>
-                    <td data-label="Total" class="fw-bold">KES ${total}</td>
-                    <td data-label="Status">${badge}</td>
-                    <td class="text-end pe-4 td-actions">${btn}</td>
-                </tr>
-            `;
-        });
-        document.getElementById('totalUnpaid').innerText = "KES " + totalDue.toLocaleString();
+    async function loadAll() {
+      try {
+        const [t, b] = await Promise.all([api({ action: 'getTenants' }), api({ action: 'getUtilityBills' })]);
+        state.tenants = (t.data || []).filter(x => String(x.House || '').trim());
+        state.bills = b.data || [];
+        render();
+      } catch (e) {
+        console.error(e);
+        $('houseGrid').innerHTML = `<div class="ut-empty">Couldn't load utilities. ${escapeHtml(e.message)}</div>`;
+        $('billsTableBody').innerHTML = `<tr><td colspan="9" class="text-center p-5 text-muted">Couldn't load bills.</td></tr>`;
+      }
     }
-    // Generate Bills Logic
-    document.getElementById('generateBillsBtn').addEventListener('click', async () => {
-        if(!confirm("Generate bills for ALL tenants for this month?")) return;
-        
-        const btn = document.getElementById('generateBillsBtn');
-        btn.disabled = true; btn.innerText = "Processing...";
+    loadAll();
 
-        try {
-            await apiWrite({ action: "generateMonthlyUtilities" });
-            alert("Bills Generated Successfully!");
-            loadBills();
-        } catch(e) { alert("Error generating."); }
-        finally { btn.disabled = false; btn.innerText = "Generate This Month's Bills"; }
+    // ---------- per-house data ----------
+    function houseInfo(t) {
+      const key = houseKey(t.House);
+      const mine = state.bills.filter(b => houseKey(b.House) === key);
+      const thisMonth = mine.find(b => String(b.Month) === MONTH) || null;
+      const earlier = mine.filter(b => String(b.Month) !== MONTH && hasReading(b)).sort((a, b) => String(b.ID).localeCompare(String(a.ID)));
+      const prev = earlier[0] ? Number(earlier[0].CurrRead) || 0 : 0;
+      const history = mine.filter(b => hasReading(b) && b.UnitsUsed !== '' && String(b.Month) !== MONTH).sort((a, b) => String(a.ID).localeCompare(String(b.ID))).slice(-5)
+        .map(b => ({ m: String(b.Month).split(' ')[0], u: Number(b.UnitsUsed) || 0 }));
+      const avg = history.length ? history.reduce((s, x) => s + x.u, 0) / history.length : 0;
+      return { t, key, thisMonth, read: hasReading(thisMonth), paid: thisMonth && thisMonth.Status === 'Paid', prev, prevWhen: earlier[0] ? earlier[0].Month : '', history, avg };
+    }
+    const sortHouses = (a, b) => { const x = parseFloat(houseKey(a.t.House)), y = parseFloat(houseKey(b.t.House)); return (isNaN(x) ? 1e9 : x) - (isNaN(y) ? 1e9 : y) || String(a.t.House).localeCompare(String(b.t.House)); };
+
+    function render() {
+      const infos = state.tenants.map(houseInfo).sort(sortHouses);
+      state.order = infos.map(i => i.key);
+      // stats
+      const done = infos.filter(i => i.read).length, total = infos.length;
+      $('monthLbl').textContent = 'Readings · ' + MONTH; $('rdMonth').textContent = MONTH;
+      $('readCount').textContent = `${done} of ${total} houses`;
+      requestAnimationFrame(() => { $('ringFg').style.strokeDashoffset = String(138.2 * (1 - (total ? done / total : 0))); });
+      const units = infos.reduce((s, i) => s + (i.read ? Number(i.thisMonth.UnitsUsed) || 0 : 0), 0);
+      $('unitsTotal').textContent = num(units) + ' units';
+      // tiles
+      const q = state.q.toLowerCase();
+      const shown = infos.filter(i => (state.filter === 'all' || (state.filter === 'todo' ? !i.read && !i.paid : i.read))
+        && (!q || String(i.t.House).toLowerCase().includes(q) || String(i.t.Name).toLowerCase().includes(q)));
+      $('houseGrid').innerHTML = shown.length ? shown.map((i, n) => {
+        const st = i.paid ? `<i class="fa-solid fa-lock"></i>Paid` : i.read ? `<i class="fa-solid fa-droplet"></i>${num(i.thisMonth.UnitsUsed)} units · ${kes(i.thisMonth.Water)}` : `<i class="fa-regular fa-clock"></i>Not read`;
+        return `<button class="ut-tile${i.read ? ' read' : ''}${i.paid ? ' paid' : ''}" style="--i:${Math.min(n, 30)}" data-house="${escapeHtml(i.key)}" aria-label="House ${escapeHtml(i.t.House)}, ${escapeHtml(i.t.Name)}">
+          <span class="wave"></span><div class="h">${escapeHtml(String(i.t.House).replace(/^house\s*/i, ''))}</div><div class="n">${escapeHtml(i.t.Name)}</div><div class="s">${st}</div></button>`;
+      }).join('') : `<div class="ut-empty" style="grid-column:1/-1">${state.tenants.length ? 'No houses match.' : 'Add tenants first, then record their water readings here.'}</div>`;
+      renderTable();
+    }
+
+    function renderTable() {
+      const tbody = $('billsTableBody'); const data = state.bills; let totalDue = 0;
+      if (!data.length) { tbody.innerHTML = `<tr><td colspan="9" class="text-center p-5 text-muted">No bills yet. Record a reading or generate this month's bills.</td></tr>`; $('totalUnpaid').innerText = 'KES 0'; return; }
+      tbody.innerHTML = data.map(item => {
+        const water = Number(item.Water) || 0, garbage = Number(item.Garbage) || 0, total = water + garbage;
+        if (item.Status === 'Unpaid') totalDue += total;
+        const badge = item.Status === 'Paid' ? `<span class="badge-paid">PAID</span>` : `<span class="badge-unpaid">UNPAID</span>`;
+        const btn = item.Status === 'Unpaid'
+          ? `<button class="btn btn-sm btn-outline-success" onclick="markPaid('${encodeURIComponent(item.ID).replace(/'/g, '%27')}')">Mark Paid</button>`
+          : `<button class="btn btn-sm btn-light text-muted" disabled>Paid</button>`;
+        const reading = hasReading(item) ? `${num(item.PrevRead)} → ${num(item.CurrRead)} <span class="ut-reading">(${num(item.UnitsUsed)} units)</span>` : `<span class="ut-reading">Flat rate</span>`;
+        return `<tr>
+          <td class="td-primary ps-4 fw-bold">House ${escapeHtml(item.House)}</td>
+          <td data-label="Tenant">${escapeHtml(item.TenantName)}</td>
+          <td data-label="Month">${escapeHtml(item.Month)}</td>
+          <td data-label="Reading">${reading}</td>
+          <td data-label="Water">${kes(water)}</td>
+          <td data-label="Garbage">${kes(garbage)}</td>
+          <td data-label="Total" class="fw-bold">${kes(total)}</td>
+          <td data-label="Status">${badge}</td>
+          <td class="text-end pe-4 td-actions">${btn}</td></tr>`;
+      }).join('');
+      $('totalUnpaid').innerText = kes(totalDue);
+    }
+
+    // ---------- filters / tiles ----------
+    document.querySelectorAll('.ut-filter button').forEach(b => b.addEventListener('click', () => {
+      document.querySelectorAll('.ut-filter button').forEach(x => x.classList.toggle('on', x === b)); state.filter = b.dataset.f; render();
+    }));
+    $('houseSearch').addEventListener('input', (e) => { state.q = e.target.value.trim(); render(); });
+    $('houseGrid').addEventListener('click', (e) => { const t = e.target.closest('.ut-tile'); if (t) openReading(t.dataset.house); });
+    $('roundBtn').addEventListener('click', () => {
+      const next = state.tenants.map(houseInfo).sort(sortHouses).find(i => !i.read && !i.paid);
+      if (next) openReading(next.key); else toast(state.tenants.length ? `Every house has a reading for ${MONTH}.` : 'Add tenants first.');
     });
 
-    // Mark Paid Logic
+    // ---------- reading sheet ----------
+    const readModal = new bootstrap.Modal($('readModal'));
+    (function ticks() {
+      let g = ''; for (let i = 0; i <= 24; i++) { const a = (-120 + i * 10) * Math.PI / 180, big = i % 4 === 0, r1 = big ? 70 : 74, r2 = 82;
+        g += `<line x1="${110 + r1 * Math.sin(a)}" y1="${110 - r1 * Math.cos(a)}" x2="${110 + r2 * Math.sin(a)}" y2="${110 - r2 * Math.cos(a)}" stroke="${big ? '#334155' : '#94a3b8'}" stroke-width="${big ? 2.5 : 1.3}" stroke-linecap="round"/>`; }
+      $('mTicks').innerHTML = g;
+      const bub = $('rdTop'); for (let i = 0; i < 8; i++) { const s = 6 + Math.random() * 16, el = document.createElement('span'); el.className = 'bub'; el.style.cssText = `width:${s}px;height:${s}px;left:${Math.random() * 100}%;animation-duration:${4 + Math.random() * 5}s;animation-delay:${-Math.random() * 6}s`; bub.appendChild(el); }
+    })();
+
+    function odometer(value, prevDigits) {
+      const str = Math.max(0, Math.floor(Number(value) || 0)).toString().padStart(6, '0').slice(-6);
+      const box = $('odo');
+      if (!box.children.length) box.innerHTML = str.split('').map((_, i) => `<div class="d${i === 5 ? ' red' : ''}"><div class="strip">${'0123456789'.split('').map(d => `<span>${d}</span>`).join('')}</div></div>`).join('') + '<span class="unit">units</span>';
+      [...box.querySelectorAll('.strip')].forEach((s, i) => { s.style.transform = `translateY(${-28 * Number(str[i])}px)`; });
+    }
+    function countTo(el, to, fmt) {
+      const from = Number(el.dataset.v || 0); el.dataset.v = to;
+      if (REDUCED) { el.textContent = fmt(to); return; }
+      const t0 = performance.now(), d = 450;
+      const step = (t) => { const k = Math.min(1, (t - t0) / d), e = 1 - Math.pow(1 - k, 3); el.textContent = fmt(from + (to - from) * e); if (k < 1) requestAnimationFrame(step); };
+      requestAnimationFrame(step);
+    }
+    function histChart(info, units) {
+      const data = info.history.concat([{ m: MONTH.split(' ')[0], u: units, now: true }]);
+      const max = Math.max(1, ...data.map(d => d.u)) * (info.history.length ? 1.15 : 1.6), w = 320 / data.length;
+      $('rdHist').innerHTML = data.map((d, i) => {
+        const h = Math.max(2, (d.u / max) * 72), x = i * w + w * .2, bw = w * .6;
+        return `<rect x="${x}" y="${80 - h}" width="${bw}" height="${h}" rx="5" fill="${d.now ? 'url(#hNow)' : '#cbd5e1'}"/>
+          <text x="${x + bw / 2}" y="${80 - h - 4}" text-anchor="middle" font-size="10" font-weight="700" fill="${d.now ? '#0369a1' : '#64748b'}">${num(d.u)}</text>
+          <text x="${x + bw / 2}" y="94" text-anchor="middle" font-size="10" fill="#94a3b8">${escapeHtml(d.m)}</text>`;
+      }).join('') + `<defs><linearGradient id="hNow" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#38bdf8"/><stop offset="1" stop-color="#0284c7"/></linearGradient></defs>` +
+        (info.history.length ? '' : `<text x="160" y="12" text-anchor="middle" font-size="11" fill="#94a3b8">First reading for this house</text>`);
+    }
+
+    function openReading(key) {
+      const info = state.tenants.map(houseInfo).find(i => i.key === key); if (!info) return;
+      state.cur = info;
+      $('rdDone').hidden = true;
+      $('rdHouse').textContent = 'House ' + String(info.t.House).replace(/^house\s*/i, '');
+      $('rdWho').textContent = info.t.Name || '';
+      const left = state.tenants.map(houseInfo).filter(i => !i.read && !i.paid && i.key !== key).length;
+      $('rdLeft').textContent = left ? `${left} more to read` : 'Last one';
+      $('rdPrev').textContent = num(info.prev);
+      $('rdPrevWhen').textContent = info.prevWhen ? 'from ' + info.prevWhen : 'no earlier reading';
+      const cur = $('rdCur'); cur.value = info.read ? Number(info.thisMonth.CurrRead) : '';
+      cur.placeholder = num(info.prev); cur.min = info.prev;
+      $('rdSave').disabled = info.paid;
+      $('odo').innerHTML = ''; odometer(info.prev);
+      update(true);
+      if (info.paid) $('rdMsg').innerHTML = `<span class="text-success"><i class="fa-solid fa-lock me-1"></i>This month's bill is paid, so the reading is locked.</span>`;
+      readModal.show();
+      setTimeout(() => { if (!info.paid) { cur.focus(); cur.select(); } }, 350);
+    }
+
+    function update(first) {
+      const info = state.cur; if (!info) return;
+      const raw = $('rdCur').value, cur = raw === '' ? null : Number(raw);
+      const units = cur == null || cur < info.prev ? 0 : Math.round((cur - info.prev) * 100) / 100;
+      const water = Math.round(units * WATER_RATE);
+      const bad = cur != null && cur < info.prev;
+      $('rdCurBox').classList.toggle('bad', bad);
+      // meter
+      const scale = Math.max(20, info.avg * 2.4, units * 1.1);
+      $('mNeedle').style.transform = `rotate(${-120 + Math.min(1, units / scale) * 240}deg)`;
+      $('mFill').style.transform = `translateY(${160 - Math.min(1, units / scale) * 140}px)`;
+      $('mUnits').textContent = num(units);
+      odometer(cur == null ? info.prev : cur);
+      countTo($('cUnits'), units, num); countTo($('cWater'), water, (v) => num(Math.round(v)));
+      countTo($('cTotal'), water + GARBAGE_FEE, (v) => kes(v));
+      histChart(info, units);
+      // guidance
+      let msg = '';
+      if (bad) msg = `<span class="text-danger"><i class="fa-solid fa-triangle-exclamation me-1"></i>Lower than the last reading (${num(info.prev)}). Check the meter.</span>`;
+      else if (cur == null) msg = `<span class="text-muted">Type the number on the meter now.</span>`;
+      else if (info.avg && units > info.avg * 2) msg = `<span class="text-warning"><i class="fa-solid fa-circle-exclamation me-1"></i>${(units / info.avg).toFixed(1)}× the usual ${num(info.avg)} units. Worth double-checking for a leak or typo.</span>`;
+      else if (info.avg && units < info.avg * .4) msg = `<span class="text-muted"><i class="fa-solid fa-circle-info me-1"></i>Much lower than the usual ${num(info.avg)} units.</span>`;
+      else if (info.avg) msg = `<span class="text-success"><i class="fa-solid fa-circle-check me-1"></i>In line with the usual ${num(info.avg)} units.</span>`;
+      else msg = `<span class="text-muted">${num(units)} units × KES ${WATER_RATE}.</span>`;
+      if (!info.paid) $('rdMsg').innerHTML = msg;
+      $('rdSave').disabled = info.paid || bad || cur == null;
+    }
+    $('rdCur').addEventListener('input', () => update());
+    $('rdCur').addEventListener('keydown', (e) => { if (e.key === 'Enter' && !$('rdSave').disabled) $('rdSave').click(); });
+    document.querySelectorAll('[data-step]').forEach(b => b.addEventListener('click', () => {
+      const c = $('rdCur'); const v = (c.value === '' ? state.cur.prev : Number(c.value)) + Number(b.dataset.step); c.value = Math.max(0, v); update();
+    }));
+    function nextKey() {
+      const infos = state.tenants.map(houseInfo).sort(sortHouses);
+      const i = infos.findIndex(x => x.key === state.cur.key);
+      return (infos.slice(i + 1).concat(infos.slice(0, i))).find(x => !x.read && !x.paid && x.key !== state.cur.key);
+    }
+    $('rdSkip').addEventListener('click', () => { const n = nextKey(); if (n) openReading(n.key); else readModal.hide(); });
+    $('rdSave').addEventListener('click', async () => {
+      const info = state.cur, btn = $('rdSave'); const cur = Number($('rdCur').value);
+      btn.disabled = true; const label = btn.innerHTML; btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i>';
+      try {
+        const res = await api({ action: 'addMeterReading', house: info.t.House, tenantName: info.t.Name, currRead: cur, waterRate: WATER_RATE, garbageFee: GARBAGE_FEE });
+        const d = res.data || {};
+        $('rdDoneT').textContent = 'Saved for House ' + String(info.t.House).replace(/^house\s*/i, '');
+        $('rdDoneS').textContent = `${num(d.units ?? (cur - info.prev))} units · ${kes((d.water ?? 0) + (d.garbage ?? GARBAGE_FEE))} this month`;
+        // the backend's "previous" is the source of truth; tell the user if it differed from what we showed
+        if (d.previous !== undefined && Number(d.previous) !== Number(info.prev)) toast(`Previous reading on file was ${num(d.previous)}, so units are ${num(d.units)}.`);
+        $('rdDone').hidden = false;
+        const b = await api({ action: 'getUtilityBills' }); state.bills = b.data || []; render();
+        const tile = document.querySelector(`.ut-tile[data-house="${CSS.escape(info.key)}"]`); if (tile) tile.classList.add('just');
+        await new Promise(r => setTimeout(r, REDUCED ? 300 : 1100));
+        const n = nextKey();
+        if (n) openReading(n.key); else { readModal.hide(); toast(`All houses read for ${MONTH}.`); }
+      } catch (e) {
+        toast(e.message || 'Could not save the reading', true); $('rdCurBox').classList.add('bad');
+      } finally { btn.innerHTML = label; update(); }
+    });
+
+    // ---------- existing actions ----------
+    $('generateBillsBtn').addEventListener('click', async () => {
+      if (!confirm("Generate flat-rate bills for houses that don't have one this month? Houses with a reading keep it.")) return;
+      const btn = $('generateBillsBtn'); btn.disabled = true; const label = btn.innerHTML; btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin me-2"></i>Working…';
+      try { const r = await api({ action: 'generateMonthlyUtilities' }); toast(r.message || 'Bills generated'); await loadAll(); }
+      catch (e) { toast('Could not generate bills', true); }
+      finally { btn.disabled = false; btn.innerHTML = label; }
+    });
     window.markPaid = async (id) => {
-        if(!confirm("Mark this bill as PAID?")) return;
-        try {
-            await apiWrite({ action: "payUtilityBill", id: decodeURIComponent(id) });
-            loadBills();
-        } catch(e) { alert("Error updating."); }
+      if (!confirm('Mark this bill as PAID?')) return;
+      try { await api({ action: 'payUtilityBill', id: decodeURIComponent(id) }); toast('Marked as paid'); await loadAll(); }
+      catch (e) { toast('Could not update the bill', true); }
     };
   </script>
 </body>

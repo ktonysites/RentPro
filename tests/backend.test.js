@@ -218,11 +218,30 @@ test("utilities: monthly bills and meter readings", () => {
   const api = setup();
   assert.match(api.get({ action: "generateMonthlyUtilities" }).message, /Generated 2/);
   assert.match(api.get({ action: "generateMonthlyUtilities" }).message, /Generated 0/);
-  assert.equal(api.get({ action: "addMeterReading", house: "7", currRead: "10" }).success, true);
-  assert.equal(api.get({ action: "addMeterReading", house: "7", currRead: "5" }).success, false);
-  const bill = api.get({ action: "getUtilityBills" }).data[0];
-  assert.equal(bill.Water, 1200);
+  const saved = api.get({ action: "addMeterReading", house: "7", currRead: "10" });
+  assert.equal(saved.success, true);
+  assert.equal(saved.data.updated, true, "updates the generated bill instead of adding one");
+  const bills = () => api.get({ action: "getUtilityBills" }).data;
+  assert.equal(bills().length, 2);
+  let bill = bills().find((b) => String(b.House) === "7");
+  assert.equal(Number(bill.Water), 1200);
+  assert.equal(Number(bill.UnitsUsed), 10);
+  // correcting the reading in the same month keeps the same previous reading
+  assert.equal(api.get({ action: "addMeterReading", house: "House 7", currRead: "12" }).data.units, 12);
+  assert.equal(bills().length, 2);
+  assert.equal(api.get({ action: "addMeterReading", house: "7", currRead: "abc" }).success, false);
+  bill = bills().find((b) => String(b.House) === "7");
   assert.equal(api.get({ action: "payUtilityBill", id: bill.ID }).success, true);
+  assert.match(api.get({ action: "addMeterReading", house: "7", currRead: "15" }).message, /already paid/);
+});
+
+test("meter readings: a new house gets its own bill and next month starts from the last reading", () => {
+  const api = setup();
+  const first = api.get({ action: "addMeterReading", house: "12", currRead: "40", tenantName: "Mary Wambui" });
+  assert.equal(first.data.updated, false);
+  assert.equal(first.data.units, 40);
+  assert.equal(api.get({ action: "addMeterReading", house: "12", currRead: "30" }).success, true, "same month: corrects from the earlier previous reading");
+  assert.equal(api.get({ action: "addMeterReading", house: "12", currRead: "30" }).data.previous, 0);
 });
 
 test("setupSmsWebhook creates a token once and logs the URL", () => {

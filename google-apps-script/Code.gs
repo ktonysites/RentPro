@@ -672,26 +672,43 @@ function payUtilityBill(data) {
   return response(false, "Utility bill not found");
 }
 
+// Records this month's water reading for a house. If the house already has an unpaid bill this month
+// (for example from "Generate This Month's Bills", or an earlier reading), that bill is updated
+// instead of adding a second one; the previous reading stays the one from before this month.
 function addMeterReading(data) {
   var house = String(value(data, ["house"], "")).trim();
-  var previous = latestReadingForHouse(house);
-  var current = Number(value(data, ["currRead"], 0));
   if (!house) return response(false, "House is required");
-  if (current < previous) return response(false, "Current reading cannot be below the previous reading");
-  var units = Math.max(0, current - previous);
-  var water = units * Number(value(data, ["waterRate"], WATER_RATE));
-  sheet(SHEET_UTILITIES).appendRow([
-    id("UTIL"), Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "MMM yyyy"),
-    house, value(data, ["tenantName"], ""), water,
-    Number(value(data, ["garbageFee"], GARBAGE_FEE)), "Unpaid", "", previous, current, units
-  ]);
-  return response(true, "Meter reading saved");
+  var current = Number(value(data, ["currRead"], NaN));
+  if (!isFinite(current) || current < 0) return response(false, "Enter the meter reading as a number");
+  var rate = Number(value(data, ["waterRate"], WATER_RATE)), garbage = Number(value(data, ["garbageFee"], GARBAGE_FEE));
+  var month = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "MMM yyyy");
+  var utilitySheet = sheet(SHEET_UTILITIES);
+  var rows = utilitySheet.getDataRange().getValues();
+  var key = normalizeHouse(house), rowIndex = -1;
+  for (var i = rows.length - 1; i >= 1; i--) {
+    if (normalizeHouse(rows[i][2]) === key && String(rows[i][1]) === month) { rowIndex = i; break; }
+  }
+  if (rowIndex > 0 && String(rows[rowIndex][6]) === "Paid") return response(false, "This month's bill for House " + house + " is already paid");
+  var previous = latestReadingForHouse(house, month);
+  if (current < previous) return response(false, "Current reading cannot be below the previous reading (" + previous + ")");
+  var units = Math.round((current - previous) * 100) / 100;
+  var water = Math.round(units * rate * 100) / 100;
+  var tenantName = value(data, ["tenantName"], "") || (rowIndex > 0 ? rows[rowIndex][3] : "");
+  if (rowIndex > 0) {
+    utilitySheet.getRange(rowIndex + 1, 4, 1, 3).setValues([[tenantName, water, rows[rowIndex][5] === "" ? garbage : rows[rowIndex][5]]]);
+    utilitySheet.getRange(rowIndex + 1, 9, 1, 3).setValues([[previous, current, units]]);
+  } else {
+    utilitySheet.appendRow([id("UTIL"), month, house, tenantName, water, garbage, "Unpaid", "", previous, current, units]);
+  }
+  return response(true, "Reading saved for House " + house, { house: house, month: month, previous: previous, current: current, units: units, water: water, garbage: garbage, updated: rowIndex > 0 });
 }
 
-function latestReadingForHouse(house) {
+function latestReadingForHouse(house, exceptMonth) {
   if (!house) return 0;
+  var key = normalizeHouse(house);
   var readings = rowsAsObjects(SHEET_UTILITIES).filter(function(item) {
-    return String(item.House || "").trim() === house && item.CurrRead !== "" && item.CurrRead !== undefined;
+    return normalizeHouse(item.House) === key && item.CurrRead !== "" && item.CurrRead !== undefined &&
+      (!exceptMonth || String(item.Month) !== exceptMonth);
   });
   if (!readings.length) return 0;
   readings.sort(function(a, b) { return String(b.ID).localeCompare(String(a.ID)); });
